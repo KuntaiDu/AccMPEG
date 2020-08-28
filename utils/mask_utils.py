@@ -5,13 +5,12 @@ def generate_masked_image(mask, video_slices, bws):
 
     masked_image = torch.zeros_like(mask)
 
+    assert bws[0] == -1e-7
+
     for i in range(len(video_slices) - 1):
 
         x0, x1 = bws[i], bws[i+1]
         y0, y1 = video_slices[i], video_slices[i+1]
-
-        if i == 0:
-            x0 = -0.1
 
         term = y0 + (mask - x0) / (x1 - x0) * (y1 - y0)
         masked_image += torch.where(
@@ -47,3 +46,25 @@ def mask_clip(mask):
     mask[mask<0] = 0
     mask[mask>1] = 1
     mask.requires_grad = True
+
+def binarize_mask(mask, bw):
+    assert sorted(bw) == bw
+    assert mask.requires_grad == False
+
+    for i in range(len(bw) - 1):
+
+        mid = (bw[i] + bw[i+1]) / 2
+
+        mask[torch.logical_and(mask>bw[i], mask <= mid)] = bw[i]
+        mask[torch.logical_and(mask>mid, mask<bw[i+1])] = bw[i+1]
+
+def generate_masked_video(mask, videos, bws, args):
+    
+    masked_video = torch.zeros_like(videos[-1])
+    
+    for fid, (video_slices, mask_slice) in enumerate(zip(zip(*[video.split(1) for video in videos]), mask.split(1))):
+        mask_slice = tile_mask(mask_slice, args.tile_size)
+        masked_image = generate_masked_image(mask_slice, video_slices, bws)
+        masked_video[fid:fid+1, :, :, :] = masked_image
+
+    return masked_video

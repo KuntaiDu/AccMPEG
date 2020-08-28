@@ -46,6 +46,9 @@ def main(args):
 
         application.cpu()
 
+    for appid, application in enumerate(application_bundle):
+        logger.info(f'The accuracy of {args.input} on {application.name()} is {application_accuracies[appid]}')
+
 
 if __name__ == '__main__':
 
