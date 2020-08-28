@@ -32,27 +32,18 @@ class FasterRCNN_ResNet50_FPN(DNN):
         self.is_cuda = True
         self.logger.info(f'Place {self.name()} on GPU.')
 
-    def inference(self, video, requires_grad = False):
+    def inference(self, video):
 
         assert len(video.shape) == 4, 'The video tensor should be 4D'
 
         assert  self.is_cuda and video.is_cuda, 'The video tensor and the model must be placed on GPU to perform inference'
 
-        context = None
-        if requires_grad:
-            context = torch.enable_grad
-            assert video.requires_grad, 'Inference with gradient but the video input do not accept gradient'
-            self.logger.info(f'Run inference on shape {video.shape} with gradient')
-        else:
-            context = torch.no_grad
-            self.logger.info(f'Run inference on shape {video.shape} without gradient')
-
-        with context():
+        with torch.no_grad():
             return self.model(video)
 
     def calc_accuracy(self, video, gt, args):
         '''
-            Calculate the accuracy between video and gt using thresholds from args
+            Inference and calculate the accuracy between video and gt using thresholds from args
         '''
 
         assert video.shape == gt.shape, f'The shape of video({video.shape}) and gt({gt.shape}) must be the same in order to calculate the accuracy'
@@ -96,5 +87,33 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
         return f1
 
-        
+    def calc_loss(self, video, gt, args):
+        '''
+            Inference and calculate the loss between video and gt using thresholds from args
+        '''
 
+        assert video.shape == gt.shape, f'The shape of video({video.shape}) and gt({gt.shape}) must be the same in order to calculate the loss'
+        assert len(video.shape) == 4, f'The shape of video({video.shape}) must be 4D.'
+
+        # inference, and obtain the inference results
+        self.model.eval()
+        gt_results = self.inference(gt)[0]
+        gt_scores = gt_results['scores']
+        gt_ind = gt_scores > args.confidence_threshold
+        gt_bboxes = gt_results['boxes'][gt_ind, :]
+        gt_labels = gt_results['labels'][gt_ind]
+
+        # construct targets
+        targets = [{
+            'boxes': gt_bboxes,
+            'labels': gt_labels
+        }]
+
+        # switch the model to training mode to obtain loss
+        self.model.train()
+        self.model.zero_grad()
+        assert self.is_cuda and video.is_cuda, 'The video tensor and the model must be placed on GPU to perform inference'
+        with torch.enable_grad():
+            losses = self.model(video, targets)
+
+        return sum(loss for loss in losses.values())
