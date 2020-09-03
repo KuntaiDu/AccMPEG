@@ -3,22 +3,24 @@ import torch
 from torchvision import io
 import os
 
-def read_videos(video_list, logger):
+def read_videos(video_list, logger, sort=False):
     '''
         Read a list of video and return two lists. 
         One is the video tensors, the other is the bandwidths.
     '''
     video_list = [{'video': read_video(video_name, logger),
-                   'bandwidth': read_bandwidth(video_name)}
+                   'bandwidth': read_bandwidth(video_name),
+                   'name': video_name}
                   for video_name in video_list]
-    video_list = sorted(video_list, key=lambda x: x['bandwidth'])
+    if sort:
+        video_list = sorted(video_list, key=lambda x: x['bandwidth'])
 
     # bandwidth normalization
-    gt_bandwidth = video_list[-1]['bandwidth']
+    gt_bandwidth = max(video['bandwidth'] for video in video_list)
     for i in video_list:
         i['bandwidth'] /= gt_bandwidth
 
-    return [i['video'] for i in video_list], [i['bandwidth'] for i in video_list]
+    return [i['video'] for i in video_list], [i['bandwidth'] for i in video_list], [i['name'] for i in video_list]
 
 def read_video(video_name, logger):
     logger.info(f'Reading {video_name}')
