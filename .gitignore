@@ -1,0 +1,16 @@
+
+# ignore all pngs
+*.png
+
+# ignore pycache and pyc files
+__pycache__/
+*.pyc
+
+# ignore videos
+*.mp4
+
+# ignore results
+results/*
+
+# ignore vscode
+.vscode/

@@ -15,5 +15,6 @@ class DNN(ABC):
     def inference(self, video, requires_grad):
         pass
 
+    @property
     def name(self):
         return type(self).__name__

@@ -14,7 +14,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
         self.model = fasterrcnn_resnet50_fpn(pretrained=True)
         self.model.eval()
 
-        self.logger = logging.getLogger(self.name())
+        self.logger = logging.getLogger(self.name)
         handler = logging.NullHandler()
         self.logger.addHandler(handler)
 
@@ -24,68 +24,84 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
         self.model.cpu()
         self.is_cuda = False
-        self.logger.info(f'Place {self.name()} on CPU.')
+        self.logger.info(f'Place {self.name} on CPU.')
 
     def cuda(self):
 
         self.model.cuda()
         self.is_cuda = True
-        self.logger.info(f'Place {self.name()} on GPU.')
+        self.logger.info(f'Place {self.name} on GPU.')
 
-    def inference(self, video):
+    def inference(self, video, detach=False):
+        '''
+            Generate raw inference results
+        '''
 
         assert len(video.shape) == 4, 'The video tensor should be 4D'
 
         assert  self.is_cuda and video.is_cuda, 'The video tensor and the model must be placed on GPU to perform inference'
 
         with torch.no_grad():
-            return self.model(video)
+            results = self.model(video)
+
+        if detach:
+            # detach and put everything to CPU.
+            for result in results:
+                for key in result:
+                    result[key] = result[key].cpu().detach()
+
+        return results
+                
 
     def calc_accuracy(self, video, gt, args):
         '''
-            Inference and calculate the accuracy between video and gt using thresholds from args
+            Calculate the accuracy between video and gt using thresholds from args based on inference results
         '''
 
-        assert video.shape == gt.shape, f'The shape of video({video.shape}) and gt({gt.shape}) must be the same in order to calculate the accuracy'
+        assert video.keys() == gt.keys()
 
-        video_results, gt_results = self.inference(torch.cat([video, gt]))
+        accuracies = []
 
-        video_scores = video_results['scores']
-        video_ind = video_scores > args.confidence_threshold
-        video_bboxes = video_results['boxes'][video_ind, :]
-        video_labels = video_results['labels'][video_ind]
+        for fid in video.keys():
+            
+            video_scores = video[fid]['scores']
+            video_ind = video_scores > args.confidence_threshold
+            video_bboxes = video[fid]['boxes'][video_ind, :]
+            video_labels = video[fid]['labels'][video_ind]
 
-        gt_scores = gt_results['scores']
-        gt_ind = gt_scores > args.confidence_threshold
-        gt_bboxes = gt_results['boxes'][gt_ind, :]
-        gt_labels = gt_results['labels'][gt_ind]
+            gt_scores = gt[fid]['scores']
+            gt_ind = gt_scores > args.confidence_threshold
+            gt_bboxes = gt[fid]['boxes'][gt_ind, :]
+            gt_labels = gt[fid]['labels'][gt_ind]
 
-        IoU = jaccard(video_bboxes, gt_bboxes)
+            IoU = jaccard(video_bboxes, gt_bboxes)
 
-        # let IoU = 0 if the label is wrong
-        fat_video_labels = video_labels[:, None].repeat(1, len(gt_labels))
-        fat_gt_labels = gt_labels[None, :].repeat(len(video_labels), 1)
-        IoU[fat_video_labels != fat_gt_labels] = 0
+            # let IoU = 0 if the label is wrong
+            fat_video_labels = video_labels[:, None].repeat(1, len(gt_labels))
+            fat_gt_labels = gt_labels[None, :].repeat(len(video_labels), 1)
+            IoU[fat_video_labels != fat_gt_labels] = 0
 
-        # calculate f1
-        tp, fp, fn = 0, 0, 0
+            # calculate f1
+            tp, fp, fn = 0, 0, 0
 
-        for i in range(len(gt_labels)):
-            if (IoU[:, i] > args.iou_threshold).sum() > 0:
-                tp += 1
+            for i in range(len(gt_labels)):
+                if (IoU[:, i] > args.iou_threshold).sum() > 0:
+                    tp += 1
+                else:
+                    fn += 1
+            fp = len(video_labels) - tp
+
+            f1 = None
+            if fp + fn == 0:
+                f1 = 1
             else:
-                fn += 1
-        fp = len(video_labels) - tp
+                f1 = 2 * tp / (2 * tp + fp + fn)
 
-        f1 = None
-        if fp + fn == 0:
-            f1 = 1
-        else:
-            f1 = 2 * tp / (2 * tp + fp + fn)
+            self.logger.info(f'Get an f1 score {f1} at frame {fid}')
 
-        self.logger.info(f'Get an f1 score {f1}')
+            accuracies.append(f1)
 
-        return f1
+        return torch.tensor(accuracies).mean()
 
     def calc_loss(self, video, gt, args):
         '''

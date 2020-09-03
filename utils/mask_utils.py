@@ -5,8 +5,6 @@ def generate_masked_image(mask, video_slices, bws):
 
     masked_image = torch.zeros_like(mask)
 
-    assert bws[0] == -1e-7
-
     for i in range(len(video_slices) - 1):
 
         x0, x1 = bws[i], bws[i+1]
@@ -31,7 +29,7 @@ def tile_mask(mask, tile_size):
                     1   1   2   2
                     3   3   4   4
                     3   3   4   4]
-        The goal is to control the granularity of the mask.        
+        This function controlls the granularity of the mask.        
     '''
     mask = mask[0, 0, :, :]
     t = tile_size
@@ -41,9 +39,9 @@ def tile_mask(mask, tile_size):
     mask = mask.transpose(0, 1)
     return torch.cat(3 * [mask[None, None, :, :]], 1)
 
-def mask_clip(mask):
+def mask_clip(mask, minval):
     mask.requires_grad = False
-    mask[mask<0] = 0
+    mask[mask<minval] = minval
     mask[mask>1] = 1
     mask.requires_grad = True
 
