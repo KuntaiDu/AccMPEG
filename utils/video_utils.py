@@ -41,3 +41,9 @@ def write_video(video_tensor, video_name, logger):
     video_tensor = video_tensor.mul(255).add_(0.5).clamp_(0, 255).to('cpu', torch.uint8)
     # lossless encode. Should be replaced
     io.write_video(video_name, video_tensor, fps=25, options={'crf': '0'})
+
+def get_qp_from_name(video_name):
+
+    # the video name format must be xxxxxxx_{qp}.mp4
+
+    return int(video_name.split('.')[-2].split('_')[-1])
