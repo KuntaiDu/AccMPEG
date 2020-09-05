@@ -14,3 +14,6 @@ results/*
 
 # ignore vscode
 .vscode/
+
+# ignore compressed videod
+*.mp4.part*
