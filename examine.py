@@ -18,8 +18,9 @@ def main(args):
     logger = logging.getLogger('examine')
     handler = logging.NullHandler()
     logger.addHandler(handler)
+
+    videos, bws, video_names = read_videos(args.inputs, logger, normalize=False)
     
-    accuracy = []
 
     application_bundle = [FasterRCNN_ResNet50_FPN()]
 
@@ -27,16 +28,17 @@ def main(args):
 
         ground_truth_results = read_results(args.ground_truth, application.name, logger)
 
-        for video_name in args.inputs:
+        for video_name, bw in zip(video_names, bws):
             video_results = read_results(video_name, application.name, logger)
-            accuracy.append({
+            res = {
                 'application': application.name,
                 'accuracy': application.calc_accuracy(video_results, ground_truth_results, args),
                 'video_name': video_name,
+                'bw': bw,
                 'ground_truth_name': args.ground_truth
-            })
-
-    print(accuracy)    
+            }
+            with open('stats', 'a') as f:
+                f.write(f"{res['video_name']},{res['accuracy']},{res['bw']},{res['ground_truth_name']},{res['application']}\n")
 
     
 

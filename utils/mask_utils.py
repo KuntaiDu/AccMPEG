@@ -1,8 +1,11 @@
 
 import torch
-from .video_utils import read_video, write_video
+
+from . import video_utils as vu
 from pathlib import Path
 import os
+import glob
+import pickle
 
 def generate_masked_image(mask, video_slices, bws):
 
@@ -86,10 +89,11 @@ def generate_masked_video(mask, videos, bws, args):
 def write_masked_video(mask, args, qps, bws, logger):
 
     # write several temporal mp4 files, and then use ffmpeg to compress them
-
     logger.info('Read the source video, for compression purpose...')
-    video = read_video(args.source, logger)
+    video = vu.read_video(args.source, logger)
     os.system(f'rm {args.output}*')
+
+    filename2mask = {}
 
     for i, bw in enumerate(bws):
 
@@ -101,11 +105,33 @@ def write_masked_video(mask, args, qps, bws, logger):
         print(qp)
 
         bw_mask = torch.where(mask == bw, torch.ones_like(mask), torch.zeros_like(mask))
-        write_video(tile_masks(bw_mask, args.tile_size) * video, f'temp_{qp}_uncompressed.mp4', logger)
+        filename2mask[f'{args.output}.qp{qp}'] = bw_mask
+        vu.write_video(tile_masks(bw_mask, args.tile_size) * video, f'temp_{qp}_uncompressed.mp4', logger)
         os.system(f'ffmpeg -y -i temp_{qp}_uncompressed.mp4 -c:v libx264 -qmin {qp} -qmax {qp} {args.output}')
         os.system(f'mv {args.output} {args.output}.qp{qp}')
         os.system(f'rm temp_{qp}_uncompressed.mp4')
-        
-        
-        
-        
+
+    filename2mask['args.tile_size'] = args.tile_size
+    # import pdb; pdb.set_trace()
+    with open(f'{args.output}.mask', 'wb') as f:
+        pickle.dump(filename2mask, f)
+    
+
+def read_masked_video(video_name, logger):
+
+    logger.info(f'Reading compressed video {video_name}. Reading each part...')
+    parts = sorted(glob.glob(f'{video_name}.qp[0-9]*'), reverse=True)
+    videos = []
+    for part in parts:
+        videos.append(vu.read_video(part, logger))
+    logger.info(f'Reading mask for compressed video.')
+    with open(f'{video_name}.mask', 'rb') as f:
+        filename2mask = pickle.load(f)
+
+    tile_size = filename2mask['args.tile_size']
+
+    base = videos[0]
+    for video, part in zip(videos[1:], parts[1:]):
+        video = video * tile_masks(filename2mask[part], tile_size)
+        base[video != 0] = video[video != 0]
+    return base

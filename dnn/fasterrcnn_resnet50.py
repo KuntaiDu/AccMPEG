@@ -7,6 +7,22 @@ import logging
 from .dnn import DNN
 from utils.bbox_utils import *
 
+COCO_INSTANCE_CATEGORY_NAMES = [
+    '__background__', 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+    'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'N/A', 'stop sign',
+    'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
+    'elephant', 'bear', 'zebra', 'giraffe', 'N/A', 'backpack', 'umbrella', 'N/A', 'N/A',
+    'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+    'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+    'bottle', 'N/A', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
+    'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
+    'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed', 'N/A', 'dining table',
+    'N/A', 'N/A', 'toilet', 'N/A', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone',
+    'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'N/A', 'book',
+    'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+]
+
+
 class FasterRCNN_ResNet50_FPN(DNN):
 
     def __init__(self):
@@ -17,6 +33,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
         self.logger = logging.getLogger(self.name)
         handler = logging.NullHandler()
         self.logger.addHandler(handler)
+        self.class_ids = [3, 6, 7, 8]
 
         self.is_cuda = False
 
@@ -51,6 +68,16 @@ class FasterRCNN_ResNet50_FPN(DNN):
                     result[key] = result[key].cpu().detach()
 
         return results
+
+    def get_relevant_ind(self, labels):
+
+        inds = (labels < 0)
+
+        for class_id in self.class_ids:
+            inds = torch.logical_or(inds, labels == class_id)
+
+        return inds
+        
                 
 
     def calc_accuracy(self, video, gt, args):
@@ -66,11 +93,13 @@ class FasterRCNN_ResNet50_FPN(DNN):
             
             video_scores = video[fid]['scores']
             video_ind = video_scores > args.confidence_threshold
+            video_ind = torch.logical_and(video_ind, self.get_relevant_ind(video[fid]['labels']))
             video_bboxes = video[fid]['boxes'][video_ind, :]
             video_labels = video[fid]['labels'][video_ind]
 
             gt_scores = gt[fid]['scores']
             gt_ind = gt_scores > args.confidence_threshold
+            gt_ind = torch.logical_and(gt_ind, self.get_relevant_ind(gt[fid]['labels']))
             gt_bboxes = gt[fid]['boxes'][gt_ind, :]
             gt_labels = gt[fid]['labels'][gt_ind]
 
@@ -116,6 +145,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
         gt_results = self.inference(gt)[0]
         gt_scores = gt_results['scores']
         gt_ind = gt_scores > args.confidence_threshold
+        gt_ind = torch.logical_and(gt_ind, self.get_relevant_ind(gt_results['labels']))
         gt_bboxes = gt_results['boxes'][gt_ind, :]
         gt_labels = gt_results['labels'][gt_ind]
 
