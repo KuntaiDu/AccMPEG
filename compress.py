@@ -45,8 +45,8 @@ def main(args):
     for iteration in range(args.num_iterations):
 
         optimizer.zero_grad()
-        (args.norm_weight * mask.mean()).backward()
-
+        (args.mask_weight * mask.pow(args.mask_p).abs().mean()).backward()
+        (args.cont_weight * (mask[1:, :, :, :] - mask[:-1, :, :, :]).abs().pow(args.cont_p).mean()).backward()
 
         for application in application_bundle:
 
@@ -54,6 +54,7 @@ def main(args):
             progress_bar = enlighten.get_manager().counter(total=videos[-1].shape[0], desc=f'Iteration {iteration}: {application.name}', unit='frames')
 
             application.cuda()
+            last_mask_slice = None
 
             for fid, (video_slices, mask_slice) in enumerate(zip(zip(*[video.split(1) for video in videos]), mask.split(1))):
 
@@ -68,13 +69,16 @@ def main(args):
                 loss.backward(retain_graph=True)
 
                 # visualization
-                if fid % 20 == 0 and iteration % 5 == 0:
+                if fid % 20 == 0 and iteration % 5 == 4:
                     heat = tile_mask(mask[fid:fid+1, :, :, :], args.tile_size)[0, 0, :, :]
                     plt.clf()
                     ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.7)
                     ax.imshow(T.ToPILImage()(video_slices[-1][0, :, :, :]), zorder=3, alpha=0.4)
                     plt.savefig('visualize/%010d-attn.png' % fid, bbox_inches='tight')
                 
+                # calculate the loss
+                
+                last_mask_slice = mask_slice
 
             application.cpu()
 
@@ -114,10 +118,14 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--source', type=str, help='The original video source.', required=True)
     parser.add_argument('-o', '--output', type=str, help='The output name.', required=True)
     parser.add_argument('--confidence_threshold', type=float, help='The confidence score threshold for calculating accuracy.', default=0.3)
-    parser.add_argument('--num_iterations', type=int, help='Number of iterations for optimizing the mask.', default=21)
-    parser.add_argument('--tile_size', type=int, help='The tile size of the mask.', default=80)
+    parser.add_argument('--num_iterations', type=int, help='Number of iterations for optimizing the mask.', default=20)
+    parser.add_argument('--tile_size', type=int, help='The tile size of the mask.', default=16)
     parser.add_argument('--learning_rate', type=float, help='The learning rate.', default=0.1)
-    parser.add_argument('--norm_weight', type=float, help='The weight of the l1 normalization term', default=512)
+    parser.add_argument('--mask_weight', type=float, help='The weight of the mask normalization term', default=256)
+    parser.add_argument('--mask_p', type=int, help='The p-norm for the mask.', default=1)
+    parser.add_argument('--cont_weight', type=float, help='The weight of the continuity normalization term', default=256)
+    parser.add_argument('--cont_p', type=int, help='The p-norm for the continuity.', default=1)
+
 
     args = parser.parse_args()
 
