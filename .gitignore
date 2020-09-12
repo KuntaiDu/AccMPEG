@@ -15,5 +15,10 @@ results/*
 # ignore vscode
 .vscode/
 
+# ignore ipynb
+*.ipynb
+
+stats*
+
 # ignore compressed videod
 *.mp4.part*
