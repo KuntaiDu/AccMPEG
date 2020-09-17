@@ -24,6 +24,7 @@ COCO_INSTANCE_CATEGORY_NAMES = [
 ]
 
 
+
 class FasterRCNN_ResNet50_FPN(DNN):
 
     def __init__(self):
@@ -78,6 +79,23 @@ class FasterRCNN_ResNet50_FPN(DNN):
             inds = torch.logical_or(inds, labels == class_id)
 
         return inds
+
+    def step(self, tensor):
+        tensor = F.leaky_relu(100 * tensor, negative_slope=0.1)
+        tensor = torch.min(tensor, torch.ones_like(tensor))
+        tensor = torch.max(tensor, -0.05 * torch.ones_like(tensor))
+        return tensor
+
+    # def step(self, tensor):
+    #     return (10 * tensor).sigmoid()
+        
+    def step2(self, tensor):
+        return torch.where(tensor > 0, torch.ones_like(tensor), torch.zeros_like(tensor))
+
+    def filter_large_bbox(self, bboxes):
+
+        size = (bboxes[:, 2] - bboxes[:, 0]) / 1280 * (bboxes[:, 3] - bboxes[:, 1]) / 720
+        return size < 0.05
         
                 
 
@@ -88,19 +106,24 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
         assert video.keys() == gt.keys()
 
-        accuracies = []
+        f1s = []
+        prs = []
+        res = []
 
         for fid in video.keys():
             
             video_scores = video[fid]['scores']
-            video_ind = video_scores > args.confidence_threshold
+            video_ind = (video_scores >= 0)
             video_ind = torch.logical_and(video_ind, self.get_relevant_ind(video[fid]['labels']))
+            video_ind = torch.logical_and(video_ind, self.filter_large_bbox(video[fid]['boxes']))
+            video_scores = video_scores[video_ind]
             video_bboxes = video[fid]['boxes'][video_ind, :]
             video_labels = video[fid]['labels'][video_ind]
 
             gt_scores = gt[fid]['scores']
             gt_ind = gt_scores > args.confidence_threshold
             gt_ind = torch.logical_and(gt_ind, self.get_relevant_ind(gt[fid]['labels']))
+            gt_ind = torch.logical_and(gt_ind, self.filter_large_bbox(gt[fid]['boxes']))
             gt_bboxes = gt[fid]['boxes'][gt_ind, :]
             gt_labels = gt[fid]['labels'][gt_ind]
 
@@ -112,29 +135,26 @@ class FasterRCNN_ResNet50_FPN(DNN):
             IoU[fat_video_labels != fat_gt_labels] = 0
 
             # calculate f1
-            tp, fp, fn = 0, 0, 0
-
+            tp = 0
+            
             for i in range(len(gt_labels)):
-                if (IoU[:, i] > args.iou_threshold).sum() > 0:
-                    tp += 1
-                else:
-                    fn += 1
-            fp = len(video_labels) - tp
+                 tp = tp + torch.min(self.step2(IoU[:, i] - args.iou_threshold), self.step2(video_scores - args.confidence_threshold)).max()
+            fn = len(gt_labels) - tp
+            fp = len(video_labels[video_scores > args.confidence_threshold]) - tp
 
-            f1 = None
-            if fp + fn == 0:
-                f1 = 1.0
-            else:
-                f1 = 2 * tp / (2 * tp + fp + fn)
+            f1 = 2 * tp / (2 * tp + fp + fn)
+            pr = tp / (tp + fn)
+            re = tp / (tp + fp)
 
-            self.logger.info(f'Get an f1 score {f1} at frame {fid}')
+            f1s.append(f1)
+            prs.append(pr)
+            res.append(re)
 
-            accuracies.append(f1)
-
-            if f1 == 0:
-                return torch.tensor(0.0)
-
-        return torch.tensor(accuracies).mean()
+        return {
+            'f1': torch.tensor(f1s).mean().item(),
+            'pr': torch.tensor(prs).mean().item(),
+            're': torch.tensor(res).mean().item()
+        }
 
     def calc_loss(self, video, gt_results, args):
         '''
@@ -163,8 +183,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
         assert self.is_cuda and video.is_cuda, 'The video tensor and the model must be placed on GPU to perform inference'
         with torch.enable_grad():
             losses = self.model(video, targets)
-
-        return sum(loss for loss in losses.values())
+        return losses['loss_classifier'] + losses['loss_box_reg'], None
 
     def calc_diff_acc(self, video, gt_results, args):
         '''
@@ -177,6 +196,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
         gt_scores = gt_results['scores'].cuda()
         gt_ind = gt_scores > args.confidence_threshold
         gt_ind = torch.logical_and(gt_ind, self.get_relevant_ind(gt_results['labels'].cuda()))
+        gt_ind = torch.logical_and(gt_ind, self.filter_large_bbox(gt_results['boxes'].cuda()))
         gt_bboxes = gt_results['boxes'][gt_ind, :].cuda()
         gt_labels = gt_results['labels'][gt_ind].cuda()
 
@@ -189,8 +209,9 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
         
         video_scores = video_results['scores']
-        video_ind = video_scores >= 0
+        video_ind = (video_scores >= 0)
         video_ind = torch.logical_and(video_ind, self.get_relevant_ind(video_results['labels']))
+        video_ind = torch.logical_and(video_ind, self.filter_large_bbox(video_results['boxes']))
         video_scores = video_scores[video_ind]
         video_bboxes = video_results['boxes'][video_ind, :]
         video_labels = video_results['labels'][video_ind]
@@ -205,16 +226,33 @@ class FasterRCNN_ResNet50_FPN(DNN):
         # enumerate all the labels
         tp = 0
         for gt_obj_id in range(len(gt_labels)):
-            video_obj_id = IoU[:, gt_obj_id].argmax()
-            iou = IoU[video_obj_id, gt_obj_id] - args.iou_threshold
-            score = video_scores[video_obj_id] - args.confidence_threshold
-            tp += torch.sigmoid(50 * iou) * torch.sigmoid(50 * score)
+            tp = tp + torch.min(self.step(IoU[:, gt_obj_id] - args.iou_threshold), self.step(video_scores - args.confidence_threshold)).max()
 
-        fp = len(video_labels[video_scores > args.confidence_threshold]) - tp 
+        # import pdb; pdb.set_trace()
+
+        fp = torch.sum(self.step(video_scores - args.confidence_threshold)) - tp 
         fn = len(gt_labels) - tp
-        f1 = None
-        if fp + fn == 0:
-            f1 = 1.0
-        else:
-            f1 = 2 * tp / (2 * tp + fp + fn)
-        return f1
+        f1 = 2 * tp / (2 * tp + fp + fn)
+        return f1, video_results
+
+    def plot_results_on(self, gt_results, image, c, args):
+        if gt_results == None:
+            return image
+
+        from PIL import Image, ImageDraw
+
+        draw = ImageDraw.Draw(image)
+        # load the cached results to cuda
+        gt_scores = gt_results['scores']
+        gt_ind = gt_scores > args.confidence_threshold
+        gt_ind = torch.logical_and(gt_ind, self.get_relevant_ind(gt_results['labels']))
+        gt_ind = torch.logical_and(gt_ind, self.filter_large_bbox(gt_results['boxes']))
+        gt_bboxes = gt_results['boxes'][gt_ind, :]
+        gt_labels = gt_results['labels'][gt_ind]
+
+        for box in gt_bboxes:
+            draw.rectangle(box.cpu().tolist(), width=4, outline=c)
+
+        return image
+
+        
