@@ -7,7 +7,8 @@ __pycache__/
 *.pyc
 
 # ignore videos
-*.mp4
+*.mp4*
+
 
 # ignore results
 results/*
@@ -19,6 +20,3 @@ results/*
 *.ipynb
 
 stats*
-
-# ignore compressed videod
-*.mp4.part*
