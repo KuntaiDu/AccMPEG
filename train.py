@@ -19,6 +19,8 @@ from utils.video_utils import read_videos, write_video, get_qp_from_name
 from utils.mask_utils import *
 from utils.results_utils import read_results
 
+from maskgen.fcn import FCN
+
 
 def main(args):
 
@@ -38,11 +40,8 @@ def main(args):
     # construct applications
     application_bundle = [FasterRCNN_ResNet50_FPN()]
 
-    # construct the mask
-    video_shape = videos[-1].shape
-    mask_shape = [video_shape[0], 1, video_shape[2] // args.tile_size, video_shape[3] // args.tile_size]
-    mask = torch.ones(mask_shape).float()
-    mask.requires_grad = True
+    # construct the mask generator
+
 
     optimizer = torch.optim.Adam([mask], lr=args.learning_rate)
     plt.clf()
@@ -54,12 +53,6 @@ def main(args):
         ((videos[-1].shape[0] // 60)  * args.mask_weight * mask.pow(args.mask_p).abs().mean()).backward()
         if args.cont_weight > 0:
             (args.cont_weight * (mask[1:, :, :, :] - mask[:-1, :, :, :]).abs().pow(args.cont_p).mean()).backward()
-
-        # binarized_mask = mask.clone().detach()
-        # binarize_mask(binarized_mask, bws)
-        # if iteration > 3 * (args.num_iterations // 4):
-        #     (args.binarize_weight * torch.tensor(iteration*1.0) * (binarized_mask - mask).abs().pow(2).mean()).backward()
-        
 
         for application in application_bundle:
             # read ground truth results
@@ -124,9 +117,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-i', '--inputs', nargs = '+', help='The video file names. The largest video file will be the ground truth.', required=True)
-    parser.add_argument('-s', '--source', type=str, help='The original video source.', required=True)
-    parser.add_argument('-g', '--ground_truth', type=str, help='The ground truth results.', required=True)
+    parser.add_argument('-i', '--inputs', nargs='+', help='The video file name. The largest video file will be the ground truth.', required=True)
+    # parser.add_argument('-s', '--source', type=str, help='The original video source.', required=True)
+    parser.add_argument('-g', '--ground_truth', type=str, help='The ground truth videos.', required=True)
     parser.add_argument('-o', '--output', type=str, help='The output name.', required=True)
     parser.add_argument('--confidence_threshold', type=float, help='The confidence score threshold for calculating accuracy.', default=0.5)
     parser.add_argument('--iou_threshold', type=float, help='The IoU threshold for calculating accuracy in object detection.', default=0.5)

@@ -23,8 +23,6 @@ COCO_INSTANCE_CATEGORY_NAMES = [
     'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
 ]
 
-
-
 class FasterRCNN_ResNet50_FPN(DNN):
 
     def __init__(self):
@@ -35,7 +33,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
         self.logger = logging.getLogger(self.name)
         handler = logging.NullHandler()
         self.logger.addHandler(handler)
-        self.class_ids = [3, 6, 7, 8]
+        # self.class_ids = [3, 6, 7, 8]
 
         self.is_cuda = False
 
@@ -53,7 +51,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
     def inference(self, video, detach=False):
         '''
-            Generate raw inference results
+            Generate inference results. Will put results on cpu if detach=True.
         '''
 
         assert len(video.shape) == 4, 'The video tensor should be 4D'
@@ -73,12 +71,8 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
     def get_relevant_ind(self, labels):
 
-        inds = (labels < 0)
-
-        for class_id in self.class_ids:
-            inds = torch.logical_or(inds, labels == class_id)
-
-        return inds
+        # filter out background classes
+        return labels > 0
 
     def step(self, tensor):
         tensor = F.leaky_relu(100 * tensor, negative_slope=0.1)
@@ -96,6 +90,20 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
         size = (bboxes[:, 2] - bboxes[:, 0]) / 1280 * (bboxes[:, 3] - bboxes[:, 1]) / 720
         return size < 0.05
+
+    def filter_results(self, video_results, confidence_threshold, cuda=False):
+        
+        video_scores = video_results['scores']
+        video_ind = (video_scores > confidence_threshold)
+        video_ind = torch.logical_and(video_ind, self.get_relevant_ind(video_results['labels']))
+        video_ind = torch.logical_and(video_ind, self.filter_large_bbox(video_results['boxes']))
+        video_scores = video_scores[video_ind]
+        video_bboxes = video_results['boxes'][video_ind, :]
+        video_labels = video_results['labels'][video_ind]
+        if cuda:
+            return video_ind.cuda(), video_scores.cuda(), video_bboxes.cuda(), video_labels.cuda()
+        else:
+            return video_ind.cpu(), video_scores.cpu(), video_bboxes.cpu(), video_labels.cpu()
         
                 
 
@@ -111,21 +119,9 @@ class FasterRCNN_ResNet50_FPN(DNN):
         res = []
 
         for fid in video.keys():
-            
-            video_scores = video[fid]['scores']
-            video_ind = (video_scores >= 0)
-            video_ind = torch.logical_and(video_ind, self.get_relevant_ind(video[fid]['labels']))
-            video_ind = torch.logical_and(video_ind, self.filter_large_bbox(video[fid]['boxes']))
-            video_scores = video_scores[video_ind]
-            video_bboxes = video[fid]['boxes'][video_ind, :]
-            video_labels = video[fid]['labels'][video_ind]
 
-            gt_scores = gt[fid]['scores']
-            gt_ind = gt_scores > args.confidence_threshold
-            gt_ind = torch.logical_and(gt_ind, self.get_relevant_ind(gt[fid]['labels']))
-            gt_ind = torch.logical_and(gt_ind, self.filter_large_bbox(gt[fid]['boxes']))
-            gt_bboxes = gt[fid]['boxes'][gt_ind, :]
-            gt_labels = gt[fid]['labels'][gt_ind]
+            video_ind, video_scores, video_bboxes, video_labels = self.filter_results(video[fid], -1)
+            gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(gt[fid], args.confidence_threshold)
 
             IoU = jaccard(video_bboxes, gt_bboxes)
 
@@ -143,8 +139,8 @@ class FasterRCNN_ResNet50_FPN(DNN):
             fp = len(video_labels[video_scores > args.confidence_threshold]) - tp
 
             f1 = 2 * tp / (2 * tp + fp + fn)
-            pr = tp / (tp + fn)
-            re = tp / (tp + fp)
+            pr = tp / (tp + fp)
+            re = tp / (tp + fn)
 
             f1s.append(f1)
             prs.append(pr)
@@ -163,8 +159,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
         assert len(video.shape) == 4, f'The shape of video({video.shape}) must be 4D.'
 
-        # inference, and obtain the inference results
-        self.model.eval()
+        # calculate the ground truth
         gt_scores = gt_results['scores'].cuda()
         gt_ind = gt_scores > args.confidence_threshold
         gt_ind = torch.logical_and(gt_ind, self.get_relevant_ind(gt_results['labels'].cuda()))
@@ -185,55 +180,55 @@ class FasterRCNN_ResNet50_FPN(DNN):
             losses = self.model(video, targets)
         return losses['loss_classifier'] + losses['loss_box_reg'], None
 
-    def calc_diff_acc(self, video, gt_results, args):
-        '''
-            Inference and calculate the loss between video and gt using thresholds from args
-        '''
+    # def calc_diff_acc(self, video, gt_results, args):
+    #     '''
+    #         Inference and calculate the loss between video and gt using thresholds from args
+    #     '''
 
-        assert len(video.shape) == 4, f'The shape of video({video.shape}) must be 4D.'
+    #     assert len(video.shape) == 4, f'The shape of video({video.shape}) must be 4D.'
 
-        # load the cached results to cuda
-        gt_scores = gt_results['scores'].cuda()
-        gt_ind = gt_scores > args.confidence_threshold
-        gt_ind = torch.logical_and(gt_ind, self.get_relevant_ind(gt_results['labels'].cuda()))
-        gt_ind = torch.logical_and(gt_ind, self.filter_large_bbox(gt_results['boxes'].cuda()))
-        gt_bboxes = gt_results['boxes'][gt_ind, :].cuda()
-        gt_labels = gt_results['labels'][gt_ind].cuda()
+    #     # load the cached results to cuda
+    #     gt_scores = gt_results['scores'].cuda()
+    #     gt_ind = gt_scores > args.confidence_threshold
+    #     gt_ind = torch.logical_and(gt_ind, self.get_relevant_ind(gt_results['labels'].cuda()))
+    #     gt_ind = torch.logical_and(gt_ind, self.filter_large_bbox(gt_results['boxes'].cuda()))
+    #     gt_bboxes = gt_results['boxes'][gt_ind, :].cuda()
+    #     gt_labels = gt_results['labels'][gt_ind].cuda()
 
-        # switch to eval mode
-        if self.model.training:
-            self.model.eval()
+    #     # switch to eval mode
+    #     if self.model.training:
+    #         self.model.eval()
             
-        with torch.enable_grad():
-            video_results = self.model(video)[0]
+    #     with torch.enable_grad():
+    #         video_results = self.model(video)[0]
 
         
-        video_scores = video_results['scores']
-        video_ind = (video_scores >= 0)
-        video_ind = torch.logical_and(video_ind, self.get_relevant_ind(video_results['labels']))
-        video_ind = torch.logical_and(video_ind, self.filter_large_bbox(video_results['boxes']))
-        video_scores = video_scores[video_ind]
-        video_bboxes = video_results['boxes'][video_ind, :]
-        video_labels = video_results['labels'][video_ind]
+    #     video_scores = video_results['scores']
+    #     video_ind = (video_scores >= 0)
+    #     video_ind = torch.logical_and(video_ind, self.get_relevant_ind(video_results['labels']))
+    #     video_ind = torch.logical_and(video_ind, self.filter_large_bbox(video_results['boxes']))
+    #     video_scores = video_scores[video_ind]
+    #     video_bboxes = video_results['boxes'][video_ind, :]
+    #     video_labels = video_results['labels'][video_ind]
 
-        IoU = jaccard(video_bboxes, gt_bboxes)
+    #     IoU = jaccard(video_bboxes, gt_bboxes)
 
-        # let IoU = 0 if the label is wrong
-        fat_video_labels = video_labels[:, None].repeat(1, len(gt_labels))
-        fat_gt_labels = gt_labels[None, :].repeat(len(video_labels), 1)
-        IoU[fat_video_labels != fat_gt_labels] = 0
+    #     # let IoU = 0 if the label is wrong
+    #     fat_video_labels = video_labels[:, None].repeat(1, len(gt_labels))
+    #     fat_gt_labels = gt_labels[None, :].repeat(len(video_labels), 1)
+    #     IoU[fat_video_labels != fat_gt_labels] = 0
 
-        # enumerate all the labels
-        tp = 0
-        for gt_obj_id in range(len(gt_labels)):
-            tp = tp + torch.min(self.step(IoU[:, gt_obj_id] - args.iou_threshold), self.step(video_scores - args.confidence_threshold)).max()
+    #     # enumerate all the labels
+    #     tp = 0
+    #     for gt_obj_id in range(len(gt_labels)):
+    #         tp = tp + torch.min(self.step(IoU[:, gt_obj_id] - args.iou_threshold), self.step(video_scores - args.confidence_threshold)).max()
 
-        # import pdb; pdb.set_trace()
+    #     # import pdb; pdb.set_trace()
 
-        fp = torch.sum(self.step(video_scores - args.confidence_threshold)) - tp 
-        fn = len(gt_labels) - tp
-        f1 = 2 * tp / (2 * tp + fp + fn)
-        return f1, video_results
+    #     fp = torch.sum(self.step(video_scores - args.confidence_threshold)) - tp 
+    #     fn = len(gt_labels) - tp
+    #     f1 = 2 * tp / (2 * tp + fp + fn)
+    #     return f1, video_results
 
     def plot_results_on(self, gt_results, image, c, args):
         if gt_results == None:
@@ -254,5 +249,19 @@ class FasterRCNN_ResNet50_FPN(DNN):
             draw.rectangle(box.cpu().tolist(), width=4, outline=c)
 
         return image
+
+        
+    def get_undetected_ground_truth_index(self, gt, video, args):
+
+        video_ind, video_scores, video_bboxes, video_labels = self.filter_results(video, args.confidence_threshold)
+        gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(gt, args.confidence_threshold)
+
+        # get IoU and clear the IoU of mislabeled objects
+        IoU = jaccard(video_bboxes, gt_bboxes)
+        fat_video_labels = video_labels[:, None].repeat(1, len(gt_labels))
+        fat_gt_labels = gt_labels[None, :].repeat(len(video_labels), 1)
+        IoU[fat_video_labels != fat_gt_labels] = 0
+
+        return (IoU > args.iou_threshold).sum(dim=0) == 0
 
         
