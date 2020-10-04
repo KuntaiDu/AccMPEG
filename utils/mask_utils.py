@@ -2,6 +2,7 @@
 import torch
 
 from . import video_utils as vu
+from . import bbox_utils as bu
 from pathlib import Path
 import os
 import glob
@@ -135,3 +136,31 @@ def read_masked_video(video_name, logger):
         video = video * tile_masks(filename2mask[part], tile_size)
         base[video != 0] = video[video != 0]
     return base
+
+def generate_mask_from_regions(mask_slice, regions, minval):
+
+    # (xmin, ymin, xmax, ymax)
+    regions = bu.point_form(regions)
+    mask_slice[:, :, :, :] = minval
+
+    x = mask_slice.shape[3]
+    y = mask_slice.shape[2]
+
+    for region in regions:
+        xrange = torch.arange(0, x)
+        yrange = torch.arange(0, y)
+
+        xmin, ymin, xmax, ymax = region
+        yrange = (yrange >= ymin) & (yrange <= ymax)
+        xrange = (xrange >= xmin) & (xrange <= xmax)
+
+        if xrange.nonzero().nelement() == 0 or yrange.nonzero().nelement() == 0:
+            continue
+
+        xrangemin = xrange.nonzero().min().item()
+        xrangemax = xrange.nonzero().max().item() + 1
+        yrangemin = yrange.nonzero().min().item()
+        yrangemax = yrange.nonzero().max().item() + 1
+        mask_slice[:, :, yrangemin:yrangemax, xrangemin:xrangemax] = 1
+
+    return mask_slice
