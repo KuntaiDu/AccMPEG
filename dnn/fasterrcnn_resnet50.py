@@ -58,6 +58,8 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
         assert  self.is_cuda and video.is_cuda, 'The video tensor and the model must be placed on GPU to perform inference'
 
+        self.model.eval()
+
         with torch.no_grad():
             results = self.model(video)
 
@@ -145,6 +147,9 @@ class FasterRCNN_ResNet50_FPN(DNN):
             f1s.append(f1)
             prs.append(pr)
             res.append(re)
+
+            if fid % 10 == 9:
+                print(torch.tensor(f1s[-9:]).mean())
 
         return {
             'f1': torch.tensor(f1s).mean().item(),

@@ -1,23 +1,42 @@
 
 import os
 import argparse
+from pathlib import Path
+import subprocess
 
-qp_list = [24, 25, 26, 28, 30, 34, 38, 40, 42, 46, 51]
+qp_list = [24, 38, 25, 26, 28, 30, 34]
 
 def main(args):
 
     for video_name in args.inputs:
-        video_names = ""
-        # remove suffix of file name
-        video_name = '.'.join(video_name.split('.')[:-1])
+        # video_name should be a png directory
+        assert Path(video_name).is_dir()
+
         for qp in qp_list:
             output_name = f'{video_name}_qp_{qp}.mp4'
-            os.system(f'ffmpeg -i {video_name}.mp4 -y -c:v libx264 -qmin {qp} -qmax {qp} {output_name}')
-            os.system(f'python inference.py -i {output_name}')
-            video_names += output_name
-            video_names += ' '
+            subprocess.run([
+                'ffmpeg',
+                '-y',
+                '-i', video_name + '/%05d.png',
+                '-start_number', '0',
+                '-c:v', 'libx264',
+                '-qmin', f'{qp}',
+                '-qmax', f'{qp}',
+                output_name
+            ])
+            subprocess.run([
+                'python',
+                'inference.py',
+                '-i', output_name
+            ])
+            subprocess.run([
+                'python',
+                'examine.py',
+                '-i', output_name,
+                '-g', f'{video_name}_qp_24.mp4'
+            ])
 
-        os.system(f'python examine.py -i {video_names} -g {video_name}_qp_24.mp4')
+        #os.system(f'python examine.py -i {video_names} -g {video_name}_qp_24.mp4')
         
 
 if __name__ == '__main__':

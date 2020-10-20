@@ -7,6 +7,7 @@ from pathlib import Path
 import os
 import glob
 import pickle
+import subprocess
 
 def generate_masked_image(mask, video_slices, bws):
 
@@ -87,6 +88,51 @@ def generate_masked_video(mask, videos, bws, args):
 
     return masked_video
 
+def encode_masked_video(args, qp, binary_mask, logger):
+
+    # create temp folder to write png files
+    from datetime import datetime
+    temp_folder = 'temp_' + datetime.now().strftime('%m.%d.%Y,%H:%M:%S')
+
+    Path(temp_folder).mkdir()
+
+    from PIL import Image
+    from torchvision import transforms as T
+    import enlighten
+
+    # make a progress bar
+    progress_bar = enlighten.get_manager().counter(total=binary_mask.shape[0], desc=f'Generate raw png of {args.output}.qp{qp}', unit='frames')
+
+    # read png files from source and multiply it by mask
+    for i in range(binary_mask.shape[0]):
+        progress_bar.update()
+        source_image = Image.open(args.source + '/%05d.png' % i)
+        image_tensor = T.ToTensor()(source_image)
+        binary_mask_slice = tile_mask(binary_mask[i:i+1, :, :, :], args.tile_size)
+        image_tensor = image_tensor * binary_mask_slice
+        dest_image = T.ToPILImage()(image_tensor[0, :, :, :])
+        dest_image.save(temp_folder + '/%05d.png' % i)
+
+    # encode it through ffmpeg
+    subprocess.run([
+        'ffmpeg', 
+        '-y',
+        '-i', temp_folder + '/%05d.png',
+        '-c:v', 'libx264',
+        '-qmin', f'{qp}', '-qmax', f'{qp}',
+        args.output
+    ])
+
+    # annotate the video quality
+    subprocess.run([
+        'mv', args.output, f'{args.output}.qp{qp}'
+    ])
+
+    # remove temp folder
+    subprocess.run([
+        'rm', '-r', temp_folder
+    ])
+
 def write_masked_video(mask, args, qps, bws, logger):
 
     # write several temporal mp4 files, and then use ffmpeg to compress them
@@ -103,14 +149,13 @@ def write_masked_video(mask, args, qps, bws, logger):
         if qp == -1:
             continue
 
-        print(qp)
+        logger.info('Encoding qp %d', qp)
 
         bw_mask = torch.where(mask == bw, torch.ones_like(mask), torch.zeros_like(mask))
         filename2mask[f'{args.output}.qp{qp}'] = bw_mask
-        vu.write_video(tile_masks(bw_mask, args.tile_size) * video, f'temp_{qp}_uncompressed.mp4', logger)
-        os.system(f'ffmpeg -y -i temp_{qp}_uncompressed.mp4 -c:v libx264 -qmin {qp} -qmax {qp} {args.output}')
-        os.system(f'mv {args.output} {args.output}.qp{qp}')
-        os.system(f'rm temp_{qp}_uncompressed.mp4')
+        encode_masked_video(args, qp, bw_mask, logger)
+
+    # import pdb; pdb.set_trace()
 
     filename2mask['args.tile_size'] = args.tile_size
     # import pdb; pdb.set_trace()

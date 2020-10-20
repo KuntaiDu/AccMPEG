@@ -2,12 +2,24 @@
 # ignore all pngs
 *.png
 
+# ignore all mp4 files
+*mp4*
+
 # ignore pycache and pyc files
 __pycache__/
 *.pyc
 
 # ignore videos
 videos/*
+youtube_videos/*
+
+# ignore intermediate results
+*.log
+*.jpg
+*.png
+*.pdf
+*.txt
+
 
 
 # ignore results
@@ -20,3 +32,6 @@ results/*
 *.ipynb
 
 stats*
+
+# ignore pytorch pth files
+*.pth
