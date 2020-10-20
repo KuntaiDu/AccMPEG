@@ -113,8 +113,8 @@ def main(args):
     mask.requires_grad = False
     binarize_mask(mask, bws)
     write_masked_video(mask, args, qps, bws, logger)
-    masked_video = generate_masked_video(mask, videos, bws, args)
-    write_video(masked_video, args.output, logger)
+    # masked_video = generate_masked_video(mask, videos, bws, args)
+    # write_video(masked_video, args.output, logger)
 
 
 if __name__ == '__main__':

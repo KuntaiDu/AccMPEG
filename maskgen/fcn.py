@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 
-cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512]
+cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 256, 128, 64, 1]
 
 class FCN(nn.Module):
 
@@ -26,11 +26,16 @@ class FCN(nn.Module):
                 in_channels = v
         return nn.Sequential(*layers)
 
+    def clip(self, x):
+        x = torch.where(x < 0, torch.zeros_like(x), x)
+        x = torch.where(x > 1, torch.ones_like(x), x)
+        return x
+
     def forward(self, x):
-        return self.model(x)
+        return self.clip(self.model(x))
 
     def save(self, path):
-        torch.save(self.state_dict, path)
+        torch.save(self.state_dict(), path)
 
     def load(self, path):
         self.load_state_dict(torch.load(path))
