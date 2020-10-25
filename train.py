@@ -10,6 +10,7 @@ from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from pathlib import Path
 import matplotlib.pyplot as plt
 import torch
+import torch.distributed as dist
 from torchvision import io
 import torchvision.transforms as T
 import argparse
@@ -26,6 +27,7 @@ import random
 import os
 sns.set()
 
+
 class TrainingDataset(Dataset):
 
     def __init__(self, paths):
@@ -34,9 +36,10 @@ class TrainingDataset(Dataset):
 
     def __len__(self):
         return self.nimages
-    
+
     def __getitem__(self, idx):
-        images = [plt.imread(f"{folder}/%05d.png" % idx) for folder in args.inputs]
+        images = [plt.imread(f"{folder}/%05d.png" % idx)
+                  for folder in args.inputs]
         images = [T.ToTensor()(image) for image in images]
         return {
             'images': images,
@@ -46,7 +49,11 @@ class TrainingDataset(Dataset):
 
 def main(args):
 
-    # initialize
+    # initialization for distributed training
+    dist.init_process_group(backend='nccl')
+    torch.cuda.set_device(args.local_rank)
+
+    # initialize logger
     logger = logging.getLogger('train')
     logger.addHandler(logging.FileHandler('train.log'))
     torch.set_default_tensor_type(torch.FloatTensor)
@@ -56,10 +63,14 @@ def main(args):
 
     # construct dataset
     training_set = TrainingDataset(args.inputs)
-
+    training_sampler = torch.utils.data.DistributedSampler(training_set)
+    training_loader = torch.utils.data.DataLoader(
+            training_set, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
     # construct applications
-    application_bundle = [FasterRCNN_ResNet50_FPN()]
+    application = FasterRCNN_ResNet50_FPN()
+    application.cuda()
+    application.parallel(args.local_rank)
 
     # construct the mask generator
     mask_generator = FCN()
@@ -68,89 +79,65 @@ def main(args):
         mask_generator.load(args.path)
     mask_generator.cuda()
     mask_generator.train()
-    
+    mask_generator = torch.nn.parallel.DistributedDataParallel(mask_generator, device_ids=[args.local_rank])
+
     optimizer = torch.optim.Adam(
         mask_generator.parameters(), lr=args.learning_rate)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
     ground_truth_results = {}
     for iteration in range(args.num_iterations):
-        for application in application_bundle:
 
-            logger.info(f'Processing application {application.name}')
-            progress_bar = enlighten.get_manager().counter(
-                total=len(training_set), desc=f'Iteration {iteration}: {application.name}', unit='frames')
+        logger.info(f'Processing application {application.name}')
+        progress_bar = enlighten.get_manager().counter(
+            total=len(training_set), desc=f'Iteration {iteration}: {application.name}', unit='frames')
 
-            application.cuda()
+        application_losses = []
+        sparsity_losses = []
+        total_losses = []
 
+        for idx, data in enumerate(training_loader):
 
+            progress_bar.update(incr=len(data['fid']))
+
+            # extract data from dataloader
+            images = data['images']
+            images = [image.cuda() for image in images]
+            fids = data['fid']
+            fids = [fid.item() for fid in fids]
+
+            # cache inference results of ground truth
+            for fid in fids:
+                if fid not in ground_truth_results.keys():
+                    ground_truth_results[fid] = application.inference(
+                        images[-1], detach=True)[0]
+
+            # construct hybrid image
+            mask_slice = mask_generator(images[-1])
+            masked_image = generate_masked_video(
+                mask_slice, images, bws, args)
+
+            # calculate the loss
+            application_loss = application.calc_loss(
+                masked_image.cuda(), [ground_truth_results[fid] for fid in fids], args).sum()
+            sparsity_loss = (1 / 60) * args.mask_weight * \
+                mask_slice.pow(args.mask_p).abs().mean() * args.batch_size
+            total_loss = application_loss + sparsity_loss
+
+            # optimization and logging
+            total_loss.backward()
+            application_losses.append(application_loss.item())
+            sparsity_losses.append(sparsity_loss.item())
+            total_losses.append(total_loss.item())
+            logger.info('APP loss:%0.3f, SPA loss:%0.3f, L1 norm:%0.3f, TOT loss:%0.3f', torch.tensor(application_losses).mean(), torch.tensor(
+                sparsity_losses).mean(), mask_slice.mean(), torch.tensor(application_losses).mean()+torch.tensor(sparsity_losses).mean())
             application_losses = []
             sparsity_losses = []
-            total_losses = []
+            optimizer.step()
+            optimizer.zero_grad()
 
-            training_loader = DataLoader(training_set, batch_size = 1, shuffle=True, num_workers = 1)
-
-            for idx, data in enumerate(training_loader):
-                
-                images = data['images']
-                images = [image.cuda() for image in images]
-                fid = data['fid'].item()
-
-                progress_bar.update()
-
-                if fid not in ground_truth_results.keys():
-                    ground_truth_results[fid] = application.inference(images[-1], detach=True)[0]
-                # import pdb; pdb.set_trace()
-
-                # construct hybrid image
-                mask_slice = mask_generator(images[-1])
-                mask_slice_tile = tile_mask(mask_slice, args.tile_size)
-                masked_image = generate_masked_image(
-                    mask_slice_tile, images, bws)
-
-                # calculate the loss
-                application_loss, video_results = application.calc_loss(
-                    masked_image.cuda(), ground_truth_results[fid], args)
-
-                sparsity_loss = (1 / 60) * args.mask_weight * mask_slice.pow(args.mask_p).abs().mean()
-                total_loss = application_loss + sparsity_loss
-
-                total_loss.backward()
-
-                application_losses.append(application_loss.item())
-                sparsity_losses.append(sparsity_loss.item())
-                total_losses.append(total_loss.item())
-
-                if len(application_losses) == args.batch_size:
-                    logger.info('APP loss:%0.3f, SPA loss:%0.3f, L1 norm:%0.3f, TOT loss:%0.3f', torch.tensor(application_losses).mean(), torch.tensor(sparsity_losses).mean(), mask_slice.mean(), torch.tensor(application_losses).mean()+torch.tensor(sparsity_losses).mean())
-                    application_losses = []
-                    sparsity_losses = []
-                    optimizer.step()
-                    optimizer.zero_grad()
-
-                # import pdb; pdb.set_trace()
-
-                # # visualization
-                # if fid % 5 == 0 and (iteration+1) % (args.num_iterations // 4) == 0:
-                #     heat = tile_mask(
-                #         mask[fid:fid+1, :, :, :], args.tile_size)[0, 0, :, :]
-                #     plt.clf()
-                #     ax = sns.heatmap(heat.detach().numpy(),
-                #                      zorder=3, alpha=0.5)
-                #     image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-                #     image = application.plot_results_on(
-                #         ground_truth_results[fid], image, (255, 255, 255), args)
-                #     image = application.plot_results_on(
-                #         video_results, image, (0, 255, 255), args)
-                #     ax.imshow(image, zorder=3, alpha=0.5)
-                #     Path(
-                #         f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
-                #     plt.savefig(
-                #         f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
-
-            scheduler.step(torch.tensor(total_losses).mean())
-
-            application.cpu()
+        # check if we need to reduce learning rate.
+        # scheduler.step(torch.tensor(total_losses).mean())
 
         mask_generator.save(args.path)
 
@@ -169,7 +156,7 @@ if __name__ == '__main__':
     # parser.add_argument('-g', '--ground_truth', type=str,
     #                     help='The ground truth videos.', required=True)
     parser.add_argument('-p', '--path', type=str,
-                        help = 'The path to store the generator parameters.', required=True)
+                        help='The path to store the generator parameters.', required=True)
     # parser.add_argument('-o', '--output', type=str,
     #                     help='The output name.', required=True)
     parser.add_argument('--confidence_threshold', type=float,
@@ -179,7 +166,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_iterations', type=int,
                         help='Number of iterations for optimizing the mask.', default=500)
     parser.add_argument('--batch_size', type=int,
-                        help='Number of iterations for optimizing the mask.', default=4)
+                        help='Number of iterations for optimizing the mask.', default=1)
     parser.add_argument('--tile_size', type=int,
                         help='The tile size of the mask.', default=8)
     parser.add_argument('--learning_rate', type=float,
@@ -190,6 +177,8 @@ if __name__ == '__main__':
                         help='The p-norm for the mask.', default=1)
     parser.add_argument('--binarize_weight', type=float,
                         help='The weight of the mask binarization loss term.', default=1)
+    parser.add_argument('--local_rank', default=-1, type=int,
+                        help='The GPU id for distributed training')
 
     args = parser.parse_args()
 

@@ -68,14 +68,17 @@ def mask_clip(mask, minval):
 
 def binarize_mask(mask, bw):
     assert sorted(bw) == bw
-    assert mask.requires_grad == False
+    # assert mask.requires_grad == False
+
+    mask_ret = mask.detach().clone()
 
     for i in range(len(bw) - 1):
 
         mid = (bw[i] + bw[i+1]) / 2
 
-        mask[torch.logical_and(mask > bw[i], mask <= mid)] = bw[i]
-        mask[torch.logical_and(mask > mid, mask < bw[i+1])] = bw[i+1]
+        mask_ret[torch.logical_and(mask > bw[i], mask <= mid)] = bw[i]
+        mask_ret[torch.logical_and(mask > mid, mask < bw[i+1])] = bw[i+1]
+    return mask_ret
 
 def generate_masked_video(mask, videos, bws, args):
     
@@ -118,6 +121,7 @@ def encode_masked_video(args, qp, binary_mask, logger):
         'ffmpeg', 
         '-y',
         '-i', temp_folder + '/%05d.png',
+        '-start_number', '0',
         '-c:v', 'libx264',
         '-qmin', f'{qp}', '-qmax', f'{qp}',
         args.output
@@ -127,6 +131,8 @@ def encode_masked_video(args, qp, binary_mask, logger):
     subprocess.run([
         'mv', args.output, f'{args.output}.qp{qp}'
     ])
+
+    # import pdb; pdb.set_trace()
 
     # remove temp folder
     subprocess.run([
@@ -167,13 +173,17 @@ def read_masked_video(video_name, logger):
 
     logger.info(f'Reading compressed video {video_name}. Reading each part...')
     parts = sorted(glob.glob(f'{video_name}.qp[0-9]*'), reverse=True)
+    parts2 = []
+
     videos = []
+    # import pdb; pdb.set_trace()
+    # parts2 = ['youtube_videos/train_first/dashcam_1_train_qp_%d.mp4' % i for i in [24, 38]]
     for part in parts:
         videos.append(vu.read_video(part, logger))
     logger.info(f'Reading mask for compressed video.')
+
     with open(f'{video_name}.mask', 'rb') as f:
         filename2mask = pickle.load(f)
-
     tile_size = filename2mask['args.tile_size']
 
     base = videos[0]
@@ -209,3 +219,23 @@ def generate_mask_from_regions(mask_slice, regions, minval):
         mask_slice[:, :, yrangemin:yrangemax, xrangemin:xrangemax] = 1
 
     return mask_slice
+
+def percentile(t: torch.tensor, q: float) -> float:
+    """
+    Return the ``q``-th percentile of the flattened input tensor's data.
+    
+    CAUTION:
+     * Needs PyTorch >= 1.1.0, as ``torch.kthvalue()`` is used.
+     * Values are not interpolated, which corresponds to
+       ``numpy.percentile(..., interpolation="nearest")``.
+       
+    :param t: Input tensor.
+    :param q: Percentile to compute, which must be between 0 and 100 inclusive.
+    :return: Resulting value (scalar).
+    """
+    # Note that ``kthvalue()`` works one-based, i.e. the first sorted value
+    # indeed corresponds to k=1, not k=0! Use float(q) instead of q directly,
+    # so that ``round()`` returns an integer, even if q is a np.float32.
+    k = 1 + round(.01 * float(q) * (t.numel() - 1))
+    result = t.view(-1).kthvalue(k).values.item()
+    return result

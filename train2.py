@@ -33,10 +33,10 @@ class TrainingDataset(Dataset):
         self.nimages = len(glob.glob(f'{args.inputs[0]}/*.png'))
 
     def __len__(self):
-        return self.nimages // 10
+        return 1500
 
     def __getitem__(self, idx):
-        idx = idx * 10
+        idx = idx
         images = [plt.imread(f"{folder}/%05d.png" % idx) for folder in args.inputs]
         images = [T.ToTensor()(image) for image in images]
         return {
@@ -109,6 +109,15 @@ def main(args):
                 mask_slice_tile = tile_mask(mask_slice, args.tile_size)
                 masked_image = generate_masked_image(
                     mask_slice_tile, images, bws)
+
+                inference_results = application.inference(masked_image.cuda(), True)
+                if fid < 300:
+                    logger.info('Accuracy on fid %d is %.3f', fid, application.calc_accuracy({
+                        fid: inference_results[0]
+                    }, {
+                        fid: ground_truth_results[fid]
+                    }, args)['f1'])
+                # import pdb; pdb.set_trace()
 
                 # calculate the loss
                 application_loss, video_results = application.calc_loss(

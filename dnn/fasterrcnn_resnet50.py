@@ -49,6 +49,9 @@ class FasterRCNN_ResNet50_FPN(DNN):
         self.is_cuda = True
         self.logger.info(f'Place {self.name} on GPU.')
 
+    def parallel(self, local_rank):
+        self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids=[local_rank], find_unused_parameters=True)
+
     def inference(self, video, detach=False):
         '''
             Generate inference results. Will put results on cpu if detach=True.
@@ -143,13 +146,17 @@ class FasterRCNN_ResNet50_FPN(DNN):
             f1 = 2 * tp / (2 * tp + fp + fn)
             pr = tp / (tp + fp)
             re = tp / (tp + fn)
+            # import pdb; pdb.set_trace()
 
             f1s.append(f1)
             prs.append(pr)
             res.append(re)
 
-            if fid % 10 == 9:
-                print(torch.tensor(f1s[-9:]).mean())
+            # if fid % 10 == 9:
+            #     #pass
+            #     print('f1:', torch.tensor(f1s[-9:]).mean().item())
+            #     print('pr:', torch.tensor(prs[-9:]).mean().item())
+            #     print('re:', torch.tensor(res[-9:]).mean().item())
 
         return {
             'f1': torch.tensor(f1s).mean().item(),
@@ -157,33 +164,33 @@ class FasterRCNN_ResNet50_FPN(DNN):
             're': torch.tensor(res).mean().item()
         }
 
-    def calc_loss(self, video, gt_results, args):
+    def calc_loss(self, videos, gt_results, args):
         '''
             Inference and calculate the loss between video and gt using thresholds from args
         '''
 
-        assert len(video.shape) == 4, f'The shape of video({video.shape}) must be 4D.'
+        assert len(videos.shape) == 4, f'The shape of videos({videos.shape}) must be 4D.'
 
-        # calculate the ground truth
-        gt_scores = gt_results['scores'].cuda()
-        gt_ind = gt_scores > args.confidence_threshold
-        gt_ind = torch.logical_and(gt_ind, self.get_relevant_ind(gt_results['labels'].cuda()))
-        gt_bboxes = gt_results['boxes'][gt_ind, :].cuda()
-        gt_labels = gt_results['labels'][gt_ind].cuda()
+        def transform_result(gt_result):
+            # calculate the ground truth
+            gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(gt_result, args.confidence_threshold, cuda=True)
+            # construct targets
+            target = {
+                'boxes': gt_bboxes,
+                'labels': gt_labels
+            }
+            return target
 
-        # construct targets
-        targets = [{
-            'boxes': gt_bboxes,
-            'labels': gt_labels
-        }]
+        targets = [transform_result(gt_result) for gt_result in gt_results]
 
         # switch the model to training mode to obtain loss
         self.model.train()
         self.model.zero_grad()
-        assert self.is_cuda and video.is_cuda, 'The video tensor and the model must be placed on GPU to perform inference'
+        assert self.is_cuda, 'Model must be placed on GPU'
         with torch.enable_grad():
-            losses = self.model(video, targets)
-        return losses['loss_classifier'] + losses['loss_box_reg'], None
+            losses = self.model(videos, targets)
+
+        return losses['loss_classifier'] + losses['loss_box_reg']
 
     # def calc_diff_acc(self, video, gt_results, args):
     #     '''
