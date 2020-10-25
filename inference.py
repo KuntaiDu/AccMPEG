@@ -19,7 +19,7 @@ def main(args):
     logger = logging.getLogger('main')
     handler = logging.NullHandler()
     logger.addHandler(handler)
-    
+
     videos, _, video_names = read_videos(args.inputs, logger, normalize=False)
     # from utils.video_utils import write_video
     # write_video(videos[0], 'download.mp4', logger)

@@ -51,6 +51,8 @@ def main(args):
                   args.tile_size, video_shape[3] // args.tile_size]
     mask = torch.ones(mask_shape).float()
 
+    ground_truth_dict = read_results(args.inputs[-1], 'FasterRCNN_ResNet50_FPN', logger)
+
     # binarized_mask = mask.clone().detach()
     # binarize_mask(binarized_mask, bws)
     # if iteration > 3 * (args.num_iterations // 4):
@@ -64,7 +66,7 @@ def main(args):
 
         application.cuda()
 
-        total_loss = []
+        f1_list = []
 
         for fid, (video_slices, mask_slice) in enumerate(zip(zip(*[video.split(1) for video in videos]), mask.split(1))):
 
@@ -77,31 +79,46 @@ def main(args):
 
             # calculate the loss, to see the generalization error
             with torch.no_grad():
-                mask_slice = tile_mask(mask_slice, args.tile_size)
+                mask_slice = binarize_mask(tile_mask(mask_slice, args.tile_size), bws)
                 masked_image = generate_masked_image(
                     mask_slice, video_slices, bws)
-                loss, _ = application.calc_loss(masked_image.cuda(),
-                                                application.inference(video_slices[-1].cuda(), detach=True)[0], args)
-                total_loss.append(loss.item())
+
+                video_results = application.inference(
+                    masked_image.cuda(), True)[0]
+                f1_list.append(application.calc_accuracy({
+                    fid: video_results
+                }, {
+                    fid: ground_truth_dict[fid]
+                }, args)['f1'])
+
+                # import pdb; pdb.set_trace()
+                # loss, _ = application.calc_loss(masked_image.cuda(),
+                #                                 application.inference(video_slices[-1].cuda(), detach=True)[0], args)
+                # total_loss.append(loss.item())
 
             # visualization
-            if fid % 30 == 0:
-                logger.info('The average loss is %.3f' %
-                            torch.tensor(total_loss).mean())
-                # heat = tile_mask(mask[fid:fid+1, :, :, :], args.tile_size)[0, 0, :, :]
-                # plt.clf()
-                # ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
-                # image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-                # #image = application.plot_results_on(ground_truth_results[fid], image, (255, 255, 255), args)
-                # #image = application.plot_results_on(video_results, image, (0, 255, 255), args)
-                # ax.imshow(image, zorder=3, alpha=0.5)
-                # Path(f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
-                # plt.savefig(f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
+            if fid % 30 == 29:
+                logger.info('The average f1 on 30 frames is %.3f' %
+                            torch.tensor(f1_list[-29:]).mean())
+                heat = tile_mask(mask[fid:fid+1, :, :, :],
+                                 args.tile_size)[0, 0, :, :]
+                plt.clf()
+                ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
+                image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+                #image = application.plot_results_on(ground_truth_results[fid], image, (255, 255, 255), args)
+                #image = application.plot_results_on(video_results, image, (0, 255, 255), args)
+                ax.imshow(image, zorder=3, alpha=0.5)
+                Path(
+                    f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
+                plt.savefig(
+                    f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
+
+        logger.info('The average f1 is %.3f' % torch.tensor(f1_list).mean())
 
         application.cpu()
 
     mask.requires_grad = False
-    binarize_mask(mask, bws)
+    mask = binarize_mask(mask, bws)
     write_masked_video(mask, args, qps, bws, logger)
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)

@@ -1,9 +1,12 @@
 
-# ignore all pngs
+# ignore all image files
 *.png
+*.jpg
 
 # ignore all mp4 files
 *mp4*
+
+*.txt
 
 # ignore pycache and pyc files
 __pycache__/
