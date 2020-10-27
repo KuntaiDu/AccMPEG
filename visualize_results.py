@@ -6,8 +6,8 @@ with open('stats', 'r') as f:
 
 plt.style.use('bmh')
 
-video_names = ['trafficcam_1', 'trafficcam_2']
-fig, axs = plt.subplots(len(video_names), figsize=(7, 7))
+video_names = ['trafficcam_%d' % (i+1) for i in range(4)] + ['dashcam_%d' % (i+1) for i in range(4)]
+fig, axs = plt.subplots(len(video_names), figsize=(7, 30))
 for i, video_name in enumerate(video_names):
     data = [i for i in data_full if video_name in i['video_name']]
     metric = 'f1'
