@@ -1,6 +1,0 @@
-file 'trafficcam_1_qp_38.mp4'
-file 'trafficcam_2_qp_38.mp4'
-file 'trafficcam_3_qp_38.mp4'
-file 'dashcam_1_qp_38.mp4'
-file 'dashcam_2_qp_38.mp4'
-file 'dashcam_3_qp_38.mp4'

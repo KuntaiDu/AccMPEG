@@ -15,6 +15,10 @@ __pycache__/
 # ignore videos
 videos/*
 youtube_videos/*
+temp*
+
+# ignore pickle file
+*.pickle
 
 # ignore intermediate results
 *.log

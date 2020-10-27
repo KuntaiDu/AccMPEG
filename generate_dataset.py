@@ -8,7 +8,7 @@ from datetime import datetime
 
 video_list = ['dashcam_%d' % (i+1) for i in range(4)] + ['trafficcam_%d' % (i+1) for i in range(4)]
 
-qp_list = [24, 38]
+qp_list = [24, 34]
 
 temp_folder = 'temp_' + datetime.now().strftime('%m.%d.%Y,%H:%M:%S')
 Path(temp_folder).mkdir()
@@ -71,58 +71,58 @@ for video in video_list:
         ])
 
 
-    # test set
-    vpath = f'youtube_videos/{video}.mp4'
+    # # test set
+    # vpath = f'youtube_videos/{video}.mp4'
 
-    opath = f'youtube_videos/train_first/{video}_train'
-    Path(opath).mkdir(exist_ok=True)
-    subprocess.run([
-        'ffmpeg',
-        '-y',
-        '-i', vpath,
-        '-ss', '0:0:14',
-        '-t', '0:0:10',
-        '-start_number', '0',
-        opath + '/%05d.png'
-    ])
+    # opath = f'youtube_videos/train_first/{video}_train'
+    # Path(opath).mkdir(exist_ok=True)
+    # subprocess.run([
+    #     'ffmpeg',
+    #     '-y',
+    #     '-i', vpath,
+    #     '-ss', '0:0:14',
+    #     '-t', '0:0:10',
+    #     '-start_number', '0',
+    #     opath + '/%05d.png'
+    # ])
 
-    # different encoding
-    opath = f'youtube_videos/train_last/{video}_train'
-    Path(opath).mkdir(exist_ok=True)
-    subprocess.run([
-        'ffmpeg',
-        '-y',
-        '-i', vpath,
-        '-ss', '0:0:40',
-        '-t', '0:0:10',
-        '-start_number', '0',
-        opath + '/%05d.png'
-    ])
+    # # different encoding
+    # opath = f'youtube_videos/train_last/{video}_train'
+    # Path(opath).mkdir(exist_ok=True)
+    # subprocess.run([
+    #     'ffmpeg',
+    #     '-y',
+    #     '-i', vpath,
+    #     '-ss', '0:0:40',
+    #     '-t', '0:0:10',
+    #     '-start_number', '0',
+    #     opath + '/%05d.png'
+    # ])
 
-    opath = f'youtube_videos/cross/{video}_cross'
-    Path(opath).mkdir(exist_ok=True)
-    subprocess.run([
-        'ffmpeg',
-        '-y',
-        '-i', vpath,
-        '-ss', '0:1:05',
-        '-t', '0:0:4',
-        '-start_number', '0',
-        opath + '/%05d.png'
-    ])
+    # opath = f'youtube_videos/cross/{video}_cross'
+    # Path(opath).mkdir(exist_ok=True)
+    # subprocess.run([
+    #     'ffmpeg',
+    #     '-y',
+    #     '-i', vpath,
+    #     '-ss', '0:1:05',
+    #     '-t', '0:0:4',
+    #     '-start_number', '0',
+    #     opath + '/%05d.png'
+    # ])
 
 
-    opath = f'youtube_videos/test/{video}_test'
-    Path(opath).mkdir(exist_ok=True)
-    subprocess.run([
-        'ffmpeg',
-        '-y',
-        '-i', vpath,
-        '-ss', '0:1:10',
-        '-t', '0:0:5',
-        '-start_number', '0',
-        opath + '/%05d.png'
-    ])
+    # opath = f'youtube_videos/test/{video}_test'
+    # Path(opath).mkdir(exist_ok=True)
+    # subprocess.run([
+    #     'ffmpeg',
+    #     '-y',
+    #     '-i', vpath,
+    #     '-ss', '0:1:10',
+    #     '-t', '0:0:5',
+    #     '-start_number', '0',
+    #     opath + '/%05d.png'
+    # ])
 
 # remove temp folder
 subprocess.run([
