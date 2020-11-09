@@ -10,15 +10,15 @@ import subprocess
 # v_list = ['train_first/trafficcam_%d_train' % (i+1) for i in range(4)] + ['train_first/dashcam_%d_train' % (i+1) for i in range(4)]
 # v_list = [v_list[4]]
 
-v_list = ['train_last/trafficcam_1_train']
+v_list = ['train_first/trafficcam_1_train', 'train_first/dashcam_1_train']
 base = 34
 tile = 16
 perc = 2
-niter = 10
+niter = 8
 
 for v in v_list:
 
-    output = f'{v}_compressed_saliency_tile_{tile}_base_{base}_perc_{perc}_niter_{niter}.mp4'
+    output = f'{v}_compressed_gt.mp4'
 
     subprocess.run([
         'python', 'compress_saliency.py',
