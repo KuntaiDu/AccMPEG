@@ -7,11 +7,14 @@ import subprocess
 # v_list = ['dashcam_%d_test' % (i+1) for i in range(4)] + ['trafficcam_%d_test' % (i+1) for i in range(4)]
 # v_list = [v_list[0]]
 
-v_list = ['train_first/trafficcam_%d_train' % (i+1) for i in range(4)] + ['train_first/dashcam_%d_train' % (i+1) for i in range(4)]
+# v_list = ['train_first/trafficcam_%d_train' % (i+1) for i in range(4)] + ['train_first/dashcam_%d_train' % (i+1) for i in range(4)]
+# v_list = [v_list[4]]
+
+v_list = ['train_last/trafficcam_1_train']
 base = 34
-tile = 8
-perc = 1
-niter = 6
+tile = 16
+perc = 2
+niter = 10
 
 for v in v_list:
 

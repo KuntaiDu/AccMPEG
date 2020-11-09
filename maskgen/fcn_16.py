@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 
-cfg = [64, 64, 64, 'M', 64, 64, 64, 'M', 64, 64, 64, 'M', 64, 64, 64]
+cfg = [32, 32, 'M', 64, 64,'M', 128, 128, 'M', 256, 256, 'M', 512, 512]
 
 class FCN(nn.Module):
 
@@ -24,7 +24,7 @@ class FCN(nn.Module):
                 else:
                     layers += [conv2d, nn.ReLU(inplace=True)]
                 in_channels = v
-        layers += [nn.Conv2d(64, 2, kernel_size=3, padding=1)]
+        layers += [nn.Conv2d(512, 2, kernel_size=3, padding=1)]
         return nn.Sequential(*layers)
 
     def clip(self, x):

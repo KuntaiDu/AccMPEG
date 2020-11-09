@@ -32,7 +32,7 @@ class TrainingDataset(Dataset):
         return self.nimages
 
     def __getitem__(self, idx):
-        images = [plt.imread(f"{folder}/%05d.png" % idx)
+        images = [plt.imread(f"{folder}/%010d.png" % idx)
                   for folder in args.inputs]
         images = [T.ToTensor()(image) for image in images]
         return {
@@ -60,8 +60,10 @@ def main(args):
 
     # construct dataset
     training_set = TrainingDataset(args.inputs)
+    # training_set, _ = torch.utils.data.random_split(training_set, [int(
+    #     0.5*len(training_set)), int(0.5*len(training_set))+1], generator=torch.Generator().manual_seed(100))
     training_loader = torch.utils.data.DataLoader(
-        training_set, batch_size=args.batch_size, shuffle=False, num_workers=2)
+        training_set, batch_size=args.batch_size, shuffle=False)
 
     # construct applications
     application = FasterRCNN_ResNet50_FPN()
@@ -87,7 +89,6 @@ def main(args):
 
     for batch_id, data in enumerate(training_loader):
         progress_bar.update(args.batch_size)
-        logger.info('Processing batch %d', batch_id)
 
         images = data['images']
         images = [image.cuda() for image in images]
@@ -95,15 +96,16 @@ def main(args):
         fids = [fid.item() for fid in fids]
 
         # get ground truth results
-        ground_truth_results = [application.inference(
-            images_slice, detach=True)[0] for images_slice in images[-1].split(1)]
+        ground_truth_results = application.inference(images[-1])
 
         # construct mask
-        mask_shape = [images[-1].shape[0], images[-1].shape[1], images[-1].shape[2] //
+        mask_shape = [images[-1].shape[0], 1, images[-1].shape[2] //
                       args.tile_size, images[-1].shape[3] // args.tile_size]
         mask = torch.zeros(mask_shape).cuda()
         sum_grad = torch.zeros(mask.shape).cuda()
         mask.requires_grad = True
+
+        application_loss = 0
 
         for i in range(args.num_iterations):
 
@@ -127,9 +129,11 @@ def main(args):
                             torch.zeros_like(neg_grad))
             mask.requires_grad = True
 
+        logger.info('Process batch %d with application loss %.3f', batch_id, application_loss.item())
+
         with open(args.output, 'a+b') as f:
             for fid, mask_slice in zip(fids, mask.split(1)):
-                pickle.dump({fid: mask_slice}, f)
+                pickle.dump({fid: mask_slice.detach().cpu() > 0}, f)
 
 if __name__ == '__main__':
 
@@ -148,11 +152,11 @@ if __name__ == '__main__':
     parser.add_argument('--iou_threshold', type=float,
                         help='The IoU threshold for calculating accuracy in object detection.', default=0.5)
     parser.add_argument('--num_iterations', type=int,
-                        help='Number of iterations for optimizing the mask.', default=6)
+                        help='Number of iterations for optimizing the mask.', default=7)
     parser.add_argument('--tile_size', type=int,
                         help='The tile size of the mask.', default=8)
     parser.add_argument('--batch_size', type=int,
-                        help='The batch size', default=2)
+                        help='The batch size', default=1)
     parser.add_argument('--tile_percentage', type=float,
                         help='How many percentage of tiles will remain', default=1)
     # parser.add_argument('--mask_p', type=int, help='The p-norm for the mask.', default=1)

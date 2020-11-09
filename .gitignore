@@ -39,6 +39,3 @@ results/*
 *.ipynb
 
 stats*
-
-# ignore pytorch pth files
-*.pth
