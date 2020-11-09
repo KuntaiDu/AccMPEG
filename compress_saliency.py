@@ -77,26 +77,6 @@ def main(args):
             loss.backward(retain_graph=True)
             total_loss.append(loss.item())
 
-            # import pdb; pdb.set_trace()
-
-            # visualization
-            if batch_id % 50 == 0:
-                fid = batch_id * args.batch_size
-                heat = tile_mask(sum_grad[fid:fid+1, :, :, :],
-                                 args.tile_size)[0, 0, :, :]
-                plt.clf()
-                ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
-                image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-                image = application.plot_results_on(
-                    ground_truth_results[fid], image, (255, 255, 255), args)
-                image = application.plot_results_on(
-                    None, image, (0, 255, 255), args)
-                ax.imshow(image, zorder=3, alpha=0.5)
-                Path(
-                    f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
-                plt.savefig(
-                    f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
-
         # update mask through normalized EG
         mask.requires_grad = False
         sum_grad += mask.grad
@@ -108,6 +88,29 @@ def main(args):
 
         logger.info('Loss: %0.3f, Mask max: %.3f, min: %.3f, mean: %.3f, std: %.3f' % (torch.tensor(
             total_loss).mean(), mask.max().item(), mask.min().item(), mask.mean().item(), mask.std().item()))
+
+    # visualization
+    for batch_id, (video_slices, mask_slice) in enumerate(zip(zip(*[video.split(args.batch_size) for video in videos]), mask.split(args.batch_size))):
+        
+        if batch_id % 30 == 0:
+            logger.info('Visualizing frame %d.' % batch_id)
+            fid = batch_id * args.batch_size
+            heat = tile_mask(mask[fid:fid+1, :, :, :],
+                                args.tile_size)[0, 0, :, :]
+            plt.clf()
+            ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
+            image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+            image = application.plot_results_on(
+                ground_truth_results[fid], image, (255, 255, 255), args)
+            # image = application.plot_results_on(
+            #     None, image, (0, 255, 255), args)
+            ax.imshow(image, zorder=3, alpha=0.5)
+            Path(
+                f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
+            plt.savefig(
+                f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
+
+        
 
     # optimization done. No more gradients required.
     mask.requires_grad = False
@@ -143,7 +146,7 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', type=float,
                         help='The learning rate.', default=100)
     parser.add_argument('--batch_size', type=int,
-                        help='The batch size', default=2)
+                        help='The batch size', default=1)
     parser.add_argument('--tile_percentage', type=float,
                         help='How many percentage of tiles will remain', default=5)
     # parser.add_argument('--mask_p', type=int, help='The p-norm for the mask.', default=1)

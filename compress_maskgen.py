@@ -2,7 +2,7 @@
     Compress the video through gradient-based optimization.
 '''
 
-from utils.results_utils import read_results
+from utils.results_utils import read_results, read_ground_truth
 from utils.mask_utils import *
 from utils.video_utils import read_videos, write_video, get_qp_from_name
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
@@ -11,7 +11,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import torch
 from torchvision import io
-from maskgen.fcn import FCN
+from maskgen.fcn_16 import FCN
 import argparse
 import coloredlogs
 import logging
@@ -21,13 +21,29 @@ from PIL import Image
 import seaborn as sns
 sns.set()
 
+def get_loss(mask, target):
+
+    # import pdb; pdb.set_trace()
+
+    target = target.float().cuda()
+    prob = mask.softmax(dim=1)[:, 1:2, :, :]
+    prob = torch.where(target == 1, prob, 1-prob)
+    weight = torch.where(target == 1, 10 * torch.ones_like(prob), torch.ones_like(prob))
+
+    eps = 1e-6
+    
+    return  (- weight * ((1-prob) ** 2) * ((prob+eps).log())).mean()
+
+# offset = 5998
+# offset2 = 6778
+offset = 0
 
 def main(args):
 
     gc.enable()
 
     # initialize
-    logger = logging.getLogger('test')
+    logger = logging.getLogger('maskgen')
     handler = logging.NullHandler()
     logger.addHandler(handler)
     torch.set_default_tensor_type(torch.FloatTensor)
@@ -51,7 +67,14 @@ def main(args):
                   args.tile_size, video_shape[3] // args.tile_size]
     mask = torch.ones(mask_shape).float()
 
-    ground_truth_dict = read_results(args.inputs[-1], 'FasterRCNN_ResNet50_FPN', logger)
+    ground_truth_dict = read_results(
+        args.inputs[-1], 'FasterRCNN_ResNet50_FPN', logger)
+
+    ground_truth_mask = read_ground_truth(
+        'trafficcam_1_cross_gt.pickle', logger)
+
+    plt.clf()
+    plt.figure(figsize=(16, 10))
 
     # binarized_mask = mask.clone().detach()
     # binarize_mask(binarized_mask, bws)
@@ -66,54 +89,69 @@ def main(args):
 
         application.cuda()
 
-        f1_list = []
+        losses = []
+        f1s = []
 
         for fid, (video_slices, mask_slice) in enumerate(zip(zip(*[video.split(1) for video in videos]), mask.split(1))):
 
             progress_bar.update()
 
+            lq_image, hq_image = video_slices[0], video_slices[1]
+            # lq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_34/%05d.png' % (fid+offset2)))[None, :, :, :]
+
             # construct hybrid image
             with torch.no_grad():
-                mask_slice[:, :, :, :] = mask_generator(
-                    video_slices[-1].cuda())
+                
+                mask_gen = mask_generator(
+                    torch.cat([hq_image, hq_image - lq_image], dim=1).cuda())
+                # losses.append(get_loss(mask_gen, ground_truth_mask[fid+offset]).item())
+                mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
+                mask_slice[:, :, :, :] = torch.where(
+                    mask_gen > percentile(mask_gen, 100-args.tile_percentage),
+                    torch.ones_like(mask_gen),
+                    torch.zeros_like(mask_gen))
+                # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
+            # mask_slice[:, :, :, :] = ground_truth_mask[fid + offset2].float()
 
             # calculate the loss, to see the generalization error
-            with torch.no_grad():
-                mask_slice = binarize_mask(tile_mask(mask_slice, args.tile_size), bws)
-                masked_image = generate_masked_image(
-                    mask_slice, video_slices, bws)
+            # with torch.no_grad():
+            #     mask_slice = tile_mask(mask_slice, args.tile_size)
+            #     masked_image = generate_masked_image(
+            #         mask_slice, video_slices, bws)
 
-                video_results = application.inference(
-                    masked_image.cuda(), True)[0]
-                f1_list.append(application.calc_accuracy({
-                    fid: video_results
-                }, {
-                    fid: ground_truth_dict[fid]
-                }, args)['f1'])
+            #     video_results = application.inference(
+            #         masked_image.cuda(), True)[0]
+            #     f1s.append(application.calc_accuracy({
+            #         fid: video_results
+            #     }, {
+            #         fid: ground_truth_dict[fid]
+            #     }, args)['f1'])
 
-                # import pdb; pdb.set_trace()
-                # loss, _ = application.calc_loss(masked_image.cuda(),
-                #                                 application.inference(video_slices[-1].cuda(), detach=True)[0], args)
-                # total_loss.append(loss.item())
+            # import pdb; pdb.set_trace()
+            # loss, _ = application.calc_loss(masked_image.cuda(),
+            #                                 application.inference(video_slices[-1].cuda(), detach=True)[0], args)
+            # total_loss.append(loss.item())
 
             # visualization
-            if fid % 30 == 29:
-                logger.info('The average f1 on 30 frames is %.3f' %
-                            torch.tensor(f1_list[-29:]).mean())
-                heat = tile_mask(mask[fid:fid+1, :, :, :],
-                                 args.tile_size)[0, 0, :, :]
-                plt.clf()
-                ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
-                image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-                #image = application.plot_results_on(ground_truth_results[fid], image, (255, 255, 255), args)
-                #image = application.plot_results_on(video_results, image, (0, 255, 255), args)
-                ax.imshow(image, zorder=3, alpha=0.5)
-                Path(
-                    f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
-                plt.savefig(
-                    f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
+            # if fid % 30 == 0:
+            #     heat = tile_mask(mask_slice,
+            #                      args.tile_size)[0, 0, :, :]
+            #     plt.clf()
+            #     ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
+            #     # hq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_24/%05d.png' % (fid+offset2)))[None, :, :, :].cuda()
+            #     # with torch.no_grad():
+            #     #     inf = application.inference(hq_image, detach=True)[0]
+            #     image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+            #     # image = application.plot_results_on(inf, image, (255, 255, 255), args)
+            #     #image = application.plot_results_on(video_results, image, (0, 255, 255), args)
+            #     ax.imshow(image, zorder=3, alpha=0.5)
+            #     Path(
+            #         f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
+            #     plt.savefig(
+            #         f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
 
-        logger.info('The average f1 is %.3f' % torch.tensor(f1_list).mean())
+        logger.info('The average loss is %.3f' % torch.tensor(losses).mean())
+        logger.info('The average f1 is %.3f' % torch.tensor(f1s).mean())
 
         application.cpu()
 
@@ -143,24 +181,12 @@ if __name__ == '__main__':
                         help='The confidence score threshold for calculating accuracy.', default=0.5)
     parser.add_argument('--iou_threshold', type=float,
                         help='The IoU threshold for calculating accuracy in object detection.', default=0.5)
-    parser.add_argument('--num_iterations', type=int,
-                        help='Number of iterations for optimizing the mask.', default=30)
     parser.add_argument('--tile_size', type=int,
-                        help='The tile size of the mask.', default=16)
-    parser.add_argument('--learning_rate', type=float,
-                        help='The learning rate.', default=0.04)
-    parser.add_argument('--mask_weight', type=float,
-                        help='The weight of the mask normalization term', default=128)
-    parser.add_argument('--mask_p', type=int,
-                        help='The p-norm for the mask.', default=1)
-    parser.add_argument('--binarize_weight', type=float,
-                        help='The weight of the mask binarization loss term.', default=1)
-    parser.add_argument('--cont_weight', type=float,
-                        help='The weight of the continuity normalization term', default=0)
-    parser.add_argument('--cont_p', type=int,
-                        help='The p-norm for the continuity.', default=1)
+                        help='The tile size of the mask.', default=8)
     parser.add_argument('-p', '--path', type=str,
                         help='The path to store the generator parameters.', required=True)
+    parser.add_argument('--tile_percentage', type=float,
+                        help='How many percentage of tiles will remain', default=1)
 
     args = parser.parse_args()
 

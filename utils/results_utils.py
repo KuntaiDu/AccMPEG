@@ -16,3 +16,20 @@ def read_results(video_name, app_name, logger):
     results_file = Path(f'results/{app_name}/{video_name}')
     with open(results_file,  'rb') as f:
         return pickle.load(f)
+
+def read_ground_truth(file_name, logger):
+
+    ground_truths = {}
+    logger.info('Load ground truth from %s', file_name)
+
+    with open(file_name, 'rb') as f:
+        try:
+            while True:
+                ground_truth = pickle.load(f)
+                ground_truths.update(ground_truth)
+        except EOFError:
+            pass
+
+    logger.info('Ground truth loaded.')
+
+    return ground_truths

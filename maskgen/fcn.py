@@ -2,7 +2,7 @@
 import torch
 import torch.nn as nn
 
-cfg = [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 256, 128, 64, 1]
+cfg = [64, 64, 64, 'M', 64, 64, 64, 'M', 64, 64, 64, 'M', 64, 64, 64]
 
 class FCN(nn.Module):
 
@@ -13,7 +13,7 @@ class FCN(nn.Module):
 
     def _make_layers(self, cfg):
         layers = []
-        in_channels = 3
+        in_channels = 6
         for v in cfg:
             if v == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
@@ -24,15 +24,16 @@ class FCN(nn.Module):
                 else:
                     layers += [conv2d, nn.ReLU(inplace=True)]
                 in_channels = v
+        layers += [nn.Conv2d(64, 2, kernel_size=3, padding=1)]
         return nn.Sequential(*layers)
 
     def clip(self, x):
-        x = torch.where(x < 0, torch.zeros_like(x), x)
-        x = torch.where(x > 1, torch.ones_like(x), x)
+        x = torch.where(x<0, torch.zeros_like(x), x)
+        x = torch.where(x>1, torch.ones_like(x), x)
         return x
 
     def forward(self, x):
-        return self.clip(self.model(x))
+        return self.model(x)
 
     def save(self, path):
         torch.save(self.state_dict(), path)
