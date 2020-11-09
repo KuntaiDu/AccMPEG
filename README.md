@@ -15,4 +15,4 @@ to specify the video you want to run. The path can be absolute path or relative 
 
 The usage of ```batch_maskgen.py``` is similiar as above.
 
-To see the visualization, just go to the ```visualization``` folder under this repo.
+While running ```batch_saliency.py``` and ```batch_maskgen.py```, the program will automatically generate scenes for visualization purpose. To see the visualization, just go to the ```visualization``` folder under this repo.
