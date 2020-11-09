@@ -86,8 +86,8 @@ def main(args):
                            torch.zeros_like(neg_grad_exp))
         mask.requires_grad = True
 
-        logger.info('Loss: %0.3f, Mask max: %.3f, min: %.3f, mean: %.3f, std: %.3f' % (torch.tensor(
-            total_loss).mean(), mask.max().item(), mask.min().item(), mask.mean().item(), mask.std().item()))
+        logger.info('App loss: %0.3f' % torch.tensor(
+            total_loss).mean())
 
     # visualization
     for batch_id, (video_slices, mask_slice) in enumerate(zip(zip(*[video.split(args.batch_size) for video in videos]), mask.split(args.batch_size))):
