@@ -14,16 +14,16 @@ def main(args):
 
         for qp in qp_list:
             output_name = f'{video_name}_qp_{qp}.mp4'
-            subprocess.run([
-                'ffmpeg',
-                '-y',
-                '-i', video_name + '/%05d.png',
-                '-start_number', '0',
-                '-c:v', 'libx264',
-                '-qmin', f'{qp}',
-                '-qmax', f'{qp}',
-                output_name
-            ])
+            # subprocess.run([
+            #     'ffmpeg',
+            #     '-y',
+            #     '-i', video_name + '/%05d.png',
+            #     '-start_number', '0',
+            #     '-c:v', 'libx264',
+            #     '-qmin', f'{qp}',
+            #     '-qmax', f'{qp}',
+            #     output_name
+            # ])
             subprocess.run([
                 'python',
                 'inference.py',
