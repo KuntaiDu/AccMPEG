@@ -93,7 +93,7 @@ def main(args):
     for batch_id, (video_slices, mask_slice) in enumerate(zip(zip(*[video.split(args.batch_size) for video in videos]), mask.split(args.batch_size))):
         
         if batch_id % 30 == 0:
-            logger.info('Visualizing frame %d.' % batch_id)
+            logger.info('Visualizing frame %d.', batch_id)
             fid = batch_id * args.batch_size
             heat = tile_mask(mask[fid:fid+1, :, :, :],
                                 args.tile_size)[0, 0, :, :]
