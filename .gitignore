@@ -38,4 +38,3 @@ results/*
 # ignore ipynb
 *.ipynb
 
-stats*

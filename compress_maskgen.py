@@ -68,11 +68,11 @@ def main(args):
     ground_truth_dict = read_results(
         args.inputs[-1], 'FasterRCNN_ResNet50_FPN', logger)
 
-    logger.info('Reading ground truth mask')
-    with open(args.mask + '.mask', 'rb') as f:
-        ground_truth_mask = pickle.load(f)
-    ground_truth_mask = ground_truth_mask[sorted(ground_truth_mask.keys())[1]]
-    ground_truth_mask = ground_truth_mask.split(1)
+    # logger.info('Reading ground truth mask')
+    # with open(args.mask + '.mask', 'rb') as f:
+    #     ground_truth_mask = pickle.load(f)
+    # ground_truth_mask = ground_truth_mask[sorted(ground_truth_mask.keys())[1]]
+    # ground_truth_mask = ground_truth_mask.split(1)
 
     plt.clf()
     plt.figure(figsize=(16, 10))
@@ -104,7 +104,7 @@ def main(args):
             with torch.no_grad():
                 mask_gen = mask_generator(
                     torch.cat([hq_image, hq_image - lq_image], dim=1).cuda())
-                losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
+                # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
                 mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
                 mask_slice[:, :, :, :] = torch.where(
                     mask_gen > percentile(mask_gen, 100-args.tile_percentage),
@@ -133,25 +133,27 @@ def main(args):
             # total_loss.append(loss.item())
 
             # visualization
-            # if fid % 30 == 0:
-            #     heat = tile_mask(mask_slice,
-            #                      args.tile_size)[0, 0, :, :]
-            #     plt.clf()
-            #     ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
-            #     # hq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_24/%05d.png' % (fid+offset2)))[None, :, :, :].cuda()
-            #     # with torch.no_grad():
-            #     #     inf = application.inference(hq_image, detach=True)[0]
-            #     image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-            #     # image = application.plot_results_on(inf, image, (255, 255, 255), args)
-            #     #image = application.plot_results_on(video_results, image, (0, 255, 255), args)
-            #     ax.imshow(image, zorder=3, alpha=0.5)
-            #     Path(
-            #         f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
-            #     plt.savefig(
-            #         f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
+            if fid % 30 == 0:
+                heat = mask_slice[0, 0, :, :]
+                plt.clf()
+                ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
+                # hq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_24/%05d.png' % (fid+offset2)))[None, :, :, :].cuda()
+                # with torch.no_grad():
+                #     inf = application.inference(hq_image, detach=True)[0]
+                image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+                # image = application.plot_results_on(inf, image, (255, 255, 255), args)
+                #image = application.plot_results_on(video_results, image, (0, 255, 255), args)
+                ax.imshow(image, zorder=3, alpha=0.5)
+                Path(
+                    f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
+                plt.savefig(
+                    f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
 
         logger.info('In video %s', args.output)
         logger.info('The average loss is %.3f' % torch.tensor(losses).mean())
+
+        with open('temp.txt', 'w') as f:
+            f.write(f'{torch.tensor(f1s).mean()}')
         logger.info('The average f1 is %.3f' % torch.tensor(f1s).mean())
 
         application.cpu()

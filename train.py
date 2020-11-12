@@ -30,18 +30,20 @@ from pdb import set_trace
 sns.set()
 
 
+
 class TrainingDataset(Dataset):
 
-    def __init__(self, paths):
+    def __init__(self, paths, fmt = '%05d'):
         self.paths = paths
-        self.nimages = len(glob.glob(f'{args.inputs[0]}/*.png'))
+        self.nimages = len(glob.glob(f'{paths[0]}/*.png'))
+        self.fmt = fmt
 
     def __len__(self):
         return self.nimages
 
     def __getitem__(self, idx):
-        images = [plt.imread(f"{folder}/%05d.png" % idx)
-                  for folder in args.inputs]
+        images = [plt.imread(f"{folder}/{self.fmt}.png" % idx)
+                  for folder in self.paths]
         images = [T.ToTensor()(image) for image in images]
         return {
             'images': images,
@@ -68,12 +70,12 @@ def get_loss(mask, target):
     target = target.float()
     prob = mask.softmax(dim=1)[:, 1:2, :, :]
     prob = torch.where(target == 1, prob, 1-prob)
-    weight = torch.where(target == 1, 10 * torch.ones_like(prob), torch.ones_like(prob))
+    weight = torch.where(
+        target == 1, 100 * torch.ones_like(prob), torch.ones_like(prob))
 
     eps = 1e-6
-    
 
-    return  (- weight * ((1-prob) ** 2) * ((prob+eps).log())).mean()
+    return (- weight * ((1-prob) ** 2) * ((prob+eps).log())).mean()
 
 
 def main(args):
@@ -84,7 +86,7 @@ def main(args):
 
     # initialize logger
     logger = logging.getLogger('train')
-    logger.addHandler(logging.FileHandler('train_youtube.log'))
+    logger.addHandler(logging.FileHandler('train_youtube_small_model_cross.log'))
     torch.set_default_tensor_type(torch.FloatTensor)
 
     # initalize bw
@@ -94,8 +96,9 @@ def main(args):
     training_set = TrainingDataset(args.inputs)
     # training_set, _ = torch.utils.data.random_split(training_set, [int(
     #     0.5*len(training_set)), int(0.5*len(training_set))+1], generator=torch.Generator().manual_seed(100))
-    training_set, cross_validation_set = torch.utils.data.random_split(training_set, [int(
-        0.9*len(training_set)), int(0.1*len(training_set))+1], generator=torch.Generator().manual_seed(100))
+    #training_set, cross_validation_set = torch.utils.data.random_split(training_set, [int(
+    #    0.5*len(training_set)), int(0.5*len(training_set))], generator=torch.Generator().manual_seed(100))
+    cross_validation_set = TrainingDataset(args.cross_validation_inputs, fmt='%010d')
     # training_sampler = torch.utils.data.DistributedSampler(training_set)
     training_loader = torch.utils.data.DataLoader(
         training_set, batch_size=args.batch_size, shuffle=True, num_workers=2)
@@ -106,7 +109,7 @@ def main(args):
     # construct the mask generator
     mask_generator = FCN()
     if os.path.exists(args.path):
-        logger.info(f'Load the model from {args.path}')
+        logger.info(f'Load the model from %s', args.path)
         mask_generator.load(args.path)
     mask_generator.cuda()
     mask_generator.train()
@@ -120,8 +123,6 @@ def main(args):
     ground_truth_results = read_ground_truth(args.ground_truth, logger)
 
     mean_cross_validation_loss_before = 100
-
-
 
     for iteration in range(args.num_iterations):
 
@@ -152,7 +153,7 @@ def main(args):
 
             # calculate loss
             target = torch.cat(
-                    [ground_truth_results[fid].long().cuda() for fid in fids])
+                [ground_truth_results[fid].long().cuda() for fid in fids])
             loss = get_loss(mask_slice, target)
             loss.backward()
 
@@ -210,12 +211,11 @@ def main(args):
 
         if mean_cross_validation_loss < mean_cross_validation_loss_before:
             mask_generator.save(args.path + '.best')
-        mean_cross_validation_loss_before = min(mean_cross_validation_loss_before, mean_cross_validation_loss)
+        mean_cross_validation_loss_before = min(
+            mean_cross_validation_loss_before, mean_cross_validation_loss)
 
         # check if we need to reduce learning rate.
         scheduler.step(mean_cross_validation_loss)
-
-        
 
 
 if __name__ == '__main__':
@@ -227,6 +227,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-i', '--inputs', nargs='+',
+                        help='The video file name. The largest video file will be the ground truth.', required=True)
+    parser.add_argument('--cross_validation_inputs', nargs='+',
                         help='The video file name. The largest video file will be the ground truth.', required=True)
     # parser.add_argument('-s', '--source', type=str, help='The original video source.', required=True)
     # parser.add_argument('-g', '--ground_truth', type=str,
