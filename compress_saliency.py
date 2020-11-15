@@ -40,7 +40,7 @@ def main(args):
     application.cuda()
 
     # construct the mask
-    video_shape = videos[-1].shape
+    video_shape = [len(videos[-1]), 3, 720, 1280]
     num_frames = video_shape[0]
     mask_shape = [num_frames, 1, video_shape[2] //
                   args.tile_size, video_shape[3] // args.tile_size]
@@ -57,13 +57,14 @@ def main(args):
 
     for iteration in range(args.num_iterations):
 
-        logger.info(f'Processing application {application.name}')
+        logger.info(f'Run {application.name}')
         progress_bar = enlighten.get_manager().counter(
-            total=videos[-1].shape[0], desc=f'Iteration {iteration}: {application.name}', unit='frames')
+            total=len(videos[-1]), desc=f'Iteration {iteration}: {application.name}', unit='frames')
 
         total_loss = []
+        f1s = []
 
-        for batch_id, (video_slices, mask_slice) in enumerate(zip(zip(*[video.split(args.batch_size) for video in videos]), mask.split(args.batch_size))):
+        for batch_id, (video_slices, mask_slice) in enumerate(zip(zip(*videos), mask.split(args.batch_size))):
 
             progress_bar.update(incr=args.batch_size)
 
@@ -77,6 +78,16 @@ def main(args):
             loss.backward(retain_graph=True)
             total_loss.append(loss.item())
 
+            with torch.no_grad():
+                masked_image = generate_masked_video(
+                mask_slice, video_slices, bws, args)
+                video_results = application.inference(masked_image.cuda(), True)[0]
+                f1s.append(application.calc_accuracy({
+                    batch_id: video_results
+                }, {
+                    batch_id: ground_truth_results[batch_id]
+                }, args)['f1'])
+
         # update mask through normalized EG
         mask.requires_grad = False
         sum_grad += mask.grad
@@ -88,27 +99,29 @@ def main(args):
 
         logger.info('App loss: %0.3f' % torch.tensor(
             total_loss).mean())
+        logger.info('Accuracy: %0.3f' % torch.tensor(
+            f1s).mean())
 
-    # visualization
-    for batch_id, (video_slices, mask_slice) in enumerate(zip(zip(*[video.split(args.batch_size) for video in videos]), mask.split(args.batch_size))):
+    # # visualization
+    # for batch_id, (video_slices, mask_slice) in enumerate(zip(zip(*videos), mask.split(args.batch_size))):
         
-        if batch_id % 30 == 0:
-            logger.info('Visualizing frame %d.', batch_id)
-            fid = batch_id * args.batch_size
-            heat = tile_mask(mask[fid:fid+1, :, :, :],
-                                args.tile_size)[0, 0, :, :]
-            plt.clf()
-            ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
-            image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-            image = application.plot_results_on(
-                ground_truth_results[fid], image, (255, 255, 255), args)
-            # image = application.plot_results_on(
-            #     None, image, (0, 255, 255), args)
-            ax.imshow(image, zorder=3, alpha=0.5)
-            Path(
-                f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
-            plt.savefig(
-                f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
+    #     if batch_id % 30 == 0:
+    #         logger.info('Visualizing frame %d.', batch_id)
+    #         fid = batch_id * args.batch_size
+    #         heat = tile_mask(mask[fid:fid+1, :, :, :],
+    #                             args.tile_size)[0, 0, :, :]
+    #         plt.clf()
+    #         ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
+    #         image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+    #         image = application.plot_results_on(
+    #             ground_truth_results[fid], image, (255, 255, 255), args)
+    #         # image = application.plot_results_on(
+    #         #     None, image, (0, 255, 255), args)
+    #         ax.imshow(image, zorder=3, alpha=0.5)
+    #         Path(
+    #             f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
+    #         plt.savefig(
+    #             f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
 
         
 

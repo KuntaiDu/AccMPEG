@@ -16,7 +16,7 @@ from utils.results_utils import write_results
 
 def main(args):
 
-    logger = logging.getLogger('main')
+    logger = logging.getLogger('inference')
     handler = logging.NullHandler()
     logger.addHandler(handler)
 
@@ -34,11 +34,11 @@ def main(args):
         for vid, video in enumerate(videos):
 
             video_name = video_names[vid]
-            logger.info(f'Processing application {application.name} on video {video_name}')
-            progress_bar = enlighten.get_manager().counter(total=video.shape[0], desc=f'{application.name}: {video_name}', unit='frames')
+            logger.info(f'Run {application.name} on {video_name}')
+            progress_bar = enlighten.get_manager().counter(total=len(video), desc=f'{application.name}: {video_name}', unit='frames')
             inference_results = {}
 
-            for fid, video_slice in enumerate(video.split(1)):
+            for fid, video_slice in enumerate(video):
                 progress_bar.update()
                 inference_results[fid] = application.inference(video_slice.cuda(), detach=True)[0]
 
