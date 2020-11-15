@@ -187,8 +187,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
         self.model.train()
         self.model.zero_grad()
         assert self.is_cuda, 'Model must be placed on GPU'
-        with torch.enable_grad():
-            losses = self.model(videos, targets)
+        losses = self.model(videos, targets)
 
         return losses['loss_classifier'] + losses['loss_box_reg']
 

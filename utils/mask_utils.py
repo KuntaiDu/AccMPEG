@@ -8,6 +8,7 @@ import os
 import glob
 import pickle
 import subprocess
+import struct
 
 def generate_masked_image(mask, video_slices, bws):
 
@@ -106,25 +107,47 @@ def encode_masked_video(args, qp, binary_mask, logger):
     # make a progress bar
     progress_bar = enlighten.get_manager().counter(total=binary_mask.shape[0], desc=f'Generate raw png of {args.output}.qp{qp}', unit='frames')
 
+    subprocess.run([
+        'mkdir', args.source + '.pngs'
+    ])
+
+    subprocess.run([
+        'ffmpeg',
+        '-y', 
+        '-f', 'rawvideo',
+        '-pix_fmt', 'yuv420p',
+        '-s:v', '1280x720',
+        '-i', args.source
+        args.source + '.pngs/%010d.png'
+    ])
+
     # read png files from source and multiply it by mask
     for i in range(binary_mask.shape[0]):
         progress_bar.update()
-        source_image = Image.open(args.source + '/%05d.png' % i)
+        source_image = Image.open(args.source + '.pngs/%010d.png' % i)
         image_tensor = T.ToTensor()(source_image)
         binary_mask_slice = tile_mask(binary_mask[i:i+1, :, :, :], args.tile_size)
         image_tensor = image_tensor * binary_mask_slice
         dest_image = T.ToPILImage()(image_tensor[0, :, :, :])
-        dest_image.save(temp_folder + '/%05d.png' % i)
+        dest_image.save(temp_folder + '/%010d.png' % i)
+
+    subprocess.run([
+        'ffmpeg',
+        '-i', temp_folder + '/%010d.png',
+        '-start_number', '0',
+        '-vcodec', 'rawvideo',
+        '-an', 
+        args.output + '.yuv'
+    ])
 
     # encode it through ffmpeg
     subprocess.run([
-        'ffmpeg', 
-        '-y',
-        '-i', temp_folder + '/%05d.png',
-        '-start_number', '0',
-        '-c:v', 'libx264',
-        '-qmin', f'{qp}', '-qmax', f'{qp}',
-        args.output
+        'kvazaar', 
+        '--input', args.output + '.yuv',
+        '--input-res', '1280x720',
+        '-q', f'{qp}',
+        '--gop', '0',
+        '--output', args.output
     ])
 
     # annotate the video quality
@@ -139,35 +162,39 @@ def encode_masked_video(args, qp, binary_mask, logger):
         'rm', '-r', temp_folder
     ])
 
+    subprocess.run([
+        'rm', args.output + '.yuv'
+    ])
+
 def write_masked_video(mask, args, qps, bws, logger):
 
-    # write several temporal mp4 files, and then use ffmpeg to compress them
-    logger.info('Read the source video, for compression purpose...')
-    video = vu.read_video(args.source, logger)
-    os.system(f'rm {args.output}*')
+    mask = mask[:, 0, :, :]
+    mask = mask.permute(0, 2, 1)
+    delta_qp0 = torch.ones_like(mask) * (qps[0] - 22)
+    delta_qp1 = torch.ones_like(mask) * (qps[1] - 22)
+    mask = torch.where(mask == 0, delta_qp0, delta_qp1).int()
 
-    filename2mask = {}
+    _, w, h = mask.shape
 
-    for i, bw in enumerate(bws):
+    with open('temp.dat', 'wb') as f:
+        for fid in range(len(mask)):
+            f.write(struct.pack('i', w))
+            f.write(struct.pack('i', h))
+            for j in range(h):
+                for i in range(w):
+                    f.write(struct.pack('b', mask[fid, i, j]))
 
-        qp = qps[i]
+    subprocess.run([
+        'kvazaar',
+        '--input', args.source,
+        '--gop', '0',
+        '--input-res', '1280x720',
+        '--roi-file', 'temp.dat',
+        '--output', args.output
+    ])
 
-        if qp == -1:
-            continue
-
-        logger.info('Encoding qp %d', qp)
-
-        bw_mask = torch.where(mask == bw, torch.ones_like(mask), torch.zeros_like(mask))
-        filename2mask[f'{args.output}.qp{qp}'] = bw_mask
-        encode_masked_video(args, qp, bw_mask, logger)
-
-    # import pdb; pdb.set_trace()
-
-    filename2mask['args.tile_size'] = args.tile_size
-    # import pdb; pdb.set_trace()
-    with open(f'{args.output}.mask', 'wb') as f:
-        pickle.dump(filename2mask, f)
-    
+    with open(f'{args.output}.args', 'wb') as f:
+        pickle.dump(args, f)
 
 def read_masked_video(video_name, logger):
 
