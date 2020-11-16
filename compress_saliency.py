@@ -127,7 +127,8 @@ def main(args):
 
     # optimization done. No more gradients required.
     mask.requires_grad = False
-    write_masked_video(mask, args, qps, bws, logger)
+    # write_masked_video(mask, args, qps, bws, logger)
+    encode_masked_video(args, max(qps), mask, logger)
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 

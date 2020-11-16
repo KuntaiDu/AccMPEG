@@ -117,14 +117,14 @@ def encode_masked_video(args, qp, binary_mask, logger):
         '-f', 'rawvideo',
         '-pix_fmt', 'yuv420p',
         '-s:v', '1280x720',
-        '-i', args.source
+        '-i', args.source,
+        '-start_number', '0',
         args.source + '.pngs/%010d.png'
     ])
-
     # read png files from source and multiply it by mask
     for i in range(binary_mask.shape[0]):
         progress_bar.update()
-        source_image = Image.open(args.source + '.pngs/%010d.png' % i)
+        source_image = Image.open((args.source + '.pngs/%010d.png') % i)
         image_tensor = T.ToTensor()(source_image)
         binary_mask_slice = tile_mask(binary_mask[i:i+1, :, :, :], args.tile_size)
         image_tensor = image_tensor * binary_mask_slice
@@ -147,16 +147,9 @@ def encode_masked_video(args, qp, binary_mask, logger):
         '--input-res', '1280x720',
         '-q', f'{qp}',
         '--gop', '0',
-        '--output', args.output
+        '--output', f'{args.output}.qp{qp}'
     ])
-
-    # annotate the video quality
-    subprocess.run([
-        'mv', args.output, f'{args.output}.qp{qp}'
-    ])
-
-    # import pdb; pdb.set_trace()
-
+    
     # remove temp folder
     subprocess.run([
         'rm', '-r', temp_folder
