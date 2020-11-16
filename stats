@@ -96,3 +96,17 @@
   pr: 0.9171386957168579
   re: 0.9151096343994141
   video_name: youtube_videos/train_first/trafficcam_1_train_compressed_gt.hevc
+- application: FasterRCNN_ResNet50_FPN
+  bw: 2803661
+  f1: 0.9125797748565674
+  ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
+  pr: 0.9171386957168579
+  re: 0.9151096343994141
+  video_name: youtube_videos/train_first/trafficcam_1_train_compressed_gt.hevc
+- application: FasterRCNN_ResNet50_FPN
+  bw: 2803661
+  f1: 0.9125797748565674
+  ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
+  pr: 0.9171386957168579
+  re: 0.9151096343994141
+  video_name: youtube_videos/train_first/trafficcam_1_train_compressed_gt.hevc
