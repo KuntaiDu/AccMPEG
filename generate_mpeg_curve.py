@@ -7,7 +7,7 @@ import logging
 from utils.video_utils import encode_with_qp
 
 qp_list = [22, 23, 24, 26, 28, 32, 34, 38]
-qp_list = [qp_list[0]]
+# qp_list = [qp_list[0]]
 
 
 def main(args):

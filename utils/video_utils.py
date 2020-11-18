@@ -13,7 +13,7 @@ import subprocess
 
 class Video(Dataset):
 
-    def __init__(self, video, logger):
+    def __init__(self, video, postprocess, logger):
         self.video = video
         logger.info(f'Extract {video} to pngs.')
         Path(f'{video}.pngs').mkdir(exist_ok=True)
@@ -29,13 +29,17 @@ class Video(Dataset):
             f'{video}.pngs/%010d.png'
         ])
         self.nimages = len(glob.glob(f'{video}.pngs/*.png'))
+        self.postprocess = postprocess
 
     def __len__(self):
         return self.nimages
 
     def __getitem__(self, idx):
         image = T.ToTensor()(plt.imread(f'{self.video}.pngs/%010d.png' % idx))
-        return image
+        image_post = self.postprocess(image, idx)
+        if image is not image_post:
+            T.ToPILImage()(image_post).save(f'{self.video}.pngs/%010d.png' % idx)
+        return image_post
 
 
 def read_videos(video_list, logger, sort=False, normalize=True):
@@ -60,7 +64,26 @@ def read_videos(video_list, logger, sort=False, normalize=True):
 
 def read_video(video_name, logger):
     logger.info(f'Reading {video_name}')
-    return DataLoader(Video(video_name, logger), shuffle=False, num_workers=2)
+    postprocess = lambda x, fid: x
+    if 'black' in video_name:
+        import pickle
+        with open(f'{video_name}.mask', 'rb') as f:
+            mask = pickle.load(f)
+        with open(f'{video_name}.args', 'rb') as f:
+            args = pickle.load(f)
+        postprocess = lambda x, fid: postprocess_black_bkgd(fid, x, mask, args)
+    return DataLoader(Video(video_name, postprocess, logger), shuffle=False, num_workers=2)
+
+def postprocess_black_bkgd(fid, image, mask, args):
+
+    mean = torch.tensor([0.485, 0.456, 0.406])
+    image = image[None, :, :, :]
+    background = torch.ones_like(image) * mean[None, :, None, None]
+    mask_fid = mask[fid:fid+1, :, :, :]
+    mask_fid = mu.tile_mask(mask_fid, args.tile_size)
+    return torch.where(mask_fid == 1, image, background)[0, :, :, :]
+    
+    
 
 def read_bandwidth(video_name):
     return os.path.getsize(video_name)

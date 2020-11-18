@@ -94,7 +94,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
     def filter_large_bbox(self, bboxes):
 
         size = (bboxes[:, 2] - bboxes[:, 0]) / 1280 * (bboxes[:, 3] - bboxes[:, 1]) / 720
-        return size < 0.05
+        return size < 0.1
 
     def filter_results(self, video_results, confidence_threshold, cuda=False):
         
@@ -126,6 +126,11 @@ class FasterRCNN_ResNet50_FPN(DNN):
         for fid in video.keys():
 
             video_ind, video_scores, video_bboxes, video_labels = self.filter_results(video[fid], -1)
+            if len(video_labels) == 0:
+                f1s.append(0.)
+                prs.append(0.)
+                res.append(0.)
+                continue
             gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(gt[fid], args.confidence_threshold)
 
             IoU = jaccard(video_bboxes, gt_bboxes)

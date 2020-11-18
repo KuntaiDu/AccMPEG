@@ -9,6 +9,7 @@ import glob
 import pickle
 import subprocess
 import struct
+import torch.nn.functional as F
 
 def generate_masked_image(mask, video_slices, bws):
 
@@ -189,6 +190,43 @@ def write_masked_video(mask, args, qps, bws, logger):
     with open(f'{args.output}.args', 'wb') as f:
         pickle.dump(args, f)
 
+
+
+def write_black_bkgd_video(mask, args, qps, bws, logger):
+
+    with open(f'{args.output}.mask', 'wb') as f:
+        pickle.dump(mask, f)
+
+    mask = mask[:, 0, :, :]
+    mask = mask.permute(0, 2, 1)
+    delta_qp_low = torch.ones_like(mask) * 25
+    delta_qp_high = torch.ones_like(mask) * (qps[0] - 22)
+    mask = torch.where(mask == 0, delta_qp_low, delta_qp_high).int()
+
+    _, w, h = mask.shape
+
+    with open('temp.dat', 'wb') as f:
+        for fid in range(len(mask)):
+            f.write(struct.pack('i', w))
+            f.write(struct.pack('i', h))
+            for j in range(h):
+                for i in range(w):
+                    f.write(struct.pack('b', mask[fid, i, j]))
+
+    subprocess.run([
+        'kvazaar',
+        '--input', args.source,
+        '--gop', '0',
+        '--input-res', '1280x720',
+        '--roi-file', 'temp.dat',
+        '--output', args.output
+    ])
+
+    with open(f'{args.output}.args', 'wb') as f:
+        pickle.dump(args, f)
+
+    
+
 def read_masked_video(video_name, logger):
 
     logger.info(f'Reading compressed video {video_name}. Reading each part...')
@@ -212,15 +250,20 @@ def read_masked_video(video_name, logger):
         base[video != 0] = video[video != 0]
     return base
 
-def generate_mask_from_regions(mask_slice, regions, minval):
+def generate_mask_from_regions(mask_slice, regions, minval, tile_size):
 
     # (xmin, ymin, xmax, ymax)
     regions = bu.point_form(regions)
     mask_slice[:, :, :, :] = minval
+    mask_slice_orig = mask_slice
 
+    # tile the mask
+    mask_slice = tile_mask(mask_slice, tile_size)
+
+    # put regions on it
     x = mask_slice.shape[3]
     y = mask_slice.shape[2]
-
+    
     for region in regions:
         xrange = torch.arange(0, x)
         yrange = torch.arange(0, y)
@@ -238,7 +281,12 @@ def generate_mask_from_regions(mask_slice, regions, minval):
         yrangemax = yrange.nonzero().max().item() + 1
         mask_slice[:, :, yrangemin:yrangemax, xrangemin:xrangemax] = 1
 
-    return mask_slice
+    # revert the tile process
+    mask_slice = F.conv2d(mask_slice, torch.ones([1, 3, tile_size, tile_size]), stride=tile_size)
+    mask_slice = torch.where(mask_slice > 0, torch.ones_like(mask_slice), torch.zeros_like(mask_slice))
+    mask_slice_orig[:, :, :, :] = mask_slice[:, :, :, :]
+
+    return mask_slice_orig
 
 def percentile(t: torch.tensor, q: float) -> float:
     """
