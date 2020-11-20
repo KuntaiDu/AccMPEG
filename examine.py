@@ -10,7 +10,7 @@ from pathlib import Path
 import yaml
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from utils.video_utils import read_videos
+from utils.video_utils import read_bandwidth
 from utils.results_utils import read_results, write_results
 
 
@@ -20,8 +20,8 @@ def main(args):
     handler = logging.NullHandler()
     logger.addHandler(handler)
 
-    videos, bws, video_names = read_videos(args.inputs, logger, normalize=False)
-    
+    bws = [read_bandwidth(video) for video in args.inputs]
+    video_names = args.inputs
 
     application_bundle = [FasterRCNN_ResNet50_FPN()]
 

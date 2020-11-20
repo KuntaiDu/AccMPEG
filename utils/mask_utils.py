@@ -10,6 +10,9 @@ import pickle
 import subprocess
 import struct
 import torch.nn.functional as F
+from PIL import Image
+from torchvision import transforms as T
+import enlighten
 
 def generate_masked_image(mask, video_slices, bws):
 
@@ -101,9 +104,7 @@ def encode_masked_video(args, qp, binary_mask, logger):
 
     Path(temp_folder).mkdir()
 
-    from PIL import Image
-    from torchvision import transforms as T
-    import enlighten
+    
 
     # make a progress bar
     progress_bar = enlighten.get_manager().counter(total=binary_mask.shape[0], desc=f'Generate raw png of {args.output}.qp{qp}', unit='frames')
@@ -194,37 +195,71 @@ def write_masked_video(mask, args, qps, bws, logger):
 
 def write_black_bkgd_video(mask, args, qps, bws, logger):
 
+    subprocess.run([
+        'rm', '-r', args.output + '*'
+    ])
+
     with open(f'{args.output}.mask', 'wb') as f:
         pickle.dump(mask, f)
+    with open(f'{args.output}.args', 'wb') as f:
+        pickle.dump(args, f)  
 
-    mask = mask[:, 0, :, :]
-    mask = mask.permute(0, 2, 1)
-    delta_qp_low = torch.ones_like(mask) * 25
-    delta_qp_high = torch.ones_like(mask) * (qps[0] - 22)
-    mask = torch.where(mask == 0, delta_qp_low, delta_qp_high).int()
+    # slightly dilate the mask a bit, to "protect" the crucial area
+    # mask = F.conv2d(mask, torch.ones([1, 1, 3, 3]), stride=1, padding=1)
+    # mask = torch.where(mask > 0, torch.ones_like(mask), torch.zeros_like(mask))
 
-    _, w, h = mask.shape
+    
+    Path(args.output + '.source.pngs').mkdir(exist_ok=True)
+    subprocess.run([
+        'ffmpeg', 
+        '-y',
+        '-f', 'rawvideo',
+        '-pix_fmt', 'yuv420p', 
+        '-s:v', '1280x720',
+        '-i', args.source,
+        '-start_number', '0',
+        args.output + '.source.pngs/%010d.png'
+    ])
+    
+    progress_bar = enlighten.get_manager().counter(total=mask.shape[0], desc=f'Generate raw png of {args.output}', unit='frames')
 
-    with open('temp.dat', 'wb') as f:
-        for fid in range(len(mask)):
-            f.write(struct.pack('i', w))
-            f.write(struct.pack('i', h))
-            for j in range(h):
-                for i in range(w):
-                    f.write(struct.pack('b', mask[fid, i, j]))
+    for fid, mask_slice in enumerate(mask.split(1)):
+        progress_bar.update()
+        # read image
+        filename = args.output + '.source.pngs/%010d.png' % fid
+        image = Image.open(filename)
+        image = T.ToTensor()(image)
+        image = image[None, :, :, :]
+        # generate background
+        mean = torch.tensor([0.485, 0.456, 0.406])
+        background = torch.ones_like(image) * mean[None, :, None, None]
+        # extract mask
+        mask_slice = tile_mask(mask_slice, args.tile_size)
+        # construct and write image
+        image = torch.where(mask_slice == 1, image, background)
+        T.ToPILImage()(image[0, :, :, :]).save(filename)
+
+    subprocess.run([
+        'ffmpeg',
+        '-y',
+        '-i', args.output + '.source.pngs/%010d.png', 
+        '-start_number', '0',
+        '-vcodec', 'rawvideo',
+        '-pix_fmt', 'yuv420p', 
+        args.output + '.yuv'
+    ])
+
+    assert qps[0] == 22
 
     subprocess.run([
         'kvazaar',
-        '--input', args.source,
-        '--gop', '0',
+        '--input', args.output + '.yuv',
         '--input-res', '1280x720',
-        '--roi-file', 'temp.dat',
+        '-q', f'{qps[0]}',
+        '--gop', '0',
         '--output', args.output
     ])
-
-    with open(f'{args.output}.args', 'wb') as f:
-        pickle.dump(args, f)
-
+        
     
 
 def read_masked_video(video_name, logger):

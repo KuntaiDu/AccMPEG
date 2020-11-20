@@ -13,22 +13,24 @@ import subprocess
 v_list = ['train_first/trafficcam_1_train']
 tile = 16
 # perc = 40
-niter = 15
+niter = 14
+delta = 16
 
 for v in v_list:
 
     output = f'{v}_compressed_black.hevc'
 
-    # subprocess.run([
-    #     'python', 'compress_black.py',
-    #     '-i', f'youtube_videos/{v}_qp_22.hevc',
-    #     '-g', f'youtube_videos/{v}_qp_22.hevc',
-    #     '-s', f'youtube_videos/{v}.yuv',
-    #     '-o', f'youtube_videos/{output}',
-    #     # '--tile_percentage', f'{perc}', 
-    #     '--num_iterations', f'{niter}',
-    #     '--tile_size', f'{tile}'
-    # ])
+    subprocess.run([
+        'python', 'compress_black.py',
+        '-i', f'youtube_videos/{v}_qp_22.hevc',
+        '-g', f'youtube_videos/{v}_qp_22.hevc',
+        '-s', f'youtube_videos/{v}.yuv',
+        '-o', f'youtube_videos/{output}',
+        # '--tile_percentage', f'{perc}', 
+        '--num_iterations', f'{niter}',
+        '--tile_size', f'{tile}',
+        '--delta', f'{delta}'
+    ])
     # os.system(f'rm youtube_videos/{output}.qp{base}')
     os.system(f'python inference.py -i youtube_videos/{output}')
     os.system(f'python examine.py -i youtube_videos/{output} -g youtube_videos/{v}_qp_22.hevc')
