@@ -22,7 +22,16 @@ def main(args):
             input_name = f'{video_name}.yuv'
             output_name = f'{video_name}_qp_{qp}.hevc'
             print(f'Generate video for {output_name}')
-            encode_with_qp(input_name, output_name, qp, args)
+            # encode_with_qp(input_name, output_name, qp, args)
+
+            subprocess.run([
+                'kvazaar',
+                '--input', input_name,
+                '--input-res', '1280x720',
+                '-q', f'{qp}',
+                '--gop', '0',
+                '--output', output_name
+            ])
 
             subprocess.run([
                 'python',

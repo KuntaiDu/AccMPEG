@@ -62,8 +62,8 @@ def main(args):
     ground_truth_results = read_results(
         args.ground_truth, application.name, logger)
     # construct the regions
-    regions = [center_size(application.filter_results(i, args.confidence_threshold)[
-                           2]) for i in ground_truth_results.values()]
+    regions = [center_size(application.filter_results(ground_truth_results[i], args.confidence_threshold)[
+                           2]) for i in ground_truth_results.keys()]
     # with initial w, h = 0
     for region in regions:
         region[:, 2:] = 0
@@ -116,13 +116,10 @@ def main(args):
         #logger.info('Maskmean: %0.3f' % torch.tensor(means).mean())
         logger.info('Maskmean: %0.3f' % mask.mean())
 
-    # "protect" the regions
-    for region in regions:
-        for region_slice in region:
-            if region_slice[2] > 0:
-                region_slice[2:] = region_slice[2:] + args.delta
+    # apply the latest update
     for batch_id, mask_slice in enumerate(mask.split(args.batch_size)):
         generate_mask_from_regions(mask_slice, regions[batch_id], bws[0], args.tile_size)
+
 
     # visualization
     for batch_id, (video_slices, mask_slice) in enumerate(zip(zip(*videos), mask.split(args.batch_size))):

@@ -1,203 +1,84 @@
 - application: FasterRCNN_ResNet50_FPN
-  bw: 4576042
+  bw: 4577293
   f1: 1.0
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
   pr: 1.0
   re: 1.0
   video_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 3942647
-  f1: 0.926466703414917
+  bw: 3937169
+  f1: 0.9338228106498718
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.9202184081077576
-  re: 0.9384270310401917
+  pr: 0.9186652898788452
+  re: 0.9561395049095154
   video_name: youtube_videos/train_first/trafficcam_1_train_qp_23.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 3389111
-  f1: 0.9234243631362915
+  bw: 3374884
+  f1: 0.9310078024864197
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.9116635322570801
-  re: 0.9424624443054199
+  pr: 0.919860303401947
+  re: 0.9483411908149719
   video_name: youtube_videos/train_first/trafficcam_1_train_qp_24.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 2752365
-  f1: 0.9323045015335083
+  bw: 2234505
+  f1: 0.9257707595825195
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.9324234127998352
-  re: 0.938242495059967
-  video_name: youtube_videos/train_first/trafficcam_1_train_qp_25.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 2454344
-  f1: 0.9304991364479065
-  ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.9419640898704529
-  re: 0.9251291751861572
+  pr: 0.9452714323997498
+  re: 0.9136280417442322
   video_name: youtube_videos/train_first/trafficcam_1_train_qp_26.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 1778541
-  f1: 0.9213924407958984
+  bw: 1499703
+  f1: 0.9009585380554199
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.9329420924186707
-  re: 0.9167799949645996
+  pr: 0.9153076410293579
+  re: 0.8965566754341125
   video_name: youtube_videos/train_first/trafficcam_1_train_qp_28.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 1039479
-  f1: 0.8915547728538513
+  bw: 732814
+  f1: 0.861201286315918
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.9098767042160034
-  re: 0.8821170926094055
-  video_name: youtube_videos/train_first/trafficcam_1_train_qp_30.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 957112
-  f1: 0.8797126412391663
-  ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.8989214897155762
-  re: 0.869268000125885
+  pr: 0.856000542640686
+  re: 0.876193642616272
   video_name: youtube_videos/train_first/trafficcam_1_train_qp_32.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 715654
-  f1: 0.8638216257095337
+  bw: 540545
+  f1: 0.848181962966919
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.8755969405174255
-  re: 0.8625524044036865
+  pr: 0.8482106328010559
+  re: 0.8629478812217712
   video_name: youtube_videos/train_first/trafficcam_1_train_qp_34.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 429926
-  f1: 0.8344128131866455
+  bw: 318994
+  f1: 0.7988531589508057
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.8534225225448608
-  re: 0.825883686542511
+  pr: 0.8200876116752625
+  re: 0.7927760481834412
   video_name: youtube_videos/train_first/trafficcam_1_train_qp_38.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 1017092
-  f1: 0.7667213082313538
+  bw: 797821
+  f1: 0.762067437171936
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.7116456627845764
-  re: 0.8494276404380798
+  pr: 0.8968642354011536
+  re: 0.6735822558403015
   video_name: youtube_videos/train_first/trafficcam_1_train_compressed_black.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 11905750
-  f1: 1.0
-  ground_truth_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-  pr: 1.0
-  re: 1.0
-  video_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 11905750
-  f1: 1.0
-  ground_truth_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-  pr: 1.0
-  re: 1.0
-  video_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 10483672
-  f1: 0.9086260795593262
-  ground_truth_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-  pr: 0.9168721437454224
-  re: 0.9049341678619385
-  video_name: youtube_videos/train_first/dashcam_1_train_qp_23.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 9272727
-  f1: 0.911965548992157
-  ground_truth_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-  pr: 0.9180701971054077
-  re: 0.9107059836387634
-  video_name: youtube_videos/train_first/dashcam_1_train_qp_24.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 7128683
-  f1: 0.8982807397842407
-  ground_truth_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-  pr: 0.9077947735786438
-  re: 0.8938540816307068
-  video_name: youtube_videos/train_first/dashcam_1_train_qp_26.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 5494544
-  f1: 0.8820233345031738
-  ground_truth_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-  pr: 0.887965977191925
-  re: 0.8807073831558228
-  video_name: youtube_videos/train_first/dashcam_1_train_qp_28.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 3219145
-  f1: 0.8350301384925842
-  ground_truth_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-  pr: 0.8761711716651917
-  re: 0.8039109110832214
-  video_name: youtube_videos/train_first/dashcam_1_train_qp_32.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 2454995
-  f1: 0.7995930910110474
-  ground_truth_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-  pr: 0.8554779291152954
-  re: 0.7599214911460876
-  video_name: youtube_videos/train_first/dashcam_1_train_qp_34.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 1432826
-  f1: 0.7116511464118958
-  ground_truth_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-  pr: 0.8335694670677185
-  re: 0.631808340549469
-  video_name: youtube_videos/train_first/dashcam_1_train_qp_38.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 3359387
-  f1: 0.8726388812065125
-  ground_truth_name: youtube_videos/train_first/dashcam_1_train_qp_22.hevc
-  pr: 0.8879744410514832
-  re: 0.863215446472168
-  video_name: youtube_videos/train_first/dashcam_1_train_compressed_black.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 1117690
-  f1: 0.7438579201698303
+  bw: 1248194
+  f1: 0.9275440573692322
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.6624046564102173
-  re: 0.8669701218605042
+  pr: 0.9092187285423279
+  re: 0.9526649117469788
   video_name: youtube_videos/train_first/trafficcam_1_train_compressed_black.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 1081761
-  f1: 0.7438579201698303
+  bw: 1591197
+  f1: 0.9290829300880432
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.6624046564102173
-  re: 0.8669701218605042
+  pr: 0.9168825149536133
+  re: 0.948930025100708
   video_name: youtube_videos/train_first/trafficcam_1_train_compressed_black.hevc
 - application: FasterRCNN_ResNet50_FPN
-  bw: 1081761
-  f1: 0.7438579201698303
+  bw: 1591197
+  f1: 0.9098467826843262
   ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.6624046564102173
-  re: 0.8669701218605042
-  video_name: youtube_videos/train_first/trafficcam_1_train_compressed_black.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 1081761
-  f1: 0.7438579201698303
-  ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.6624046564102173
-  re: 0.8669701218605042
-  video_name: youtube_videos/train_first/trafficcam_1_train_compressed_black.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 1081761
-  f1: 0.855289101600647
-  ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.8618096709251404
-  re: 0.8588504791259766
-  video_name: youtube_videos/train_first/trafficcam_1_train_compressed_black.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 1081761
-  f1: 0.855289101600647
-  ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.8618096709251404
-  re: 0.8588504791259766
-  video_name: youtube_videos/train_first/trafficcam_1_train_compressed_black.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 1081761
-  f1: 0.855289101600647
-  ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.8618096709251404
-  re: 0.8588504791259766
-  video_name: youtube_videos/train_first/trafficcam_1_train_compressed_black.hevc
-- application: FasterRCNN_ResNet50_FPN
-  bw: 1081761
-  f1: 0.855289101600647
-  ground_truth_name: youtube_videos/train_first/trafficcam_1_train_qp_22.hevc
-  pr: 0.8618096709251404
-  re: 0.8588504791259766
+  pr: 0.9051886796951294
+  re: 0.921004056930542
   video_name: youtube_videos/train_first/trafficcam_1_train_compressed_black.hevc
