@@ -33,7 +33,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
         self.logger = logging.getLogger(self.name)
         handler = logging.NullHandler()
         self.logger.addHandler(handler)
-        # self.class_ids = [3, 6, 7, 8]
+        self.class_ids = [1, 2, 3, 4, 6, 7, 8]
 
         self.is_cuda = False
 
@@ -77,7 +77,10 @@ class FasterRCNN_ResNet50_FPN(DNN):
     def get_relevant_ind(self, labels):
 
         # filter out background classes
-        return labels > 0
+        relevant_labels = (labels < 0)
+        for i in self.class_ids:
+            relevant_labels = torch.logical_or(relevant_labels, labels == i)
+        return relevant_labels
 
     def step(self, tensor):
         tensor = F.leaky_relu(100 * tensor, negative_slope=0.1)
@@ -94,7 +97,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
     def filter_large_bbox(self, bboxes):
 
         size = (bboxes[:, 2] - bboxes[:, 0]) / 1280 * (bboxes[:, 3] - bboxes[:, 1]) / 720
-        return size < 0.1
+        return size > 0
 
     def filter_results(self, video_results, confidence_threshold, cuda=False):
         

@@ -164,7 +164,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output', type=str,
                         help='The output name.', required=True)
     parser.add_argument('--confidence_threshold', type=float,
-                        help='The confidence score threshold for calculating accuracy.', default=0.5)
+                        help='The confidence score threshold for calculating accuracy.', default=0.3)
     parser.add_argument('--iou_threshold', type=float,
                         help='The IoU threshold for calculating accuracy in object detection.', default=0.5)
     parser.add_argument('--num_iterations', type=int,

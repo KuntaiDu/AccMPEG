@@ -71,6 +71,13 @@ def read_video(video_name, logger):
             mask = pickle.load(f)
         with open(f'{video_name}.args', 'rb') as f:
             args = pickle.load(f)
+        # directly copy-paste the high quality video for high quality regions.
+        if hasattr(args, 'input'):
+            video_name = args.input[0]
+        elif hasattr(args, 'inputs'):
+            video_name = args.inputs[-1]
+        else:
+            raise RuntimeError('Cannot reason the high-quality video name from the args.')
         postprocess = lambda x, fid: postprocess_black_bkgd(fid, x, mask, args)
     return DataLoader(Video(video_name, postprocess, logger), shuffle=False, num_workers=2)
 

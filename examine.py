@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-i', '--inputs', type=str, help='The video file names to obtain inference results.', required=True, nargs='+')
     parser.add_argument('-g', '--ground_truth', type=str, help='The ground-truth video name.', required=True)
-    parser.add_argument('--confidence_threshold', type=float, help='The confidence score threshold for calculating accuracy.', default=0.5)
+    parser.add_argument('--confidence_threshold', type=float, help='The confidence score threshold for calculating accuracy.', default=0.3)
     parser.add_argument('--iou_threshold', type=float, help='The IoU threshold for calculating accuracy in object detection.', default=0.5)
 
     args = parser.parse_args()
