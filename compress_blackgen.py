@@ -1,41 +1,30 @@
-'''
+"""
     Compress the video through gradient-based optimization.
-'''
+"""
 
-from utils.results_utils import read_results, read_ground_truth
-from utils.mask_utils import *
-from utils.video_utils import read_videos, write_video, get_qp_from_name
-from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-import gc
-from pathlib import Path
-import matplotlib.pyplot as plt
-import torch
-from torchvision import io
-from maskgen.fcn_16 import FCN
 import argparse
-import coloredlogs
+import gc
 import logging
+from pathlib import Path
+
+import coloredlogs
 import enlighten
-import torchvision.transforms as T
-import torch.nn.functional as F
-from PIL import Image
+import matplotlib.pyplot as plt
 import seaborn as sns
+import torch
+import torch.nn.functional as F
+import torchvision.transforms as T
+from PIL import Image
+from torchvision import io
+
+from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from maskgen.fcn_16_single_channel import FCN
+from utils.loss_utils import focal_loss as get_loss
+from utils.mask_utils import *
+from utils.results_utils import read_ground_truth, read_results
+from utils.video_utils import get_qp_from_name, read_videos, write_video
+
 sns.set()
-
-
-def get_loss(mask, target):
-
-    # import pdb; pdb.set_trace()
-
-    target = target.float().cuda()
-    prob = mask.softmax(dim=1)[:, 1:2, :, :]
-    prob = torch.where(target == 1, prob, 1-prob)
-    weight = torch.where(
-        target == 1, 10 * torch.ones_like(prob), torch.ones_like(prob))
-
-    eps = 1e-6
-
-    return (- weight * ((1-prob) ** 2) * ((prob+eps).log())).mean()
 
 
 def main(args):
@@ -43,8 +32,8 @@ def main(args):
     gc.enable()
 
     # initialize
-    logger = logging.getLogger('blackgen')
-    logger.addHandler(logging.FileHandler('blackgen.log'))
+    logger = logging.getLogger("blackgen")
+    logger.addHandler(logging.FileHandler("blackgen.log"))
     torch.set_default_tensor_type(torch.FloatTensor)
 
     # read the video frames (will use the largest video as ground truth)
@@ -61,13 +50,10 @@ def main(args):
     mask_generator.eval().cuda()
 
     # construct the mask
-    mask_shape = [len(videos[-1]), 1, 720 //
-                  args.tile_size, 1280 // args.tile_size]
+    mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
     mask = torch.ones(mask_shape).float()
 
-    ground_truth_dict = read_results(
-        args.inputs[-1], 'FasterRCNN_ResNet50_FPN', logger)
-
+    ground_truth_dict = read_results(args.inputs[-1], "FasterRCNN_ResNet50_FPN", logger)
 
     # logger.info('Reading ground truth mask')
     # with open(args.mask + '.mask', 'rb') as f:
@@ -85,16 +71,19 @@ def main(args):
 
     for temp in range(1):
 
-        logger.info(f'Processing application {application.name}')
+        logger.info(f"Processing application {application.name}")
         progress_bar = enlighten.get_manager().counter(
-            total=len(videos[-1]), desc=f'{application.name}', unit='frames')
+            total=len(videos[-1]), desc=f"{application.name}", unit="frames"
+        )
 
         application.cuda()
 
         losses = []
         f1s = []
 
-        for fid, (video_slices, mask_slice) in enumerate(zip(zip(*videos), mask.split(1))):
+        for fid, (video_slices, mask_slice) in enumerate(
+            zip(zip(*videos), mask.split(1))
+        ):
 
             progress_bar.update()
 
@@ -103,16 +92,25 @@ def main(args):
 
             # construct hybrid image
             with torch.no_grad():
-                mask_gen = mask_generator(
-                    torch.cat([hq_image, hq_image - lq_image], dim=1).cuda())
+                # mask_gen = mask_generator(
+                #     torch.cat([hq_image, hq_image - lq_image], dim=1).cuda()
+                # )
+                mask_gen = mask_generator(hq_image.cuda())
                 # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
                 mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
-                mask_slice[:, :, :, :] = torch.where(
-                    mask_gen > percentile(mask_gen, 100-args.tile_percentage),
-                    torch.ones_like(mask_gen),
-                    torch.zeros_like(mask_gen))
-                mask_slice[:, :, :, :] = F.conv2d(mask_slice, torch.ones([1, 1, 7, 7]), stride=1, padding=3)
-                mask_slice[:, :, :, :] = torch.where(mask_slice > 0, torch.ones_like(mask_slice), torch.zeros_like(mask_slice))
+                # mask_slice[:, :, :, :] = torch.where(
+                #     mask_gen > percentile(mask_gen, 100 - args.tile_percentage),
+                #     torch.ones_like(mask_gen),
+                #     torch.zeros_like(mask_gen),
+                # )
+                # mask_slice[:, :, :, :] = F.conv2d(
+                #     mask_slice, torch.ones([1, 1, 9, 9]), stride=1, padding=4
+                # )
+                # mask_slice[:, :, :, :] = torch.where(
+                #     mask_slice > 0,
+                #     torch.ones_like(mask_slice),
+                #     torch.zeros_like(mask_slice),
+                # )
                 # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
             # mask_slice[:, :, :, :] = ground_truth_mask[fid + offset2].float()
 
@@ -146,57 +144,90 @@ def main(args):
                 #     inf = application.inference(hq_image, detach=True)[0]
                 image = T.ToPILImage()(video_slices[-1][0, :, :, :])
                 # image = application.plot_results_on(inf, image, (255, 255, 255), args)
-                #image = application.plot_results_on(video_results, image, (0, 255, 255), args)
+                # image = application.plot_results_on(video_results, image, (0, 255, 255), args)
                 ax.imshow(image, zorder=3, alpha=0.5)
-                Path(
-                    f'visualize/{args.output}/').mkdir(parents=True, exist_ok=True)
+                Path(f"visualize/{args.output}/").mkdir(parents=True, exist_ok=True)
                 plt.savefig(
-                    f'visualize/{args.output}/{fid}_attn.png', bbox_inches='tight')
+                    f"visualize/{args.output}/{fid}_attn.png", bbox_inches="tight"
+                )
 
-        logger.info('In video %s', args.output)
-        logger.info('The average loss is %.3f' % torch.tensor(losses).mean())
+                plt.clf()
+                sns.distplot(heat.flatten().detach().numpy())
+                plt.savefig(
+                    f'visualize/{args.output}/{fid}_dist.png', bbox_inches='tight'
+                )
 
-        with open('temp.txt', 'w') as f:
-            f.write(f'{torch.tensor(f1s).mean()}')
-        logger.info('The average f1 is %.3f' % torch.tensor(f1s).mean())
+        logger.info("In video %s", args.output)
+        logger.info("The average loss is %.3f" % torch.tensor(losses).mean())
+
+        with open("temp.txt", "w") as f:
+            f.write(f"{torch.tensor(f1s).mean()}")
+        logger.info("The average f1 is %.3f" % torch.tensor(f1s).mean())
 
         application.cpu()
 
     mask.requires_grad = False
     mask = binarize_mask(mask, bws)
     qps = [min(qps)]
-    write_black_bkgd_video(mask, args, qps, bws, logger)
+    # write_black_bkgd_video(mask, args, qps, bws, logger)
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     # set the format of the logger
     coloredlogs.install(
-        fmt="%(asctime)s [%(levelname)s] %(name)s:%(funcName)s[%(lineno)s] -- %(message)s", level='INFO')
+        fmt="%(asctime)s [%(levelname)s] %(name)s:%(funcName)s[%(lineno)s] -- %(message)s",
+        level="INFO",
+    )
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-i', '--inputs', nargs='+',
-                        help='The video file names. The largest video file will be the ground truth.', required=True)
-    parser.add_argument('--batch_size', type=int, default=1)
-    parser.add_argument('-s', '--source', type=str,
-                        help='The original video source.', required=True)
+    parser.add_argument(
+        "-i",
+        "--inputs",
+        nargs="+",
+        help="The video file names. The largest video file will be the ground truth.",
+        required=True,
+    )
+    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument(
+        "-s", "--source", type=str, help="The original video source.", required=True
+    )
     # parser.add_argument('-g', '--ground_truth', type=str, help='The ground truth results.', required=True)
-    parser.add_argument('-o', '--output', type=str,
-                        help='The output name.', required=True)
-    parser.add_argument('--confidence_threshold', type=float,
-                        help='The confidence score threshold for calculating accuracy.', default=0.3)
-    parser.add_argument('--iou_threshold', type=float,
-                        help='The IoU threshold for calculating accuracy in object detection.', default=0.5)
-    parser.add_argument('--tile_size', type=int,
-                        help='The tile size of the mask.', default=8)
-    parser.add_argument('-p', '--path', type=str,
-                        help='The path of pth file that stores the generator parameters.', required=True)
-    parser.add_argument('--tile_percentage', type=float,
-                        help='How many percentage of tiles will remain', default=1)
-    
+    parser.add_argument(
+        "-o", "--output", type=str, help="The output name.", required=True
+    )
+    parser.add_argument(
+        "--confidence_threshold",
+        type=float,
+        help="The confidence score threshold for calculating accuracy.",
+        default=0.3,
+    )
+    parser.add_argument(
+        "--iou_threshold",
+        type=float,
+        help="The IoU threshold for calculating accuracy in object detection.",
+        default=0.5,
+    )
+    parser.add_argument(
+        "--tile_size", type=int, help="The tile size of the mask.", default=8
+    )
+    parser.add_argument(
+        "-p",
+        "--path",
+        type=str,
+        help="The path of pth file that stores the generator parameters.",
+        required=True,
+    )
+    parser.add_argument(
+        "--tile_percentage",
+        type=float,
+        help="How many percentage of tiles will remain",
+        default=1,
+    )
+
     # parser.add_argument('--mask', type=str,
     #                     help='The path of the ground truth video, for loss calculation purpose.', required=True)
 
