@@ -24,8 +24,8 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from torchvision import io
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from maskgen.fcn_16_single_channel_fat import FCN
-from utils.loss_utils import cross_entropy as get_loss
+from maskgen.fcn_16_single_channel import FCN
+from utils.loss_utils import mean_squared_error as get_loss
 from utils.mask_utils import *
 from utils.results_utils import read_ground_truth_mask, read_results
 from utils.video_utils import get_qp_from_name, read_videos, write_video
@@ -101,6 +101,13 @@ def main(args):
             # inference
             hq_image = data["image"].cuda()
             mask_slice = mask_generator(hq_image)
+            mask_slice_temp = mask_slice.softmax(dim=1)[:, 1:2, :, :]
+            logger.info(
+                "Min: %f, Mean: %f, Std: %f",
+                mask_slice_temp.min().item(),
+                mask_slice_temp.mean().item(),
+                mask_slice_temp.std().item(),
+            )
             fids = [fid.item() for fid in data["fid"]]
 
             # calculate loss

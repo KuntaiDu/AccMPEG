@@ -397,3 +397,45 @@
   pr: 0.9499378204345703
   re: 0.8722200393676758
   video_name: visdrone/videos/vis_174_compressed_blackgen_171_model.hevc
+- application: FasterRCNN_ResNet50_FPN
+  bw: 40530645
+  f1: 0.8412624001502991
+  ground_truth_name: visdrone/videos/vis_170_qp_22.hevc
+  pr: 0.880627453327179
+  re: 0.8128914833068848
+  video_name: visdrone/videos/vis_170_compressed_blackgen_fcn_black_vis_172_thresh_0.8.hevc
+- application: FasterRCNN_ResNet50_FPN
+  bw: 40530645
+  f1: 0.8832820653915405
+  ground_truth_name: visdrone/videos/vis_170_qp_22.hevc
+  pr: 0.9250124096870422
+  re: 0.8519270420074463
+  video_name: visdrone/videos/vis_170_compressed_blackgen_fcn_black_vis_172_thresh_0.8.hevc
+- application: FasterRCNN_ResNet50_FPN
+  bw: 40530645
+  f1: 0.8412624001502991
+  ground_truth_name: visdrone/videos/vis_170_qp_22.hevc
+  pr: 0.880627453327179
+  re: 0.8128914833068848
+  video_name: visdrone/videos/vis_170_compressed_blackgen_fcn_black_vis_172_thresh_0.8.hevc
+- application: FasterRCNN_ResNet50_FPN
+  bw: 40530645
+  f1: 0.8412624001502991
+  ground_truth_name: visdrone/videos/vis_170_qp_22.hevc
+  pr: 0.880627453327179
+  re: 0.8128914833068848
+  video_name: visdrone/videos/vis_170_compressed_blackgen_fcn_black_vis_172_thresh_0.8.hevc
+- application: FasterRCNN_ResNet50_FPN
+  bw: 40530645
+  f1: 0.8412624001502991
+  ground_truth_name: visdrone/videos/vis_170_qp_22.hevc
+  pr: 0.880627453327179
+  re: 0.8128914833068848
+  video_name: visdrone/videos/vis_170_compressed_blackgen_fcn_black_vis_172_thresh_0.8.hevc
+- application: FasterRCNN_ResNet50_FPN
+  bw: 72589385
+  f1: 0.8429599404335022
+  ground_truth_name: visdrone/videos/vis_170_qp_22.hevc
+  pr: 0.8819880485534668
+  re: 0.8149816393852234
+  video_name: visdrone/videos/vis_170_compressed_blackgen_fcn_black_vis_172_thresh_0.8.hevc
