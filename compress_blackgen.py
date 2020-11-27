@@ -47,7 +47,7 @@ def main(args):
 
     mask_generator = FCN()
     mask_generator.load(args.path)
-    mask_generator.eval().cuda()
+    mask_generator.train().cuda()
 
     # construct the mask
     mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
@@ -98,19 +98,19 @@ def main(args):
                 mask_gen = mask_generator(hq_image.cuda())
                 # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
                 mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
-                # mask_slice[:, :, :, :] = torch.where(
-                #     mask_gen > percentile(mask_gen, 100 - args.tile_percentage),
-                #     torch.ones_like(mask_gen),
-                #     torch.zeros_like(mask_gen),
-                # )
-                # mask_slice[:, :, :, :] = F.conv2d(
-                #     mask_slice, torch.ones([1, 1, 9, 9]), stride=1, padding=4
-                # )
-                # mask_slice[:, :, :, :] = torch.where(
-                #     mask_slice > 0,
-                #     torch.ones_like(mask_slice),
-                #     torch.zeros_like(mask_slice),
-                # )
+                mask_slice[:, :, :, :] = torch.where(
+                    mask_gen > args.mask_threshold,
+                    torch.ones_like(mask_gen),
+                    torch.zeros_like(mask_gen),
+                )
+                mask_slice[:, :, :, :] = F.conv2d(
+                    mask_slice, torch.ones([1, 1, 9, 9]), stride=1, padding=4
+                )
+                mask_slice[:, :, :, :] = torch.where(
+                    mask_slice > 0,
+                    torch.ones_like(mask_slice),
+                    torch.zeros_like(mask_slice),
+                )
                 # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
             # mask_slice[:, :, :, :] = ground_truth_mask[fid + offset2].float()
 
@@ -135,7 +135,7 @@ def main(args):
             # total_loss.append(loss.item())
 
             # visualization
-            if fid % 30 == 0:
+            if args.visualize and (fid % 50 == 0 or fid % 50 == 1):
                 heat = tile_mask(mask_slice, args.tile_size)[0, 0, :, :]
                 plt.clf()
                 ax = sns.heatmap(heat.detach().numpy(), zorder=3, alpha=0.5)
@@ -151,11 +151,11 @@ def main(args):
                     f"visualize/{args.output}/{fid}_attn.png", bbox_inches="tight"
                 )
 
-                plt.clf()
-                sns.distplot(heat.flatten().detach().numpy())
-                plt.savefig(
-                    f'visualize/{args.output}/{fid}_dist.png', bbox_inches='tight'
-                )
+                # plt.clf()
+                # sns.distplot(heat.flatten().detach().numpy())
+                # plt.savefig(
+                #     f"visualize/{args.output}/{fid}_dist.png", bbox_inches="tight"
+                # )
 
         logger.info("In video %s", args.output)
         logger.info("The average loss is %.3f" % torch.tensor(losses).mean())
@@ -169,7 +169,7 @@ def main(args):
     mask.requires_grad = False
     mask = binarize_mask(mask, bws)
     qps = [min(qps)]
-    # write_black_bkgd_video(mask, args, qps, bws, logger)
+    write_black_bkgd_video_smoothed(mask, args, qps, bws, logger)
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 
@@ -226,6 +226,12 @@ if __name__ == "__main__":
         type=float,
         help="How many percentage of tiles will remain",
         default=1,
+    )
+    parser.add_argument(
+        "--mask_threshold", type=float, help="The threshold for the mask", default=0.8,
+    )
+    parser.add_argument(
+        "--visualize", type=bool, help="Visualize the mask if True", default=False,
     )
 
     # parser.add_argument('--mask', type=str,

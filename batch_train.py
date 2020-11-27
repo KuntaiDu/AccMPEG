@@ -8,6 +8,8 @@ from itertools import product
 # v_list = ['train_first/trafficcam_%d_train' % (i+1) for i in range(4)] + ['train_first/dashcam_%d_train' % (i+1) for i in range(4)]
 # v_list = [v_list[4]]
 
+model_name = "fcn_black_vis_172_mse"
+
 subprocess.run(
     [
         "python",
@@ -17,12 +19,12 @@ subprocess.run(
         "-g",
         "visdrone/videos/vis_172_compressed_black.hevc.mask",
         "-p",
-        "maskgen_pths/fcn_black_vis_172_fat.pth",
+        f"maskgen_pths/{model_name}.pth",
         "--tile_size",
         "16",
         "--batch_size",
         "2",
         "--log",
-        "train_fcn_black_vis_172_fat.log",
+        f"train_{model_name}.log",
     ]
 )
