@@ -14,7 +14,8 @@ import seaborn as sns
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
-from PIL import Image
+import yaml
+from PIL import Image, ImageDraw
 from torchvision import io
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
@@ -32,8 +33,8 @@ def main(args):
     gc.enable()
 
     # initialize
-    logger = logging.getLogger("blackgen")
-    logger.addHandler(logging.FileHandler("blackgen.log"))
+    logger = logging.getLogger("calc")
+    logger.addHandler(logging.FileHandler("calc.log"))
     torch.set_default_tensor_type(torch.FloatTensor)
 
     # read the video frames (will use the largest video as ground truth)
@@ -68,6 +69,12 @@ def main(args):
     # if iteration > 3 * (args.num_iterations // 4):
     #     (args.binarize_weight * torch.tensor(iteration*1.0) * (binarized_mask - mask).abs().pow(2).mean()).backward()
 
+    losses = []
+    f1s = []
+    fn1s = []
+    fn2s = []
+    areas = []
+
     for temp in range(1):
 
         logger.info(f"Processing application {application.name}")
@@ -77,17 +84,18 @@ def main(args):
 
         application.cuda()
 
-        losses = []
-        f1s = []
-
         for fid, (video_slices, mask_slice) in enumerate(
             zip(zip(*videos), mask.split(1))
         ):
 
             progress_bar.update()
 
-            lq_image, hq_image = video_slices[0], video_slices[1]
+            _, hq_image = video_slices[0], video_slices[1]
             # lq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_34/%05d.png' % (fid+offset2)))[None, :, :, :]
+
+            visualize_flag = False
+            if args.visualize and fid % 50 == 0:
+                visualize_flag = True
 
             # construct hybrid image
             with torch.no_grad():
@@ -97,61 +105,60 @@ def main(args):
                 mask_gen = mask_generator(hq_image.cuda())
                 # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
                 mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
-                mask_lb = dilate_binarize(mask_gen, args.lower_bound, args.conv_size)
-                mask_ub = dilate_binarize(mask_gen, args.upper_bound, args.conv_size)
-                mask_slice[:, :, :, :] = mask_lb - mask_ub
-                # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
-            # mask_slice[:, :, :, :] = ground_truth_mask[fid + offset2].float()
+                mask_slice[:, :, :, :] = dilate_binarize(
+                    mask_gen, args.bound, args.conv_size
+                ).cpu()
 
-            # lq_image[:, :, :, :] = background
-            # # calculate the loss, to see the generalization error
-            # with torch.no_grad():
-            #     mask_slice = tile_mask(mask_slice, args.tile_size)
-            #     masked_image = generate_masked_image(
-            #         mask_slice, video_slices, bws)
+            mask_slice_tiled = tile_mask(mask_slice, args.tile_size)
 
-            #     video_results = application.inference(
-            #         masked_image.cuda(), True)[0]
-            #     f1s.append(application.calc_accuracy({
-            #         fid: video_results
-            #     }, {
-            #         fid: ground_truth_dict[fid]
-            #     }, args)['f1'])
+            tp, fn1, fn2 = 0, 0, 0
+            _, _, boxes, _ = application.filter_results(
+                ground_truth_dict[fid], args.confidence_threshold
+            )
 
-            # import pdb; pdb.set_trace()
-            # loss, _ = application.calc_loss(masked_image.cuda(),
-            #                                 application.inference(video_slices[-1].cuda(), detach=True)[0], args)
-            # total_loss.append(loss.item())
+            image, draw = None, None
+            if visualize_flag:
+                image = T.ToPILImage()(hq_image[0, :, :, :])
+                draw = ImageDraw.Draw(image)
 
-            # visualization
-            if args.visualize and (fid % 50 == 0 or fid % 50 == 1):
-                heat = tile_mask(mask_gen, args.tile_size)[0, 0, :, :]
+            for box in boxes:
+
+                x1, y1, x2, y2 = box
+                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+                assert y2 <= 720
+
+                box_mask = torch.zeros_like(mask_slice_tiled)
+                box_mask[:, :, y1:y2, x1:x2] = 1
+                overlap = box_mask * mask_slice_tiled
+                if torch.equal(box_mask * mask_slice_tiled, box_mask):
+                    tp += 1
+                    if visualize_flag:
+                        draw.rectangle([x1, y1, x2, y2], width=6, outline="white")
+                elif overlap.sum() > 0:
+                    fn1 += 1
+                    if visualize_flag:
+                        draw.rectangle([x1, y1, x2, y2], width=6, outline="steelblue")
+                else:
+                    fn2 += 1
+                    if visualize_flag:
+                        draw.rectangle([x1, y1, x2, y2], width=6, outline="red")
+
+            if visualize_flag:
+                Path("visualize/" + args.output).mkdir(exist_ok=True)
+                heat = mask_slice_tiled[0, 0, :, :]
                 plt.clf()
                 ax = sns.heatmap(heat.cpu().detach().numpy(), zorder=3, alpha=0.5)
-                # hq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_24/%05d.png' % (fid+offset2)))[None, :, :, :].cuda()
-                # with torch.no_grad():
-                #     inf = application.inference(hq_image, detach=True)[0]
-                image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-                # image = application.plot_results_on(inf, image, (255, 255, 255), args)
-                # image = application.plot_results_on(video_results, image, (0, 255, 255), args)
                 ax.imshow(image, zorder=3, alpha=0.5)
-                Path(f"visualize/{args.output}/").mkdir(parents=True, exist_ok=True)
                 plt.savefig(
-                    f"visualize/{args.output}/{fid}_attn.png", bbox_inches="tight"
+                    "visualize/" + args.output + "/%010d.png" % fid, bbox_inches="tight"
                 )
 
-                # plt.clf()
-                # sns.distplot(heat.flatten().detach().numpy())
-                # plt.savefig(
-                #     f"visualize/{args.output}/{fid}_dist.png", bbox_inches="tight"
-                # )
+            f1s.append(tp * 1.0 / (tp + fn1 + fn2))
+            fn1s.append(fn1)
+            fn2s.append(fn2)
 
-        logger.info("In video %s", args.output)
-        logger.info("The average loss is %.3f" % torch.tensor(losses).mean())
-
-        with open("temp.txt", "w") as f:
-            f.write(f"{torch.tensor(f1s).mean()}")
-        logger.info("The average f1 is %.3f" % torch.tensor(f1s).mean())
+            areas.append(mask_slice.mean())
 
         application.cpu()
 
@@ -161,6 +168,23 @@ def main(args):
     if args.force_qp:
         qps = [args.force_qp]
     write_black_bkgd_video_smoothed(mask, args, qps, bws, logger, 5)
+
+    with open("stats_overlap", "a") as f:
+        f.write(
+            yaml.dump(
+                [
+                    {
+                        "video_name": args.inputs[-1],
+                        "acc": torch.Tensor(f1s).mean().item(),
+                        "f1": os.path.getsize(args.output),
+                        "area": torch.Tensor(areas).mean().item(),
+                        "fn1": torch.Tensor(fn1s).float().mean().item(),
+                        "fn2": torch.Tensor(fn2s).float().mean().item(),
+                        "bound": args.bound,
+                    }
+                ]
+            )
+        )
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 
@@ -219,15 +243,12 @@ if __name__ == "__main__":
         default=1,
     )
     parser.add_argument(
-        "--upper_bound", type=float, help="The upper bound for the mask", required=True,
-    )
-    parser.add_argument(
-        "--lower_bound", type=float, help="The lower bound for the mask", required=True,
+        "--bound", type=float, help="The upper bound for the mask", required=True,
     )
     parser.add_argument(
         "--visualize", type=bool, help="Visualize the mask if True", default=False,
     )
-    parser.add_argument("--conv_size", type=int, required=True)
+    parser.add_argument("--conv_size", type=int, default=1)
     parser.add_argument("--force_qp", type=int, default=-1)
 
     # parser.add_argument('--mask', type=str,

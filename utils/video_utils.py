@@ -48,14 +48,16 @@ class Video(Dataset):
             return image_post
 
 
-def read_videos(video_list, logger, sort=False, normalize=True, dataloader=True):
+def read_videos(
+    video_list, logger, sort=False, normalize=True, dataloader=True, from_source=False
+):
     """
         Read a list of video and return two lists. 
         One is the video tensors, the other is the bandwidths.
     """
     video_list = [
         {
-            "video": read_video(video_name, logger, dataloader),
+            "video": read_video(video_name, logger, dataloader, from_source),
             "bandwidth": read_bandwidth(video_name),
             "name": video_name,
         }
@@ -77,7 +79,7 @@ def read_videos(video_list, logger, sort=False, normalize=True, dataloader=True)
     )
 
 
-def read_video(video_name, logger, dataloader):
+def read_video(video_name, logger, dataloader, from_source):
     logger.info(f"Reading {video_name}")
     postprocess = lambda x, fid: x
     if "black" in video_name:
@@ -87,15 +89,16 @@ def read_video(video_name, logger, dataloader):
             mask = pickle.load(f)
         with open(f"{video_name}.args", "rb") as f:
             args = pickle.load(f)
-        # directly copy-paste the high quality video for high quality regions.
-        # if hasattr(args, "input"):
-        #     video_name = args.input[0]
-        # elif hasattr(args, "inputs"):
-        #     video_name = args.inputs[-1]
-        # else:
-        #     raise RuntimeError(
-        #         "Cannot reason the high-quality video name from the args."
-        #     )
+        if from_source:
+            # directly copy-paste the high quality video for high quality regions.
+            if hasattr(args, "input"):
+                video_name = args.input[0]
+            elif hasattr(args, "inputs"):
+                video_name = args.inputs[-1]
+            else:
+                raise RuntimeError(
+                    "Cannot reason the high-quality video name from the args."
+                )
         postprocess = lambda x, fid: postprocess_black_bkgd(fid, x, mask, args)
     if dataloader:
         return DataLoader(
@@ -117,7 +120,10 @@ def postprocess_black_bkgd(fid, image, mask, args):
 
 
 def read_bandwidth(video_name):
-    return os.path.getsize(video_name)
+    if "dual" not in video_name:
+        return os.path.getsize(video_name)
+    else:
+        return sum(os.path.getsize(i) for i in glob.glob(video_name + "*.mp4"))
 
 
 def write_video(video_tensor, video_name, logger):
@@ -136,73 +142,4 @@ def get_qp_from_name(video_name):
 
     # the video name format must be xxxxxxx_{qp}.mp4
     return int(video_name.split(".")[-2].split("_")[-1])
-
-
-def encode_with_qp(video_src, video_dst, qp, args):
-
-    import struct
-
-    # construct roi.txt
-    qp_delta = qp - 22
-
-    width = 1280 // args.tile_size
-    height = 720 // args.tile_size
-
-    # ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=nokey=1:noprint_wrappers=1 input.mp4
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "rawvideo",
-            "-pix_fmt",
-            "yuv420p",
-            "-s:v",
-            "1280x720",
-            "-i",
-            video_src,
-            "temp.mp4",
-        ]
-    )
-    nframes = int(
-        subprocess.check_output(
-            [
-                "ffprobe",
-                "-v",
-                "error",
-                "-select_streams",
-                "v:0",
-                "-show_entries",
-                "stream=nb_frames",
-                "-of",
-                "default=nokey=1:noprint_wrappers=1",
-                "temp.mp4",
-            ]
-        )
-    )
-
-    with open("roi.dat", "wb") as f:
-        for fid in range(nframes):
-            f.write(struct.pack("i", width))
-            f.write(struct.pack("i", height))
-            for j in range(height):
-                for i in range(width):
-                    f.write(struct.pack("b", qp_delta))
-
-    # encode through kvazaar roi
-    subprocess.run(
-        [
-            "kvazaar",
-            "--input",
-            video_src,
-            "--gop",
-            "0",
-            "--input-res",
-            "1280x720",
-            "--roi-file",
-            "roi.dat",
-            "--output",
-            video_dst,
-        ]
-    )
 
