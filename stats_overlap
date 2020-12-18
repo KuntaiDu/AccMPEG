@@ -131,3 +131,10 @@
   fn1: 4.559748649597168
   fn2: 4.46720552444458
   video_name: visdrone/videos/vis_169_qp_21.mp4
+- acc: 0.030616702511906624
+  area: 0.022602075710892677
+  bound: 0.6
+  f1: 3428614
+  fn1: 3.9568734169006348
+  fn2: 15.709793090820312
+  video_name: visdrone/videos/vis_169_qp_21.mp4

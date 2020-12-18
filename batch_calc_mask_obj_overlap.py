@@ -7,14 +7,14 @@ import yaml
 # v_list = ['dashcam_%d_test' % (i+1) for i in range(4)] + ['trafficcam_%d_test' % (i+1) for i in range(4)]
 # v_list = [v_list[0]]
 
-v_list = ["visdrone/videos/vis_%d" % i for i in [172]]
+v_list = ["visdrone/videos/vis_%d" % i for i in [169]]
 # v_list = [v_list[2]]
 hq_list = [21]
-bound_list = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4]
+bound_list = [0.6]
 # bound_list = [0.8]
 tile = 16
 perc = 5
-model_name = "fcn_black_vis_172"
+model_name = "detection_boxes_vis_172"
 
 for v, hq, bound in product(v_list, hq_list, bound_list):
 

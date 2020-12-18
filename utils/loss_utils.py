@@ -6,11 +6,11 @@ import torch
 import torch.nn.functional as F
 
 
-def cross_entropy(mask, target):
+def cross_entropy(mask, target, weight=1.0):
 
     # Cross entropy
     target = target[:, 0, :, :]
-    return F.cross_entropy(mask, target, torch.tensor([1.0, 1.0]).cuda())
+    return F.cross_entropy(mask, target, torch.tensor([1.0, weight]).cuda())
 
 
 def mean_squared_error(mask, target):

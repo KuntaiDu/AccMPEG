@@ -9,6 +9,7 @@ import torchvision.transforms as T
 from kornia.color.yuv import rgb_to_yuv
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from utils.results_utils import read_results
 from utils.video_utils import read_video
 
 
@@ -18,7 +19,6 @@ def main(args):
     torch.set_default_tensor_type(torch.FloatTensor)
 
     x = read_video(args.inputs[0], logger, True, False)
-    y = read_video(args.inputs[1], logger, True, False)
 
     Path(args.output[0]).mkdir(parents=True, exist_ok=True)
 
@@ -29,22 +29,30 @@ def main(args):
     application = FasterRCNN_ResNet50_FPN()
     application.cuda()
 
-    for fid, (imx, imy) in enumerate(zip(x, y)):
+    result_x = read_results(args.inputs[0], application.name, logger)
+    result_y = read_results(args.inputs[1], application.name, logger)
+
+    for fid, imx in enumerate(x):
 
         progress_bar.update()
 
-        result_x = application.inference(imx.cuda(), detach=True)[0]
+        if fid % 100 != 0:
+            continue
+
         _, _, x_boxes, _ = application.filter_results(
-            result_x, args.confidence_threshold
+            result_x[fid], args.confidence_threshold
         )
-        result_y = application.inference(imy.cuda(), detach=True)[0]
         _, _, y_boxes, _ = application.filter_results(
-            result_y, args.confidence_threshold
+            result_y[fid], args.confidence_threshold
         )
 
         image = T.ToPILImage()(imx[0, :, :, :])
-        image = application.plot_results_on(result_x, image, "Azure", args, y_boxes)
-        image = application.plot_results_on(result_y, image, "SteelBlue", args, x_boxes)
+        image = application.plot_results_on(
+            result_x[fid], image, "Azure", args, y_boxes
+        )
+        image = application.plot_results_on(
+            result_y[fid], image, "SteelBlue", args, x_boxes
+        )
 
         image.save(args.output[0] + "/%010d.png" % fid)
 
@@ -71,7 +79,7 @@ if __name__ == "__main__":
         "--confidence_threshold",
         type=float,
         help="The confidence score threshold for calculating accuracy.",
-        default=0.3,
+        default=0.5,
     )
 
     parser.add_argument(

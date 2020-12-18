@@ -13,39 +13,28 @@ from torchvision import io
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from utils.bbox_utils import jaccard
-from utils.results_utils import read_results, write_results
+from utils.results_utils import merge_results, read_results, write_results
 from utils.video_utils import read_bandwidth
 
 
 def main(args):
 
-    logger = logging.getLogger("examine")
+    logger = logging.getLogger("merge")
     handler = logging.NullHandler()
     logger.addHandler(handler)
 
-    bws = [read_bandwidth(video) for video in args.inputs]
+    # bws = [read_bandwidth(video) for video in args.inputs]
     video_names = args.inputs
 
     application_bundle = [FasterRCNN_ResNet50_FPN()]
 
     for application in application_bundle:
 
-        ground_truth_results = read_results(args.ground_truth, application.name, logger)
-
-        for video_name, bw in zip(video_names, bws):
-            video_results = read_results(video_name, application.name, logger)
-            metrics = application.calc_accuracy(
-                video_results, ground_truth_results, args
-            )
-            res = {
-                "application": application.name,
-                "video_name": video_name,
-                "bw": bw,
-                "ground_truth_name": args.ground_truth,
-            }
-            res.update(metrics)
-            with open("stats", "a") as f:
-                f.write(yaml.dump([res]))
+        ground_truth_results = [
+            read_results(vname, application.name, logger) for vname in args.inputs
+        ]
+        ground_truth_results = merge_results(ground_truth_results, application, args)
+        write_results(args.output, application.name, ground_truth_results, logger)
 
 
 if __name__ == "__main__":
@@ -67,11 +56,7 @@ if __name__ == "__main__":
         nargs="+",
     )
     parser.add_argument(
-        "-g",
-        "--ground_truth",
-        type=str,
-        help="The ground-truth video name.",
-        required=True,
+        "-o", "--output", type=str, help="The output pseudo video name.", required=True,
     )
     parser.add_argument(
         "--confidence_threshold",

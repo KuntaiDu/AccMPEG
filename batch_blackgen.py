@@ -1,4 +1,5 @@
 import os
+import subprocess
 from itertools import product
 
 import yaml
@@ -6,26 +7,44 @@ import yaml
 # v_list = ['dashcam_%d_test' % (i+1) for i in range(4)] + ['trafficcam_%d_test' % (i+1) for i in range(4)]
 # v_list = [v_list[0]]
 
-v_list = ["visdrone/videos/vis_%d" % i for i in [169]]
+v_list = ["visdrone/videos/vis_%d" % i for i in [171, 170]]
 # v_list = [v_list[2]]
-base = 34
+base = 50
+high = 30
 tile = 16
 perc = 5
-model_name = "fcn_black_vis_172"
-thresh_list = [0.7]
-conv_list = [11]
+model_name = "gt_vis_172_cross_entropy_weight_1"
+conv_list = [7]
+bound_list = [0.2]
 
 
-for v, thresh, conv in product(v_list, thresh_list, conv_list):
+for v, conv, bound in product(v_list, conv_list, bound_list):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = f"{v}_compressed_blackgen_{model_name}_thresh_{thresh}_conv_{conv}.mp4"
+    output = f"{v}_compressed_blackgen_{model_name}_conv_{conv}_bound_{bound}.mp4"
+    gt_output = f"{v}_compressed_blackgen_gt_bbox_conv_{conv}.mp4"
 
-    os.system(
-        f"python compress_blackgen.py -i {v}_qp_{base}.mp4 "
-        f" {v}_qp_21.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
-        f" --tile_percentage {perc} --lower_bound {thresh} --upper_bound 1.1  --conv_size {conv}"
-    )
-    os.system(f"python inference.py -i {output}")
-    os.system(f"python examine.py -i {output} -g {v}_qp_20.mp4 {v}_qp_21.mp4")
+    if not os.path.exists(output):
+        os.system(
+            f"python compress_blackgen.py -i {v}_qp_{base}.mp4 "
+            f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
+            f" --conv_size {conv} --visualize True"
+            f" -g {v}_qp_{high}_ground_truth.mp4 --bound 0.5"
+        )
+        os.system(f"python inference.py -i {output}")
+
+    os.system(f"python examine.py -i {output} -g {v}_qp_{high}_ground_truth.mp4")
+
+    if not os.path.exists(f"diff/{output}.gtdiff.mp4"):
+        subprocess.run(
+            [
+                "python",
+                "diff.py",
+                "-i",
+                output,
+                gt_output,
+                "-o",
+                f"diff/{output}.gtdiff.mp4",
+            ]
+        )
 
