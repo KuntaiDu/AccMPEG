@@ -25,7 +25,8 @@ from torchvision import io
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from maskgen.fcn_16_single_channel import FCN
-from utils.loss_utils import mean_squared_error as get_loss
+from utils.bbox_utils import center_size
+from utils.loss_utils import cross_entropy as get_loss
 from utils.mask_utils import *
 from utils.results_utils import read_ground_truth_mask, read_results
 from utils.video_utils import get_qp_from_name, read_videos, write_video
@@ -43,6 +44,9 @@ def main(args):
     logger = logging.getLogger("train")
     logger.addHandler(logging.FileHandler(args.log))
     torch.set_default_tensor_type(torch.FloatTensor)
+
+    # there will be only one dataset
+    assert len(args.inputs) == 1
 
     # read videos
     videos, _, _ = read_videos(args.inputs, logger, sort=True, dataloader=False)
@@ -63,6 +67,9 @@ def main(args):
         cross_validation_set, batch_size=args.batch_size, num_workers=2
     )
 
+    # construct the application
+    application = FasterRCNN_ResNet50_FPN()
+
     # construct the mask generator
     mask_generator = FCN()
     if os.path.exists(args.path):
@@ -76,7 +83,18 @@ def main(args):
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
 
     # load ground truth results
-    ground_truth_results = read_ground_truth_mask(args.ground_truth, logger).split(1)
+    ground_truth_results = read_results(args.ground_truth, application.name, logger)
+    ground_truth_results = [
+        application.filter_results(ground_truth_results[fid], args.confidence_threshold)
+        for fid in ground_truth_results
+    ]
+    ground_truth_boxes = [center_size(result[2]) for result in ground_truth_results]
+    mask_slice_shape = [1, 1, 720 // args.tile_size, 1280 // args.tile_size]
+    mask_slice = torch.ones(mask_slice_shape)
+    ground_truth_mask = [
+        generate_mask_from_regions(mask_slice.clone(), box, 0, args.tile_size)
+        for box in ground_truth_boxes
+    ]
 
     mean_cross_validation_loss_before = 100
 
@@ -101,24 +119,22 @@ def main(args):
             # inference
             hq_image = data["image"].cuda()
             mask_slice = mask_generator(hq_image)
-            mask_slice_temp = mask_slice.softmax(dim=1)[:, 1:2, :, :]
-            logger.info(
-                "Min: %f, Mean: %f, Std: %f",
-                mask_slice_temp.min().item(),
-                mask_slice_temp.mean().item(),
-                mask_slice_temp.std().item(),
-            )
             fids = [fid.item() for fid in data["fid"]]
 
             # calculate loss
-            target = torch.cat(
-                [ground_truth_results[fid].long().cuda() for fid in fids]
-            )
-            loss = get_loss(mask_slice, target)
+            target = torch.cat([ground_truth_mask[fid].long().cuda() for fid in fids])
+            loss = get_loss(mask_slice, target, 1)
             loss.backward()
 
             # optimization and logging
-            logger.info(f"Training loss: %.3f", loss.item())
+            mask_slice_temp = mask_slice.softmax(dim=1)[:, 1:2, :, :]
+            logger.info(
+                "Min: %f, Mean: %f, Std: %f, Training loss: %f",
+                mask_slice_temp.min().item(),
+                mask_slice_temp.mean().item(),
+                mask_slice_temp.std().item(),
+                loss.item(),
+            )
             training_losses.append(loss.item())
             optimizer.step()
             optimizer.zero_grad()
@@ -156,9 +172,9 @@ def main(args):
                 mask_slice = mask_generator(hq_image)
 
                 target = torch.cat(
-                    [ground_truth_results[fid].long().cuda() for fid in fids]
+                    [ground_truth_mask[fid].long().cuda() for fid in fids]
                 )
-                loss = get_loss(mask_slice, target)
+                loss = get_loss(mask_slice, target, 1)
 
             # optimization and logging
             logger.info(f"Cross validation loss: {loss.item()}")

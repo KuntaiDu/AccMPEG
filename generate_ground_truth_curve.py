@@ -4,7 +4,9 @@ import os
 import subprocess
 from pathlib import Path
 
-qp_list = [30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50]
+qp = 30
+quality_list = ["veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
+
 # qp_list = [42, 46, 50]
 # qp_list = [34]
 # qp_list = [20]
@@ -16,9 +18,14 @@ def main(args):
     for video_name in args.inputs:
         assert Path(video_name).is_dir()
         video_name = Path(video_name)
-        for qp in qp_list:
+
+        # os.system(f"rm {video_name}_qp_{qp}_*.mp4")
+
+        output_names = []
+        for quality in quality_list:
             input_name = f"{video_name}/%010d.png"
-            output_name = f"{video_name}_qp_{qp}.mp4"
+            output_name = f"{video_name}_qp_{qp}_{quality}.mp4"
+            output_names.append(output_name)
             print(f"Generate video for {output_name}")
             # encode_with_qp(input_name, output_name, qp, args)
 
@@ -36,24 +43,26 @@ def main(args):
                         f"{qp}",
                         "-qmax",
                         f"{qp}",
+                        "-preset",
+                        f"{quality}",
                         output_name,
                     ]
                 )
 
                 subprocess.run(["python", "inference.py", "-i", output_name])
 
-        for qp in qp_list:
-            output_name = f"{video_name}_qp_{qp}.mp4"
-            subprocess.run(
-                [
-                    "python",
-                    "examine.py",
-                    "-i",
-                    output_name,
-                    "-g",
-                    f"{video_name}_qp_30_ground_truth.mp4",
-                ]
-            )
+        subprocess.run(
+            ["python", "merge_ground_truth.py", "-i"]
+            + output_names
+            + ["-o", f"{video_name}_qp_{qp}_ground_truth.mp4"]
+        )
+
+        # for quality in quality_list:
+        #     x = f"{video_name}_qp_{qp}_{quality}.mp4"
+        #     y = f"{video_name}_qp_{qp}_ground_truth.mp4"
+        #     subprocess.run(
+        #         ["python", "diff.py", "-i", x, y, "-o", "diff/" + x + ".gtdiff"]
+        #     )
 
 
 if __name__ == "__main__":

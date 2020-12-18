@@ -348,8 +348,10 @@ def write_black_bkgd_video_smoothed(mask, args, qps, bws, logger, smooth_frames)
     )
 
 
-def dilate_binarize(mask, lower_bound, kernel_size):
-    kernel = torch.ones([1, 1, kernel_size, kernel_size]).cuda(non_blocking=True)
+def dilate_binarize(mask, lower_bound, kernel_size, cuda=True):
+    kernel = torch.ones([1, 1, kernel_size, kernel_size])
+    if cuda:
+        kernel = kernel.cuda(non_blocking=True)
     mask = torch.where(
         (mask > lower_bound), torch.ones_like(mask), torch.zeros_like(mask),
     )

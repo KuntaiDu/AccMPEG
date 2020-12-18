@@ -184,7 +184,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
         size = (
             (bboxes[:, 2] - bboxes[:, 0]) / 1280 * (bboxes[:, 3] - bboxes[:, 1]) / 720
         )
-        return size > 0
+        return size < 0.08
 
     def filter_results(self, video_results, confidence_threshold, cuda=False):
 
@@ -231,14 +231,19 @@ class FasterRCNN_ResNet50_FPN(DNN):
             video_ind, video_scores, video_bboxes, video_labels = self.filter_results(
                 video[fid], args.confidence_threshold
             )
-            if len(video_labels) == 0:
-                f1s.append(0.0)
-                prs.append(0.0)
-                res.append(0.0)
-                continue
             gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
                 gt[fid], args.confidence_threshold
             )
+            if len(video_labels) == 0 or len(gt_labels) == 0:
+                if len(video_labels) == 0 and len(gt_labels) == 0:
+                    f1s.append(1.0)
+                    prs.append(1.0)
+                    res.append(1.0)
+                else:
+                    f1s.append(0.0)
+                    prs.append(0.0)
+                    res.append(0.0)
+                continue
 
             IoU = jaccard(video_bboxes, gt_bboxes)
 
@@ -374,6 +379,9 @@ class FasterRCNN_ResNet50_FPN(DNN):
         if boxes is None:
             for box in gt_bboxes:
                 draw.rectangle(box.cpu().tolist(), width=2, outline=c)
+                draw.text(
+                    box.cpu().tolist()[:2], f"{gt_labels[idx].item()}", fill="red"
+                )
         else:
             rgb = ImageColor.getrgb(c)
             rgb_dim = (rgb[0] // 2, rgb[1] // 2, rgb[2] // 2)
@@ -382,8 +390,14 @@ class FasterRCNN_ResNet50_FPN(DNN):
             for idx, box in enumerate(gt_bboxes):
                 if IoU[idx, :].sum() > args.iou_threshold:
                     draw.rectangle(box.cpu().tolist(), width=2, outline=c_dim)
+                    draw.text(
+                        box.cpu().tolist()[:2], f"{gt_labels[idx].item()}", fill="red"
+                    )
                 else:
                     draw.rectangle(box.cpu().tolist(), width=8, outline=c)
+                    draw.text(
+                        box.cpu().tolist()[:2], f"{gt_labels[idx].item()}", fill="red"
+                    )
 
         return image
 
