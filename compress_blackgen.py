@@ -5,6 +5,7 @@
 import argparse
 import gc
 import logging
+import time
 from pathlib import Path
 
 import coloredlogs
@@ -23,6 +24,7 @@ from utils.bbox_utils import center_size
 from utils.loss_utils import focal_loss as get_loss
 from utils.mask_utils import *
 from utils.results_utils import read_ground_truth, read_results
+from utils.timer import Timer
 from utils.video_utils import get_qp_from_name, read_videos, write_video
 
 sns.set()
@@ -82,8 +84,6 @@ def main(args):
 
         losses = []
         f1s = []
-        sum1s = []
-        sum2s = []
 
         for fid, (video_slices, mask_slice) in enumerate(
             zip(zip(*videos), mask.split(1))
@@ -148,8 +148,15 @@ def main(args):
             # visualization
             if args.visualize and (fid % 100 == 0):
                 heat = tile_mask(mask_gen, args.tile_size)[0, 0, :, :]
-                plt.clf()
-                ax = sns.heatmap(heat.cpu().detach().numpy(), zorder=3, alpha=0.5)
+                fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
+                ax = sns.heatmap(
+                    heat.cpu().detach().numpy(),
+                    zorder=3,
+                    alpha=0.5,
+                    ax=ax,
+                    xticklabels=False,
+                    yticklabels=False,
+                )  # 1.3s
                 # hq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_24/%05d.png' % (fid+offset2)))[None, :, :, :].cuda()
                 # with torch.no_grad():
                 #     inf = application.inference(hq_image, detach=True)[0]
@@ -157,17 +164,17 @@ def main(args):
                 # image = application.plot_results_on(inf, image, (255, 255, 255), args)
                 # image = application.plot_results_on(video_results, image, (0, 255, 255), args)
                 ax.imshow(image, zorder=3, alpha=0.5)
+                ax.tick_params(left=False, bottom=False)
                 Path(f"heat/{args.output}/").mkdir(parents=True, exist_ok=True)
-                plt.savefig(f"heat/{args.output}/{fid}.png", bbox_inches="tight")
+                fig.savefig(
+                    f"heat/{args.output}/{fid}.png", bbox_inches="tight"
+                )  # 4.6s ==> 1.1s
 
                 # plt.clf()
                 # sns.distplot(heat.flatten().detach().numpy())
                 # plt.savefig(
                 #     f"visualize/{args.output}/{fid}_dist.png", bbox_inches="tight"
                 # )
-            logger.info(
-                "Ratio: %.3f", torch.tensor(sum2s).mean() / torch.tensor(sum1s).mean()
-            )
 
         logger.info("In video %s", args.output)
         logger.info("The average loss is %.3f" % torch.tensor(losses).mean())
