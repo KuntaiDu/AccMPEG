@@ -4,8 +4,8 @@ import os
 import subprocess
 from pathlib import Path
 
-gt_qp = 30
-qp_list = [30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50]
+gt_qp = 22
+qp_list = [22, 24, 26, 28, 30, 34, 38, 42, 46, 50]
 quality_list = ["veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
 
 
@@ -25,7 +25,7 @@ def main(args):
             # encode_with_qp(input_name, output_name, qp, args)
 
             if not os.path.exists(output_name):
-
+                # encode
                 subprocess.run(
                     [
                         "ffmpeg",
@@ -43,7 +43,7 @@ def main(args):
                         output_name,
                     ]
                 )
-
+                # and inference
                 subprocess.run(["python", "inference.py", "-i", output_name])
 
         subprocess.run(
@@ -103,6 +103,13 @@ if __name__ == "__main__":
         nargs="+",
         help="The video file names. The largest video file will be the ground truth.",
         required=True,
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        type=bool,
+        help="Force the program to regenerate all the outputs or not.",
+        default=False,
     )
 
     args = parser.parse_args()
