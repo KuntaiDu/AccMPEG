@@ -30,6 +30,7 @@ def main(args):
     videos, _, _ = read_videos(
         glob.glob(video_name + "*.mp4"), logger, normalize=False, from_source=False
     )
+
     # from utils.video_utils import write_video
     # write_video(videos[0], 'download.mp4', logger)
 

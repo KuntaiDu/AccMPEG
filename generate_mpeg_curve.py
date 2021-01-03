@@ -4,8 +4,8 @@ import os
 import subprocess
 from pathlib import Path
 
-gt_qp = 22
-qp_list = [22, 24, 26, 28, 30, 34, 38, 42, 46, 50]
+gt_qp = 30
+qp_list = [30, 32, 34, 36, 38, 42, 46, 50, 51]
 quality_list = ["veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
 
 
@@ -24,7 +24,7 @@ def main(args):
             print(f"Generate video for {output_name}")
             # encode_with_qp(input_name, output_name, qp, args)
 
-            if not os.path.exists(output_name):
+            if args.force or not os.path.exists(output_name):
                 # encode
                 subprocess.run(
                     [
@@ -34,9 +34,7 @@ def main(args):
                         input_name,
                         "-start_number",
                         "0",
-                        "-qmin",
-                        f"{gt_qp}",
-                        "-qmax",
+                        "-qp",
                         f"{gt_qp}",
                         "-preset",
                         f"{quality}",
@@ -59,7 +57,7 @@ def main(args):
             print(f"Generate video for {output_name}")
             # encode_with_qp(input_name, output_name, qp, args)
 
-            if not os.path.exists(output_name):
+            if args.force or not os.path.exists(output_name):
 
                 subprocess.run(
                     [
@@ -69,9 +67,7 @@ def main(args):
                         input_name,
                         "-start_number",
                         "0",
-                        "-qmin",
-                        f"{qp}",
-                        "-qmax",
+                        "-qp",
                         f"{qp}",
                         output_name,
                     ]

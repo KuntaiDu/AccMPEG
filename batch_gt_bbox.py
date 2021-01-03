@@ -7,14 +7,14 @@ import yaml
 # v_list = [v_list[0]]
 
 # v_list = ["visdrone/videos/vis_%d" % i for i in [170, 171]]
-v_list = ["visdrone/videos/vis_169_3rdhalf"]
+v_list = ["visdrone/videos/vis_170", "visdrone/videos/vis_173"]
 # v_list = [v_list[2]]
 base = 50
-high = 22
+high = 30
 tile = 16
 perc = 5
 model_name = "fcn_black_vis_172"
-conv_list = [9, 11, 13]
+conv_list = [5, 9, 11]
 
 
 for v, conv in product(v_list, conv_list):

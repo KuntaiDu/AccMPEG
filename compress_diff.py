@@ -5,8 +5,8 @@
 import argparse
 import gc
 import logging
-import time
 from pathlib import Path
+from pdb import set_trace
 
 import coloredlogs
 import enlighten
@@ -24,7 +24,6 @@ from utils.bbox_utils import center_size
 from utils.loss_utils import focal_loss as get_loss
 from utils.mask_utils import *
 from utils.results_utils import read_ground_truth, read_results
-from utils.timer import Timer
 from utils.video_utils import get_qp_from_name, read_videos, write_video
 
 sns.set()
@@ -48,10 +47,6 @@ def main(args):
     # construct applications
     application = FasterRCNN_ResNet50_FPN()
 
-    mask_generator = FCN()
-    mask_generator.load(args.path)
-    mask_generator.eval().cuda()
-
     # construct the mask
     mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
     mask = torch.ones(mask_shape).float()
@@ -64,9 +59,6 @@ def main(args):
     #     ground_truth_mask = pickle.load(f)
     # ground_truth_mask = ground_truth_mask[sorted(ground_truth_mask.keys())[1]]
     # ground_truth_mask = ground_truth_mask.split(1)
-
-    plt.clf()
-    plt.figure(figsize=(16, 10))
 
     # binarized_mask = mask.clone().detach()
     # binarize_mask(binarized_mask, bws)
@@ -91,40 +83,37 @@ def main(args):
 
             progress_bar.update()
 
-            lq_image, hq_image = video_slices[0], video_slices[1]
+            lq_image, hq_image = video_slices[0].cuda(), video_slices[1].cuda()
             # lq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_34/%05d.png' % (fid+offset2)))[None, :, :, :]
 
             # construct hybrid image
-            with torch.no_grad():
-                # gt_result = application.inference(hq_image.cuda(), detach=True)[0]
-                # _, _, boxes, _ = application.filter_results(
-                #     gt_result, args.confidence_threshold
-                # )
-                # boxes = center_size(boxes)
-
-                # size1 = boxes[:, 2] * boxes[:, 3]
-                # sum1s.append(size1.sum())
-                # boxes[:, 2:] = boxes[:, 2:] + 7 * args.tile_size
-                # size2 = boxes[:, 2] * boxes[:, 3]
-                # sum2s.append(size2.sum())
-                # # ratios.append(size2.sum() / size1.sum())
-                # mask_slice[:, :, :, :] = generate_mask_from_regions(
-                #     mask_slice, boxes, 0, args.tile_size
-                # )
-
-                # mask_gen = mask_generator(
-                #     torch.cat([hq_image, hq_image - lq_image], dim=1).cuda()
-                # )
-                hq_image = hq_image.cuda()
-                with Timer("maskgen", logger):
-                    mask_gen = mask_generator(hq_image)
-                # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
-                mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
-                mask_lb = dilate_binarize(mask_gen, args.bound, args.conv_size)
-                # mask_ub = dilate_binarize(mask_gen, args.upper_bound, args.conv_size)
-                mask_slice[:, :, :, :] = mask_lb
-                # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
-
+            # hq_image = hq_image.cuda()
+            # hq_image.requires_grad = True
+            # loss = application.calc_loss(hq_image, [ground_truth_dict[fid]], args)
+            lq_image.requires_grad = True
+            loss = application.calc_loss(lq_image, [ground_truth_dict[fid]], args)
+            loss.backward()
+            mask_grad = lq_image.grad  # * (hq_image - lq_image)
+            mask_grad = lq_image.grad.norm(dim=1, p=2, keepdim=True)
+            mask_grad = F.conv2d(
+                mask_grad,
+                torch.ones([1, 1, args.tile_size, args.tile_size]).cuda(),
+                stride=args.tile_size,
+            )
+            mask_slice[:, :, :, :] = mask_grad
+            # mask_slice[:, :, :, :] = dilate_binarize(
+            #     mask_grad, args.bound, args.conv_size, True,
+            # ).cpu()
+            # mask_gen = mask_generator(
+            #     torch.cat([hq_image, hq_image - lq_image], dim=1).cuda()
+            # )
+            # mask_gen = mask_generator(hq_image.cuda())
+            # # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
+            # mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
+            # mask_lb = dilate_binarize(mask_gen, args.lower_bound, args.conv_size)
+            # mask_ub = dilate_binarize(mask_gen, args.upper_bound, args.conv_size)
+            # mask_slice[:, :, :, :] = mask_lb - mask_ub
+            # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
             # mask_slice[:, :, :, :] = ground_truth_mask[fid + offset2].float()
 
             # lq_image[:, :, :, :] = background
@@ -148,9 +137,11 @@ def main(args):
             # total_loss.append(loss.item())
 
             # visualization
-            if args.visualize and (fid % 100 == 0):
-                heat = tile_mask(mask_gen, args.tile_size)[0, 0, :, :]
-                fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
+            if args.visualize and fid % 50 == 0:
+
+                heat = tile_mask(mask_slice, args.tile_size)[0, 0, :, :]
+                heat[heat > 10] = 10
+                fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=300)
                 ax = sns.heatmap(
                     heat.cpu().detach().numpy(),
                     zorder=3,
@@ -158,24 +149,25 @@ def main(args):
                     ax=ax,
                     xticklabels=False,
                     yticklabels=False,
-                )  # 1.3s
-                with torch.no_grad():
-                    inf = application.inference(hq_image, detach=True)[0]
+                )
+                # hq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_24/%05d.png' % (fid+offset2)))[None, :, :, :].cuda()
+                # with torch.no_grad():
+                #     inf = application.inference(hq_image, detach=True)[0]
                 image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-                image = application.plot_results_on(inf, image, (255, 255, 255), args)
+                image = application.plot_results_on(
+                    ground_truth_dict[fid], image, (255, 255, 255), args
+                )
                 # image = application.plot_results_on(video_results, image, (0, 255, 255), args)
                 ax.imshow(image, zorder=3, alpha=0.5)
-                ax.tick_params(left=False, bottom=False)
                 Path(f"heat/{args.output}/").mkdir(parents=True, exist_ok=True)
-                fig.savefig(
-                    f"heat/{args.output}/{fid}.png", bbox_inches="tight"
-                )  # 4.6s ==> 1.1s
+                fig.savefig(f"heat/{args.output}/{fid}_attn.png", bbox_inches="tight")
+                plt.close(fig)
 
-                # plt.clf()
-                # sns.distplot(heat.flatten().detach().numpy())
-                # plt.savefig(
-                #     f"visualize/{args.output}/{fid}_dist.png", bbox_inches="tight"
-                # )
+                fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
+                sns.distplot(mask_grad.cpu().flatten().detach().numpy(), ax=ax)
+                Path(f"dist/{args.output}/").mkdir(parents=True, exist_ok=True)
+                fig.savefig(f"dist/{args.output}/{fid}_dist.png", bbox_inches="tight")
+                plt.close(fig)
 
         logger.info("In video %s", args.output)
         logger.info("The average loss is %.3f" % torch.tensor(losses).mean())
@@ -188,7 +180,7 @@ def main(args):
 
     mask.requires_grad = False
     qps = [min(qps)]
-    if args.force_qp != -1:
+    if args.force_qp:
         qps = [args.force_qp]
     write_black_bkgd_video_smoothed_continuous(mask, args, qps, bws, logger)
     # masked_video = generate_masked_video(mask, videos, bws, args)
@@ -240,14 +232,22 @@ if __name__ == "__main__":
         default=0.5,
     )
     parser.add_argument(
+        "--bound", type=float, help="The bound for the mask.", default=0.5,
+    )
+    parser.add_argument(
         "--tile_size", type=int, help="The tile size of the mask.", default=8
     )
     parser.add_argument(
-        "-p",
-        "--path",
-        type=str,
-        help="The path of pth file that stores the generator parameters.",
-        required=True,
+        "--smooth_frames",
+        type=int,
+        help="Propose one single mask for smooth_frame many frames",
+        default=1,
+    )
+    parser.add_argument(
+        "--conv_size",
+        type=int,
+        help="Propose one single mask for smooth_frame many frames",
+        default=1,
     )
     # parser.add_argument(
     #     "--upper_bound", type=float, help="The upper bound for the mask", required=True,
@@ -256,19 +256,9 @@ if __name__ == "__main__":
     #     "--lower_bound", type=float, help="The lower bound for the mask", required=True,
     # )
     parser.add_argument(
-        "--bound", type=float, help="The lower bound for the mask", required=True,
-    )
-    parser.add_argument(
         "--visualize", type=bool, help="Visualize the mask if True", default=False,
     )
-    parser.add_argument(
-        "--smooth_frames",
-        type=int,
-        help="Proposing one single mask for smooth_frames many frames",
-        default=250,
-    )
-    parser.add_argument("--conv_size", type=int, default=1)
-    parser.add_argument("--force_qp", type=int, default=-1)
+    parser.add_argument("--force_qp", type=int, required=True)
 
     # parser.add_argument('--mask', type=str,
     #                     help='The path of the ground truth video, for loss calculation purpose.', required=True)
