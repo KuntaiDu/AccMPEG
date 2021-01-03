@@ -253,21 +253,26 @@ def write_black_bkgd_video(mask, args, qps, bws, logger):
     #     )
     #     mask_slice[:, :, :, :] = mask_slice_mean
 
-    for fid, mask_slice in enumerate(mask.split(1)):
-        progress_bar.update()
-        # read image
-        filename = args.output + ".source.pngs/%010d.png" % fid
-        image = Image.open(filename)
-        image = T.ToTensor()(image)
-        image = image[None, :, :, :]
-        # generate background
-        mean = torch.tensor([0.485, 0.456, 0.406])
-        background = torch.ones_like(image) * mean[None, :, None, None]
-        # extract mask
-        mask_slice = tile_mask(mask_slice, args.tile_size)
-        # construct and write image
-        image = torch.where(mask_slice == 1, image, background)
-        T.ToPILImage()(image[0, :, :, :]).save(filename)
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        for fid, mask_slice in enumerate(mask.split(1)):
+            progress_bar.update()
+            # read image
+            filename = args.output + ".source.pngs/%010d.png" % fid
+            # with Timer("open", logger):
+            # with Timer("process", logger):  # 0.05s
+            # with Timer("save", logger):  # 0.1s
+            image = Image.open(filename)
+            image = T.ToTensor()(image)
+            image = image[None, :, :, :]
+            # generate background
+            mean = torch.tensor([0.485, 0.456, 0.406])
+            background = torch.ones_like(image) * mean[None, :, None, None]
+            # extract mask
+            mask_slice = tile_mask(mask_slice, args.tile_size)
+            # construct and write image
+            image = torch.where(mask_slice == 1, image, background)
+            image = T.ToPILImage()(image[0, :, :, :])
+            executor.submit(image.save, filename)
 
     # assert qps[0] == 22
     subprocess.run(
@@ -278,9 +283,7 @@ def write_black_bkgd_video(mask, args, qps, bws, logger):
             args.output + ".source.pngs/%010d.png",
             "-start_number",
             "0",
-            "-qmin",
-            f"{qps[0]}",
-            "-qmax",
+            "-qp",
             f"{qps[0]}",
             args.output,
         ]
@@ -316,7 +319,7 @@ def write_black_bkgd_video_smoothed(mask, args, qps, bws, logger, smooth_frames)
         )
         mask_slice[:, :, :, :] = mask_slice_mean
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:
         for fid, mask_slice in enumerate(mask.split(1)):
             progress_bar.update()
             # read image
@@ -346,9 +349,7 @@ def write_black_bkgd_video_smoothed(mask, args, qps, bws, logger, smooth_frames)
             args.output + ".source.pngs/%010d.png",
             "-start_number",
             "0",
-            "-qmin",
-            f"{qps[0]}",
-            "-qmax",
+            "-qp",
             f"{qps[0]}",
             args.output,
         ]
@@ -365,6 +366,78 @@ def dilate_binarize(mask, lower_bound, kernel_size, cuda=True):
     mask = F.conv2d(mask, kernel, stride=1, padding=(kernel_size - 1) // 2,)
     mask = torch.where(mask > 0, torch.ones_like(mask), torch.zeros_like(mask),)
     return mask
+
+
+def write_black_bkgd_video_smoothed_continuous(mask, args, qps, bws, logger):
+
+    subprocess.run(["rm", "-r", args.output + "*"])
+
+    with open(f"{args.output}.args", "wb") as f:
+        pickle.dump(args, f)
+
+    # slightly dilate the mask a bit, to "protect" the crucial area
+    # mask = F.conv2d(mask, torch.ones([1, 1, 3, 3]), stride=1, padding=1)
+    # mask = torch.where(mask > 0, torch.ones_like(mask), torch.zeros_like(mask))
+
+    os.system(f"rm -r {args.output}.source.pngs")
+    os.system(f"cp -r {args.source} {args.output}.source.pngs")
+
+    progress_bar = enlighten.get_manager().counter(
+        total=mask.shape[0], desc=f"Generate raw png of {args.output}", unit="frames"
+    )
+
+    for mask_slice in mask.split(args.smooth_frames):
+        mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
+
+    if hasattr(args, "upper_bound") and hasattr(args, "lower_bound"):
+        mask = torch.where(
+            (mask < args.upper_bound) & (mask >= args.lower_bound),
+            torch.ones_like(mask),
+            torch.zeros_like(mask),
+        )
+        mask = dilate_binarize(mask.cuda(), 0.5, args.conv_size).cpu()
+    else:
+        mask = dilate_binarize(mask.cuda(), args.bound, args.conv_size).cpu()
+
+    with open(f"{args.output}.mask", "wb") as f:
+        pickle.dump(mask, f)
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        for fid, mask_slice in enumerate(mask.split(1)):
+            progress_bar.update()
+            # read image
+            filename = args.output + ".source.pngs/%010d.png" % fid
+            # with Timer("open", logger):
+            # with Timer("process", logger):  # 0.05s
+            # with Timer("save", logger):  # 0.1s
+            image = Image.open(filename)
+            image = T.ToTensor()(image)
+            image = image[None, :, :, :]
+            # generate background
+            # mean = torch.Tensor([0.485, 0.456, 0.406])
+            mean = torch.Tensor([0.0, 0.0, 0.0])
+            background = torch.ones_like(image) * mean[None, :, None, None]
+            # extract mask
+            mask_slice = tile_mask(mask_slice, args.tile_size)
+            # construct and write image
+            image = torch.where(mask_slice == 1, image, background)
+            image = T.ToPILImage()(image[0, :, :, :])
+            executor.submit(image.save, filename)
+
+    # assert qps[0] == 22
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            args.output + ".source.pngs/%010d.png",
+            "-start_number",
+            "0",
+            "-qp",
+            f"{qps[0]}",
+            args.output,
+        ]
+    )
 
 
 # def write_black_bkgd_video_smoothed(mask, args, qps, bws, logger):

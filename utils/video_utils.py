@@ -82,7 +82,7 @@ def read_videos(
 def read_video(video_name, logger, dataloader, from_source):
     logger.info(f"Reading {video_name}")
     postprocess = lambda x, fid: x
-    if "black" in video_name:
+    if "black" in video_name and "base" not in video_name:
         import pickle
 
         with open(f"{video_name}.mask", "rb") as f:

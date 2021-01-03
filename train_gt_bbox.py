@@ -28,7 +28,7 @@ from maskgen.fcn_16_single_channel import FCN
 from utils.bbox_utils import center_size
 from utils.loss_utils import cross_entropy as get_loss
 from utils.mask_utils import *
-from utils.results_utils import read_results
+from utils.results_utils import read_ground_truth_mask, read_results
 from utils.video_utils import get_qp_from_name, read_videos, write_video
 
 sns.set()
@@ -53,10 +53,10 @@ def main(args):
     bws = [0, 1]
 
     # construct training set and cross validation set
-    train_val_set = ConcatDataset(videos)
+    training_set = ConcatDataset(videos)
     training_set, cross_validation_set = torch.utils.data.random_split(
-        train_val_set,
-        [int(0.8 * len(train_val_set)), int(0.2 * len(train_val_set))],
+        training_set,
+        [int(0.8 * len(training_set)), int(0.2 * len(training_set))],
         generator=torch.Generator().manual_seed(100),
     )
     # training_sampler = torch.utils.data.DistributedSampler(training_set)
@@ -66,6 +66,9 @@ def main(args):
     cross_validation_loader = torch.utils.data.DataLoader(
         cross_validation_set, batch_size=args.batch_size, num_workers=2
     )
+
+    # construct the application
+    application = FasterRCNN_ResNet50_FPN()
 
     # construct the mask generator
     mask_generator = FCN()
@@ -80,49 +83,19 @@ def main(args):
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
 
     # load ground truth results
-    saliency = {}
+    ground_truth_results = read_results(args.ground_truth, application.name, logger)
+    ground_truth_results = [
+        application.filter_results(ground_truth_results[fid], args.confidence_threshold)
+        for fid in ground_truth_results
+    ]
+    ground_truth_boxes = [center_size(result[2]) for result in ground_truth_results]
+    mask_slice_shape = [1, 1, 720 // args.tile_size, 1280 // args.tile_size]
+    mask_slice = torch.ones(mask_slice_shape)
+    ground_truth_mask = [
+        generate_mask_from_regions(mask_slice.clone(), box, 0, args.tile_size)
+        for box in ground_truth_boxes
+    ]
 
-    if Path(args.ground_truth).exists():
-        with open(args.ground_truth, "rb") as f:
-            saliency = pickle.load(f)
-    else:
-        # get the application
-        application = FasterRCNN_ResNet50_FPN()
-        application.cuda()
-        # generate saliency
-        loader = torch.utils.data.DataLoader(
-            train_val_set, batch_size=1, shuffle=False, num_workers=2
-        )
-        progress_bar = enlighten.get_manager().counter(
-            total=len(train_val_set),
-            desc=f"Generating saliency as ground truths",
-            unit="frames",
-        )
-        for data in loader:
-            progress_bar.update()
-            # get data
-            fid = data["fid"][0].item()
-            hq_image = data["image"].cuda()
-            hq_image.requires_grad = True
-            # get salinecy
-            gt_result = application.inference(hq_image.cuda(), nograd=False)[0]
-            _, scores, boxes, _ = application.filter_results(
-                gt_result, args.confidence_threshold, True
-            )
-            sums = scores.sum()
-            sums.backward()
-            mask_grad = hq_image.grad.abs().sum(dim=1, keepdim=True)
-            mask_grad = F.conv2d(
-                mask_grad,
-                torch.ones([1, 1, args.tile_size, args.tile_size]).cuda(),
-                stride=args.tile_size,
-            )
-            saliency[fid] = (mask_grad > args.saliency_threshold).detach().cpu()
-        # write saliency to disk
-        with open(args.ground_truth, "wb") as f:
-            pickle.dump(saliency, f)
-
-    # training
     mean_cross_validation_loss_before = 100
 
     for iteration in range(args.num_iterations):
@@ -149,7 +122,7 @@ def main(args):
             fids = [fid.item() for fid in data["fid"]]
 
             # calculate loss
-            target = torch.cat([saliency[fid].long().cuda() for fid in fids])
+            target = torch.cat([ground_truth_mask[fid].long().cuda() for fid in fids])
             loss = get_loss(mask_slice, target, 1)
             loss.backward()
 
@@ -198,11 +171,13 @@ def main(args):
             with torch.no_grad():
                 mask_slice = mask_generator(hq_image)
 
-                target = torch.cat([saliency[fid].long().cuda() for fid in fids])
+                target = torch.cat(
+                    [ground_truth_mask[fid].long().cuda() for fid in fids]
+                )
                 loss = get_loss(mask_slice, target, 1)
 
             # optimization and logging
-            logger.info(f"Cross validation loss: %.3f", loss.item())
+            logger.info(f"Cross validation loss: {loss.item()}")
             cross_validation_losses.append(loss.item())
 
         mean_cross_validation_loss = torch.tensor(cross_validation_losses).mean().item()
@@ -257,18 +232,12 @@ if __name__ == "__main__":
         "--confidence_threshold",
         type=float,
         help="The confidence score threshold for calculating accuracy.",
-        default=0.5,
+        default=0.3,
     )
     parser.add_argument(
         "--iou_threshold",
         type=float,
         help="The IoU threshold for calculating accuracy in object detection.",
-        default=0.5,
-    )
-    parser.add_argument(
-        "--saliency_threshold",
-        type=float,
-        help="The threshold to binarize the saliency.",
         default=0.5,
     )
     parser.add_argument(

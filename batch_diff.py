@@ -9,26 +9,22 @@ import yaml
 # v_list = ["visdrone/videos/vis_%d" % i for i in [170, 171]]
 v_list = ["visdrone/videos/vis_171"]
 # v_list = [v_list[2]]
-base = 50
+base = 51
 high = 30
 tile = 16
-perc = 5
-model_name = "fcn_black_vis_172"
-conv_list = [1]
-bound_list = [0.5]
+bound_list = [0.1, 0.5, 1, 5]
 smooth_list = [1]
 
 
-for v, conv, bound, smooth in product(v_list, conv_list, bound_list, smooth_list):
+for v, bound, smooth in product(v_list, bound_list, smooth_list):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = f"{v}_compressed_blackgen_saliency_2norm_{smooth}_qp_{high}_conv_{conv}_bound_{bound}.mp4"
+    output = f"{v}_blackgen_lossdiff_smooth_{smooth}_qp_{high}_bound_{bound}.mp4"
     # if not os.path.exists(output):
     if True:
         os.system(
-            f"python compress_saliency.py -i {v}_qp_{base}.mp4 "
-            f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  "
-            f" --tile_percentage {perc} --conv_size {conv} --visualize True"
+            f"python compress_diff.py -i {v}_qp_{base}.mp4 "
+            f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile} --visualize True"
             f" -g {v}_qp_{high}_ground_truth.mp4 --bound {bound} --smooth_frames {smooth} --force_qp {high}"
         )
         os.system(f"python inference.py -i {output}")

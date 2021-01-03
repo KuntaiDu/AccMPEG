@@ -133,7 +133,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
             self.model, device_ids=[local_rank], find_unused_parameters=True
         )
 
-    def inference(self, video, detach=False):
+    def inference(self, video, detach=False, nograd=True):
         """
             Generate inference results. Will put results on cpu if detach=True.
         """
@@ -146,8 +146,12 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
         self.model.eval()
 
-        with torch.no_grad():
-            results = self.model(video)
+        if nograd:
+            with torch.no_grad():
+                results = self.model(video)
+        else:
+            with torch.enable_grad():
+                results = self.model(video)
 
         if detach:
             # detach and put everything to CPU.
@@ -313,7 +317,8 @@ class FasterRCNN_ResNet50_FPN(DNN):
         assert self.is_cuda, "Model must be placed on GPU"
         losses = self.model(videos, targets)
 
-        return losses["loss_classifier"] + losses["loss_box_reg"]
+        # return losses["loss_classifier"] + losses["loss_box_reg"]
+        return sum(losses.values())
 
     # def calc_diff_acc(self, video, gt_results, args):
     #     '''
@@ -377,10 +382,12 @@ class FasterRCNN_ResNet50_FPN(DNN):
         )
 
         if boxes is None:
-            for box in gt_bboxes:
+            for idx, box in enumerate(gt_bboxes):
                 draw.rectangle(box.cpu().tolist(), width=2, outline=c)
                 draw.text(
-                    box.cpu().tolist()[:2], f"{gt_labels[idx].item()}", fill="red"
+                    box.cpu().tolist()[:2],
+                    f"{gt_labels[idx].item()},{int(100 * gt_scores[idx])}",
+                    fill="red",
                 )
         else:
             rgb = ImageColor.getrgb(c)
