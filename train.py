@@ -9,6 +9,7 @@ import os
 import random
 from pathlib import Path
 from pdb import set_trace
+import math
 
 import coloredlogs
 import enlighten
@@ -24,6 +25,7 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from torchvision import io
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
 from maskgen.fcn_16_single_channel import FCN
 from utils.bbox_utils import center_size
 from utils.loss_utils import cross_entropy as get_loss
@@ -54,9 +56,14 @@ def main(args):
 
     # construct training set and cross validation set
     train_val_set = ConcatDataset(videos)
+    #training_set, cross_validation_set = torch.utils.data.random_split(
+    #    train_val_set,
+    #    [int(0.8 * len(train_val_set)), int(0.2 * len(train_val_set))],
+    #    generator=torch.Generator().manual_seed(100),
+    #)
     training_set, cross_validation_set = torch.utils.data.random_split(
         train_val_set,
-        [int(0.8 * len(train_val_set)), int(0.2 * len(train_val_set))],
+        [math.ceil(0.7 * len(train_val_set)), math.floor(0.3 * len(train_val_set))],
         generator=torch.Generator().manual_seed(100),
     )
     # training_sampler = torch.utils.data.DistributedSampler(training_set)
@@ -82,12 +89,12 @@ def main(args):
     # load ground truth results
     saliency = {}
 
-    if Path(args.ground_truth).exists():
+    if False:#Path(args.ground_truth).exists():
         with open(args.ground_truth, "rb") as f:
             saliency = pickle.load(f)
     else:
         # get the application
-        application = FasterRCNN_ResNet50_FPN()
+        application = KeypointRCNN_ResNet50_FPN() #FasterRCNN_ResNet50_FPN()
         application.cuda()
         # generate saliency
         loader = torch.utils.data.DataLoader(
@@ -106,10 +113,14 @@ def main(args):
             hq_image.requires_grad = True
             # get salinecy
             gt_result = application.inference(hq_image.cuda(), nograd=False)[0]
-            _, scores, boxes, _ = application.filter_results(
+            #_, scores, boxes, _ = application.filter_results(
+            #    gt_result, args.confidence_threshold, True
+            #)
+            box_scores, kpt_scores = application.filter_results(
                 gt_result, args.confidence_threshold, True
             )
-            sums = scores.sum()
+            #sums = scores.sum()
+            sums = box_scores.sum() * 0.3 + kpt_scores.sum() * 0.7
             sums.backward()
             mask_grad = hq_image.grad.abs().sum(dim=1, keepdim=True)
             mask_grad = F.conv2d(
