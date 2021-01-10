@@ -195,16 +195,22 @@ class KeypointRCNN_ResNet50_FPN(DNN):
         video_ind = torch.mean(video_results['keypoints_scores'], dim=1) == torch.max(torch.mean(video_results['keypoints_scores'], dim=1))
         box_scores = video_results['scores'][video_ind]
         kpt_scores = video_results['keypoints_scores'][video_ind]
+        kpts = video_results['keypoints'][video_ind]
+        boxes = video_results['boxes'][video_ind]
 
         if cuda:
             return (
                 box_scores.cuda(),
                 kpt_scores.cuda(),
+                kpts.cuda(),
+                boxes.cuda(),
             )
         else:
             return (
                 box_scores.cpu(),
                 kpt_scores.cpu(),
+                kpts.cpu(),
+                boxes.cpu(),
             )
 
     def calc_accuracy(self, video, gt, args):
@@ -220,59 +226,19 @@ class KeypointRCNN_ResNet50_FPN(DNN):
 
         for fid in video.keys():
 
-            video_ind, video_scores, video_bboxes, video_labels = self.filter_results(
+            box_scores, kpt_scores, kpts, boxes = self.filter_results(
                 video[fid], args.confidence_threshold
             )
-            gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
+            gt_box_scores, gt_kpt_scores, gt_kpts, gt_boxes = self.filter_results(
                 gt[fid], args.confidence_threshold
             )
-            if len(video_labels) == 0 or len(gt_labels) == 0:
-                if len(video_labels) == 0 and len(gt_labels) == 0:
-                    f1s.append(1.0)
-                    prs.append(1.0)
-                    res.append(1.0)
-                else:
-                    f1s.append(0.0)
-                    prs.append(0.0)
-                    res.append(0.0)
-                continue
 
-            IoU = jaccard(video_bboxes, gt_bboxes)
-
-            # let IoU = 0 if the label is wrong
-            fat_video_labels = video_labels[:, None].repeat(1, len(gt_labels))
-            fat_gt_labels = gt_labels[None, :].repeat(len(video_labels), 1)
-            IoU[fat_video_labels != fat_gt_labels] = 0
-
-            # calculate f1
-            tp = 0
-
-            for i in range(len(gt_labels)):
-                tp = (
-                    tp
-                    + torch.min(
-                        self.step2(IoU[:, i] - args.iou_threshold),
-                        self.step2(video_scores - args.confidence_threshold),
-                    ).max()
-                )
-            fn = len(gt_labels) - tp
-            fp = len(video_labels[video_scores > args.confidence_threshold]) - tp
-
-            f1 = 2 * tp / (2 * tp + fp + fn)
-            pr = tp / (tp + fp)
-            re = tp / (tp + fn)
-            # import pdb; pdb.set_trace()
-
-            f1s.append(f1)
-            prs.append(pr)
-            res.append(re)
-
-            # if fid % 10 == 9:
-            #     #pass
-            #     print('f1:', torch.tensor(f1s[-9:]).mean().item())
-            #     print('pr:', torch.tensor(prs[-9:]).mean().item())
-            #     print('re:', torch.tensor(res[-9:]).mean().item())
-
+            acc = kpts - gt_kpts
+            acc = torch.sqrt(acc[:, 0] ** 2 + acc[:, 1] ** 2)
+            accuracy = 1 - (len(acc.nonzero()) /  acc.numel())
+            prs.append(0.0)
+            res.append(0.0)
+            f1s.append(accuracy)
         return {
             "f1": torch.tensor(f1s).mean().item(),
             "pr": torch.tensor(prs).mean().item(),

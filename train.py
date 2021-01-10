@@ -116,7 +116,7 @@ def main(args):
             #_, scores, boxes, _ = application.filter_results(
             #    gt_result, args.confidence_threshold, True
             #)
-            box_scores, kpt_scores = application.filter_results(
+            box_scores, kpt_scores, _, _ = application.filter_results(
                 gt_result, args.confidence_threshold, True
             )
             #sums = scores.sum()
