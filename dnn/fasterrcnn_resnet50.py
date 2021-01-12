@@ -190,7 +190,6 @@ class FasterRCNN_ResNet50_FPN(DNN):
         )
         return size < 0.08
 
-<<<<<<< HEAD
     def filter_results(
         self, video_results, confidence_threshold, cuda=False, train=False
     ):
@@ -204,18 +203,6 @@ class FasterRCNN_ResNet50_FPN(DNN):
             video_ind = torch.logical_and(
                 video_ind, self.filter_large_bbox(video_results["boxes"])
             )
-=======
-    def filter_results(self, video_results, confidence_threshold, cuda=False):
-
-        video_scores = video_results["scores"]
-        video_ind = video_scores > confidence_threshold
-        video_ind = torch.logical_and(
-            video_ind, self.get_relevant_ind(video_results["labels"])
-        )
-        video_ind = torch.logical_and(
-            video_ind, self.filter_large_bbox(video_results["boxes"])
-        )
->>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
         video_scores = video_scores[video_ind]
         video_bboxes = video_results["boxes"][video_ind, :]
         video_labels = video_results["labels"][video_ind]
@@ -307,11 +294,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
             "re": torch.tensor(res).mean().item(),
         }
 
-<<<<<<< HEAD
     def calc_loss(self, videos, gt_results, args, train=False):
-=======
-    def calc_loss(self, videos, gt_results, args):
->>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
         """
             Inference and calculate the loss between video and gt using thresholds from args
         """
@@ -323,11 +306,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
         def transform_result(gt_result):
             # calculate the ground truth
             gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
-<<<<<<< HEAD
                 gt_result, args.confidence_threshold, cuda=True, train=train
-=======
-                gt_result, args.confidence_threshold, cuda=True
->>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
             )
             # construct targets
             target = {"boxes": gt_bboxes, "labels": gt_labels}
@@ -393,11 +372,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
     #     f1 = 2 * tp / (2 * tp + fp + fn)
     #     return f1, video_results
 
-<<<<<<< HEAD
     def plot_results_on(self, gt, image, c, args, boxes=None, train=False):
-=======
-    def plot_results_on(self, gt, image, c, args, boxes=None):
->>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
         if gt == None:
             return image
 
@@ -406,20 +381,12 @@ class FasterRCNN_ResNet50_FPN(DNN):
         draw = ImageDraw.Draw(image)
         # load the cached results to cuda
         gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
-<<<<<<< HEAD
             gt, args.confidence_threshold, train=train
-=======
-            gt, args.confidence_threshold
->>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
         )
 
         if boxes is None:
             for idx, box in enumerate(gt_bboxes):
-<<<<<<< HEAD
                 draw.rectangle(box.cpu().detach().tolist(), width=2, outline=c)
-=======
-                draw.rectangle(box.cpu().tolist(), width=2, outline=c)
->>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
                 draw.text(
                     box.cpu().tolist()[:2],
                     f"{gt_labels[idx].item()},{int(100 * gt_scores[idx])}",
