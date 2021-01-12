@@ -13,6 +13,9 @@
 __pycache__/
 *.pyc
 
+# ignore model files
+*pth*
+
 # ignore videos
 videos/*
 youtube_videos/*

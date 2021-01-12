@@ -106,7 +106,7 @@ def main(args):
     logger = logging.getLogger("train_COCO")
     logger.addHandler(logging.FileHandler(args.log))
     torch.set_default_tensor_type(torch.FloatTensor)
-    writer = SummaryWriter(Path(f"runs/{args.path}").stem)
+    writer = SummaryWriter("runs/" + Path(f"{args.path}").stem)
 
     # construct training set and cross validation set
     train_val_set = COCO_Dataset()
@@ -282,7 +282,11 @@ def main(args):
             loss.backward()
 
             # optimization and logging
-            logger.info(f"Training loss: %.3f", loss.item())
+            writer.add_scalar(
+                "Training loss",
+                loss.item(),
+                idx + iteration * (len(training_set) + len(cross_validation_set)),
+            )
             training_losses.append(loss.item())
             optimizer.step()
             optimizer.zero_grad()
@@ -449,7 +453,13 @@ def main(args):
                     )
 
             # optimization and logging
-            logger.info(f"Cross validation loss: %.3f", loss.item())
+            writer.add_scalar(
+                "Cross validation loss",
+                loss.item(),
+                idx
+                + iteration * (len(training_set) + len(cross_validation_set))
+                + len(training_set),
+            )
             cross_validation_losses.append(loss.item())
 
         mean_cross_validation_loss = torch.tensor(cross_validation_losses).mean().item()
