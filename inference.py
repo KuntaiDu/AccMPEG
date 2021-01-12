@@ -8,7 +8,8 @@ import enlighten
 import torch
 from torchvision import io
 
-from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+#from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
 from utils.results_utils import write_results
 from utils.video_utils import read_videos
 
@@ -27,7 +28,7 @@ def main(args):
     # from utils.video_utils import write_video
     # write_video(videos[0], 'download.mp4', logger)
 
-    application_bundle = [FasterRCNN_ResNet50_FPN()]
+    application_bundle = [KeypointRCNN_ResNet50_FPN()]
 
     for application in application_bundle:
 

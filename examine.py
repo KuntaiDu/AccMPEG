@@ -11,7 +11,7 @@ import torch
 import yaml
 from torchvision import io
 
-from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
 from utils.bbox_utils import jaccard
 from utils.results_utils import read_results, write_results
 from utils.video_utils import read_bandwidth
@@ -26,7 +26,7 @@ def main(args):
     bws = [read_bandwidth(video) for video in args.inputs]
     video_names = args.inputs
 
-    application_bundle = [FasterRCNN_ResNet50_FPN()]
+    application_bundle = [KeypointRCNN_ResNet50_FPN()]
 
     for application in application_bundle:
 

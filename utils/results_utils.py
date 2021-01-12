@@ -70,99 +70,100 @@ def read_results(video_name, app_name, logger):
 
 def merge_results(results, app, args):
 
-    import enlighten
-    import networkx as nx
+    return results[0]
+    #import enlighten
+    #import networkx as nx
 
-    for i in range(1, len(results)):
-        assert len(results[i - 1].keys()) == len(
-            results[i].keys()
-        ), "Results must contain same amount of frames"
+    #for i in range(1, len(results)):
+    #    assert len(results[i - 1].keys()) == len(
+    #        results[i].keys()
+    #    ), "Results must contain same amount of frames"
 
-    new_results = {}
+    #new_results = {}
 
-    progress_bar = enlighten.get_manager().counter(
-        total=len(results[0].keys()), desc=f"Generate ground truth", unit="frames"
-    )
+    #progress_bar = enlighten.get_manager().counter(
+    #    total=len(results[0].keys()), desc=f"Generate ground truth", unit="frames"
+    #)
 
-    for fid in results[0].keys():
+    #for fid in results[0].keys():
 
-        progress_bar.update()
+    #    progress_bar.update()
 
-        results_fid = [result[fid] for result in results]
-        boxes = []
-        boxes_tensor = []
+    #    results_fid = [result[fid] for result in results]
+    #    boxes = []
+    #    boxes_tensor = []
 
-        for result in results_fid:
+    #    for result in results_fid:
 
-            _, score, box, label = app.filter_results(result, args.confidence_threshold)
-            assert len(score) == len(box) == len(label)
+    #        _, score, box, label = app.filter_results(result, args.confidence_threshold)
+    #        assert len(score) == len(box) == len(label)
 
-            for i in range(len(score)):
-                boxes.append(
-                    {
-                        "score": score[i : i + 1],
-                        "box": box[i : i + 1, :],
-                        "label": label[i : i + 1],
-                    }
-                )
-                boxes_tensor.append(box[i : i + 1, :])
+    #        for i in range(len(score)):
+    #            boxes.append(
+    #                {
+    #                    "score": score[i : i + 1],
+    #                    "box": box[i : i + 1, :],
+    #                    "label": label[i : i + 1],
+    #                }
+    #            )
+    #            boxes_tensor.append(box[i : i + 1, :])
 
-        g = nx.Graph()
+    #    g = nx.Graph()
 
-        for idx, box in enumerate(boxes):
-            g.add_node(idx)
+    #    for idx, box in enumerate(boxes):
+    #        g.add_node(idx)
 
-        if boxes == []:
-            new_results[fid] = {
-                "scores": torch.zeros([0]),
-                "boxes": torch.zeros([0, 4]),
-                "labels": torch.zeros([0]),
-            }
-            continue
+    #    if boxes == []:
+    #        new_results[fid] = {
+    #            "scores": torch.zeros([0]),
+    #            "boxes": torch.zeros([0, 4]),
+    #            "labels": torch.zeros([0]),
+    #        }
+    #        continue
 
-        boxes_tensor = torch.cat(boxes_tensor)
-        IoU = jaccard(boxes_tensor, boxes_tensor)
+    #    boxes_tensor = torch.cat(boxes_tensor)
+    #    IoU = jaccard(boxes_tensor, boxes_tensor)
 
-        for index in (IoU > args.iou_threshold).nonzero():
+    #    for index in (IoU > args.iou_threshold).nonzero():
 
-            if boxes[index[0]]["label"] == boxes[index[1]]["label"]:
-                g.add_edge(index[0].item(), index[1].item())
+    #        if boxes[index[0]]["label"] == boxes[index[1]]["label"]:
+    #            g.add_edge(index[0].item(), index[1].item())
 
-        # generate new boxes
-        new_boxes = []
-        new_scores = []
-        new_labels = []
-        for comp in nx.connected_components(g):
+    #    # generate new boxes
+    #    new_boxes = []
+    #    new_scores = []
+    #    new_labels = []
+    #    for comp in nx.connected_components(g):
 
-            if len(comp) <= 2:
-                continue
+    #        if len(comp) <= 2:
+    #            continue
 
-            new_boxes.append(
-                torch.cat([boxes[node]["box"] for node in comp]).mean(
-                    dim=0, keepdim=True
-                )
-            )
-            new_scores.append(
-                torch.cat([boxes[node]["score"] for node in comp]).mean(
-                    dim=0, keepdim=True
-                )
-            )
-            new_labels.append(boxes[list(comp)[0]]["label"])
+    #        new_boxes.append(
+    #            torch.cat([boxes[node]["box"] for node in comp]).mean(
+    #                dim=0, keepdim=True
+    #            )
+    #        )
+    #        new_scores.append(
+    #            torch.cat([boxes[node]["score"] for node in comp]).mean(
+    #                dim=0, keepdim=True
+    #            )
+    #        )
+    #        new_labels.append(boxes[list(comp)[0]]["label"])
 
-        if new_boxes == []:
-            new_results[fid] = {
-                "scores": torch.zeros([0]),
-                "boxes": torch.zeros([0, 4]),
-                "labels": torch.zeros([0]),
-            }
-        else:
-            new_results[fid] = {
-                "scores": torch.cat(new_scores),
-                "boxes": torch.cat(new_boxes),
-                "labels": torch.cat(new_labels),
-            }
+    #    if new_boxes == []:
+    #        new_results[fid] = {
+    #            "scores": torch.zeros([0]),
+    #            "boxes": torch.zeros([0, 4]),
+    #            "labels": torch.zeros([0]),
+    #        }
+    #    else:
+    #        new_results[fid] = {
+    #            "scores": torch.cat(new_scores),
+    #            "boxes": torch.cat(new_boxes),
+    #            "labels": torch.cat(new_labels),
+    #        }
 
-    return new_results
+    #return new_results
 
 
 def read_ground_truth(file_name, logger):

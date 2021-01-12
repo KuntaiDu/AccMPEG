@@ -153,11 +153,22 @@ class KeypointRCNN_ResNet50_FPN(DNN):
             with torch.enable_grad():
                 results = self.model(video)
 
+        for result in results:
+            top_ind = torch.mean(result['keypoints_scores'], dim=1) == torch.max(torch.mean(result['keypoints_scores'], dim=1))
+            for key in result:
+                if key not in ['keypoints_dict', 'dnn_shape']:
+                    result[key] = result[key][top_ind]
+                else:
+                    result[key] = []
+
         if detach:
             # detach and put everything to CPU.
             for result in results:
                 for key in result:
-                    result[key] = result[key].cpu().detach()
+                    if key not in ['keypoints_dict', 'dnn_shape']:
+                        result[key] = result[key].cpu().detach()
+                    else:
+                        result[key] = []
 
         return results
 
@@ -219,6 +230,7 @@ class KeypointRCNN_ResNet50_FPN(DNN):
         """
 
         assert video.keys() == gt.keys()
+        kpt_thresh = 8  # took value from kpt project
 
         f1s = []
         prs = []
@@ -234,7 +246,9 @@ class KeypointRCNN_ResNet50_FPN(DNN):
             )
 
             acc = kpts - gt_kpts
+            acc = acc[0]
             acc = torch.sqrt(acc[:, 0] ** 2 + acc[:, 1] ** 2)
+            acc[acc < kpt_thresh * kpt_thresh] = 0
             accuracy = 1 - (len(acc.nonzero()) /  acc.numel())
             prs.append(0.0)
             res.append(0.0)
