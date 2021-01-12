@@ -9,15 +9,14 @@ import torch.nn.functional as F
 def cross_entropy(mask, target, weight=1.0):
 
     # Cross entropy
-    target = target[:, 0, :, :]
-    return F.cross_entropy(mask, target, torch.tensor([1.0, weight]).cuda())
+    mask = torch.where(mask < 1e-6, torch.ones_like(mask) * 1e-6, mask)
+    mask = torch.where(mask > (1 - 1e-6), torch.ones_like(mask) * (1 - 1e-6), mask)
+    return (-weight * target * mask.log() - (1 - target) * (1 - mask).log()).mean()
 
 
 def mean_squared_error(mask, target):
 
-    target = target.float()
-    prob = mask.softmax(dim=1)[:, 1:2, :, :]
-    return ((target - prob) ** 2).mean()
+    return (mask - target).norm(p=2)
 
 
 def focal_loss(mask, target, weight=1):

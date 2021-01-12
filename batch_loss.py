@@ -7,21 +7,25 @@ import yaml
 # v_list = [v_list[0]]
 
 # v_list = ["visdrone/videos/vis_%d" % i for i in [170, 171]]
-v_list = ["visdrone/videos/vis_171"]
+v_list = [
+    "visdrone/videos/vis_170",
+    "visdrone/videos/vis_173",
+    "visdrone/videos/vis_171",
+    "visdrone/videos/vis_169",
+]
 # v_list = [v_list[2]]
 base = 50
 high = 30
 tile = 16
-bound_list = [0.01, 0.05, 0.1, 0.5]
+bound_list = [0.1, 0.02, 0.5]
 smooth_list = [1]
 
 
 for v, bound, smooth in product(v_list, bound_list, smooth_list):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = f"{v}_blackgen_lossall_smooth_{smooth}_qp_{high}_bound_{bound}.mp4"
-    # if not os.path.exists(output):
-    if True:
+    output = f"{v}_blackgen_lossblack_smooth_{smooth}_qp_{high}_bound_{bound}.mp4"
+    if not os.path.exists(output):
         os.system(
             f"python compress_loss.py -i {v}_qp_{base}.mp4 "
             f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile} --visualize True"

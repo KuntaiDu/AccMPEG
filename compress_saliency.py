@@ -91,7 +91,7 @@ def main(args):
             hq_image.requires_grad = True
             gt_result = application.inference(hq_image.cuda(), nograd=False)[0]
             _, scores, boxes, _ = application.filter_results(
-                gt_result, args.confidence_threshold, True
+                gt_result, args.confidence_threshold, True, train=True
             )
             sums = scores.sum()
             sums.backward()
@@ -140,6 +140,7 @@ def main(args):
             # visualization
             if args.visualize and fid % 50 == 0:
                 heat = tile_mask(mask_slice, args.tile_size)[0, 0, :, :]
+                heat = heat * 10
                 heat[heat > 10] = 10
                 fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=300)
                 ax = sns.heatmap(

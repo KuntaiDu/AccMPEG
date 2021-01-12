@@ -90,10 +90,10 @@ def main(args):
             # hq_image = hq_image.cuda()
             # hq_image.requires_grad = True
             # loss = application.calc_loss(hq_image, [ground_truth_dict[fid]], args)
-            hq_image.requires_grad = True
-            loss = application.calc_loss(hq_image, [ground_truth_dict[fid]], args)
+            lq_image.requires_grad = True
+            loss = application.calc_loss(lq_image, [ground_truth_dict[fid]], args)
             loss.backward()
-            mask_grad = hq_image.grad  # * (hq_image - lq_image)
+            mask_grad = lq_image.grad  # * (hq_image - lq_image)
             mask_grad = mask_grad.norm(dim=1, p=2, keepdim=True)
             mask_grad = F.conv2d(
                 mask_grad,

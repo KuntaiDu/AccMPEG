@@ -5,7 +5,9 @@ cfg = [
     16,
     16,
     16,
+    16,
     "M",
+    32,
     32,
     32,
     32,
@@ -13,11 +15,14 @@ cfg = [
     64,
     64,
     64,
+    64,
     "M",
     128,
     128,
     128,
+    128,
     "M",
+    256,
     256,
     256,
     256,
@@ -29,7 +34,6 @@ class FCN(nn.Module):
         super(FCN, self).__init__()
         self.batch_norm = True
         self.model = self._make_layers(cfg)
-        self.t = T.normalize
 
     def _make_layers(self, cfg):
         layers = []

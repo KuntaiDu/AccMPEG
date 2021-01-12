@@ -15,14 +15,14 @@ tile = 16
 perc = 5
 model_name = "fcn_black_vis_172"
 conv_list = [1]
-bound_list = [0.5]
+bound_list = [0.1]
 smooth_list = [1]
 
 
 for v, conv, bound, smooth in product(v_list, conv_list, bound_list, smooth_list):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = f"{v}_compressed_blackgen_saliency_2norm_{smooth}_qp_{high}_conv_{conv}_bound_{bound}.mp4"
+    output = f"{v}_compressed_blackgen_saliency_nofilter_2norm_{smooth}_qp_{high}_conv_{conv}_bound_{bound}.mp4"
     # if not os.path.exists(output):
     if True:
         os.system(

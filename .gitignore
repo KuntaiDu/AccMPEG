@@ -2,6 +2,7 @@
 # ignore all image files
 *.png
 *.jpg
+*.tar
 
 # ignore all mp4 files
 *mp4*
@@ -29,8 +30,13 @@ temp*
 
 
 
+
 # ignore results
 results/*
+heat/*
+train/*
+visualize/*
+
 
 # ignore vscode
 .vscode/

@@ -8,16 +8,15 @@ from itertools import product
 # v_list = ['train_first/trafficcam_%d_train' % (i+1) for i in range(4)] + ['train_first/dashcam_%d_train' % (i+1) for i in range(4)]
 # v_list = [v_list[4]]
 
-model_name = "saliency_vis_172_multi6_cross_entropy"
+model_name = "COCO_multiweightsaliency_vgg11"
+filename = "vgg11"
 
 subprocess.run(
     [
         "python",
-        "train.py",
-        "-i",
-        "visdrone/videos/vis_172_qp_30.mp4",
+        "train_COCO.py",
         "-g",
-        "vis_172_saliency6.pickle",
+        "COCO_multi3.pickle",
         "-p",
         f"maskgen_pths/{model_name}.pth",
         "--tile_size",
@@ -26,5 +25,9 @@ subprocess.run(
         "2",
         "--log",
         f"train_{model_name}.log",
+        "--maskgen_file",
+        f"/tank/kuntai/code/video-compression/maskgen/{filename}.py",
+        "--visualize",
+        "True",
     ]
 )
