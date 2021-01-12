@@ -33,9 +33,6 @@ for v, bound, smooth in product(v_list, bound_list, smooth_list):
         os.system(
             f"python compress_loss_dual.py -i {v}_qp_51.mp4 "
             f" {v}_qp_{high}.mp4 -s {v} -o {output}.qp{base}.mp4 --tile_size {tile} --visualize True"
-            f" -g {v}_qp_{high}_ground_truth.mp4 --upper_bound {ub} --lower_bound {lb} --smooth_frames {smooth} --force_qp {base}"
-        )
-        os.system(f"python inference_dual.py -i {output}")
 
     os.system(f"python examine.py -i {output} -g {v}_qp_{high}_ground_truth.mp4")
 

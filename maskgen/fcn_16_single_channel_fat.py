@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+<<<<<<< HEAD
 cfg = [
     16,
     16,
@@ -22,6 +23,9 @@ cfg = [
     256,
     256,
 ]
+=======
+cfg = [32, 32, "M", 64, 64, "M", 128, 128, "M", 256, 256, "M", 512]
+>>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
 
 
 class FCN(nn.Module):
@@ -29,7 +33,10 @@ class FCN(nn.Module):
         super(FCN, self).__init__()
         self.batch_norm = True
         self.model = self._make_layers(cfg)
+<<<<<<< HEAD
         self.t = T.normalize
+=======
+>>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
 
     def _make_layers(self, cfg):
         layers = []

@@ -33,8 +33,11 @@ from utils.video_utils import get_qp_from_name, read_videos, write_video
 
 sns.set()
 
+<<<<<<< HEAD
 thresholds = [0.2, 1, 5]
 
+=======
+>>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
 
 def main(args):
 
@@ -100,8 +103,11 @@ def main(args):
             desc=f"Generating saliency as ground truths",
             unit="frames",
         )
+<<<<<<< HEAD
         for thresh in thresholds:
             saliency[thresh] = {}
+=======
+>>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
         for data in loader:
             progress_bar.update()
             # get data
@@ -121,8 +127,12 @@ def main(args):
                 torch.ones([1, 1, args.tile_size, args.tile_size]).cuda(),
                 stride=args.tile_size,
             )
+<<<<<<< HEAD
             for thresh in thresholds:
                 saliency[thresh][fid] = (mask_grad > thresh).detach().cpu()
+=======
+            saliency[fid] = (mask_grad > args.saliency_threshold).detach().cpu()
+>>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
         # write saliency to disk
         with open(args.ground_truth, "wb") as f:
             pickle.dump(saliency, f)
@@ -154,12 +164,17 @@ def main(args):
             fids = [fid.item() for fid in data["fid"]]
 
             # calculate loss
+<<<<<<< HEAD
             loss = 0
             for thresh in thresholds:
                 target = torch.cat(
                     [saliency[thresh][fid].long().cuda() for fid in fids]
                 )
                 loss = loss + get_loss(mask_slice, target, 1)
+=======
+            target = torch.cat([saliency[fid].long().cuda() for fid in fids])
+            loss = get_loss(mask_slice, target, 1)
+>>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
             loss.backward()
 
             # optimization and logging
@@ -207,12 +222,17 @@ def main(args):
             with torch.no_grad():
                 mask_slice = mask_generator(hq_image)
 
+<<<<<<< HEAD
                 loss = 0
                 for thresh in thresholds:
                     target = torch.cat(
                         [saliency[thresh][fid].long().cuda() for fid in fids]
                     )
                     loss = loss + get_loss(mask_slice, target, 1)
+=======
+                target = torch.cat([saliency[fid].long().cuda() for fid in fids])
+                loss = get_loss(mask_slice, target, 1)
+>>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
 
             # optimization and logging
             logger.info(f"Cross validation loss: %.3f", loss.item())
