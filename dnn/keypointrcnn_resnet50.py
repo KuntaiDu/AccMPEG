@@ -345,9 +345,13 @@ class KeypointRCNN_ResNet50_FPN(DNN):
 
         draw = ImageDraw.Draw(image)
         # load the cached results to cuda
-        gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
+        #gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
+        #    gt, args.confidence_threshold
+        #)
+        gt_scores, gt_kpt_scores, gt_kpts, gt_bboxes = self.filter_results(
             gt, args.confidence_threshold
         )
+        gt_labels = torch.tensor([1])
 
         if boxes is None:
             for idx, box in enumerate(gt_bboxes):

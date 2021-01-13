@@ -18,7 +18,8 @@ import torchvision.transforms as T
 from PIL import Image
 from torchvision import io
 
-from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+#from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
 from maskgen.fcn_16_single_channel import FCN
 from utils.bbox_utils import center_size
 from utils.loss_utils import focal_loss as get_loss
@@ -45,14 +46,15 @@ def main(args):
     qps = [get_qp_from_name(video_name) for video_name in video_names]
 
     # construct applications
-    application = FasterRCNN_ResNet50_FPN()
+    #application = FasterRCNN_ResNet50_FPN()
+    application = KeypointRCNN_ResNet50_FPN()
 
     # construct the mask
     mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
     mask = torch.ones(mask_shape).float()
 
     ground_truth_dict = read_results(
-        args.ground_truth, "FasterRCNN_ResNet50_FPN", logger
+        args.ground_truth, "KeypointRCNN_ResNet50_FPN", logger
     )
     # logger.info('Reading ground truth mask')
     # with open(args.mask + '.mask', 'rb') as f:
@@ -90,10 +92,15 @@ def main(args):
             hq_image = hq_image.cuda()
             hq_image.requires_grad = True
             gt_result = application.inference(hq_image.cuda(), nograd=False)[0]
-            _, scores, boxes, _ = application.filter_results(
+            #_, scores, boxes, _ = application.filter_results(
+            #    gt_result, args.confidence_threshold, True
+            #)
+            box_scores, kpt_scores, kpts, boxes = application.filter_results(
                 gt_result, args.confidence_threshold, True
             )
-            sums = scores.sum()
+            #######################################################
+            #sums = scores.sum()
+            sums = box_scores.sum() * 0.3 + kpt_scores.sum() * 0.7
             sums.backward()
             mask_grad = hq_image.grad.norm(dim=1, p=2, keepdim=True)
             mask_grad = F.conv2d(
@@ -102,40 +109,42 @@ def main(args):
                 stride=args.tile_size,
             )
             mask_slice[:, :, :, :] = mask_grad
-            # mask_slice[:, :, :, :] = dilate_binarize(
-            #     mask_grad, args.bound, args.conv_size, True,
-            # ).cpu()
-            # mask_gen = mask_generator(
-            #     torch.cat([hq_image, hq_image - lq_image], dim=1).cuda()
-            # )
-            # mask_gen = mask_generator(hq_image.cuda())
-            # # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
-            # mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
-            # mask_lb = dilate_binarize(mask_gen, args.lower_bound, args.conv_size)
-            # mask_ub = dilate_binarize(mask_gen, args.upper_bound, args.conv_size)
-            # mask_slice[:, :, :, :] = mask_lb - mask_ub
-            # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
-            # mask_slice[:, :, :, :] = ground_truth_mask[fid + offset2].float()
+            #############################################################################################################
+            #mask_slice[:, :, :, :] = dilate_binarize(
+            #    mask_grad, args.bound, args.conv_size, True,
+            #).cpu()
+            #mask_gen = mask_generator(
+            #    torch.cat([hq_image, hq_image - lq_image], dim=1).cuda()
+            #)
+            #mask_gen = mask_generator(hq_image.cuda())
+            ## losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
+            #mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
+            #mask_lb = dilate_binarize(mask_gen, args.lower_bound, args.conv_size)
+            #mask_ub = dilate_binarize(mask_gen, args.upper_bound, args.conv_size)
+            #mask_slice[:, :, :, :] = mask_lb - mask_ub
+            #mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
+            #mask_slice[:, :, :, :] = ground_truth_mask[fid + offset2].float()
 
-            # lq_image[:, :, :, :] = background
-            # # calculate the loss, to see the generalization error
-            # with torch.no_grad():
-            #     mask_slice = tile_mask(mask_slice, args.tile_size)
-            #     masked_image = generate_masked_image(
-            #         mask_slice, video_slices, bws)
+            #lq_image[:, :, :, :] = background
+            ## calculate the loss, to see the generalization error
+            #with torch.no_grad():
+            #    mask_slice = tile_mask(mask_slice, args.tile_size)
+            #    masked_image = generate_masked_image(
+            #        mask_slice, video_slices, bws)
 
-            #     video_results = application.inference(
-            #         masked_image.cuda(), True)[0]
-            #     f1s.append(application.calc_accuracy({
-            #         fid: video_results
-            #     }, {
-            #         fid: ground_truth_dict[fid]
-            #     }, args)['f1'])
+            #    video_results = application.inference(
+            #        masked_image.cuda(), True)[0]
+            #    f1s.append(application.calc_accuracy({
+            #        fid: video_results
+            #    }, {
+            #        fid: ground_truth_dict[fid]
+            #    }, args)['f1'])
 
-            # import pdb; pdb.set_trace()
-            # loss, _ = application.calc_loss(masked_image.cuda(),
-            #                                 application.inference(video_slices[-1].cuda(), detach=True)[0], args)
-            # total_loss.append(loss.item())
+            #import pdb; pdb.set_trace()
+            #loss, _ = application.calc_loss(masked_image.cuda(),
+            #                                application.inference(video_slices[-1].cuda(), detach=True)[0], args)
+            #total_loss.append(loss.item())
+            #############################################################################################################
 
             # visualization
             if args.visualize and fid % 50 == 0:
