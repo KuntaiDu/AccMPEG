@@ -31,7 +31,7 @@ from torchvision.datasets import CocoDetection
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from utils.bbox_utils import center_size
-from utils.loss_utils import cross_entropy_thresh as get_loss
+from utils.loss_utils import focal_loss as get_loss
 from utils.mask_utils import *
 from utils.results_utils import read_results
 from utils.video_utils import get_qp_from_name, read_videos, write_video
@@ -39,7 +39,7 @@ from utils.visualize_utils import visualize_heat
 
 sns.set()
 
-thresh_list = [0.05, 0.005]
+thresholds = [1, 0]
 weight = [1, 1]
 
 path2data = "/tank/kuntai/COCO_Detection/train2017"
@@ -214,7 +214,7 @@ def main(args):
                 saliency[fid] = mask_grad.detach().cpu()
 
             # visualize the saliency
-            if fid % 500 == 0:
+            if fid % 250 == 0:
 
                 # visualize
                 if args.visualize:
@@ -282,10 +282,13 @@ def main(args):
                 continue
             target = torch.cat([saliency[fid] for fid in fids]).cuda(non_blocking=True)
             hq_image = data["image"].cuda(non_blocking=True)
-            mask_slice = mask_generator(hq_image)
+            mask_slice = mask_generator(hq_image)[:, 1:2, :, :]
+            # normalize to [0,1]
+            mask_slice = mask_slice - mask_slice.min()
+            mask_slice = mask_slice / mask_slice.max()
 
             # calculate loss
-            loss = get_loss(mask_slice, target, thresh_list)
+            loss = get_loss(mask_slice, target, 10)
             loss.backward()
 
             # optimization and logging
@@ -299,18 +302,14 @@ def main(args):
             optimizer.step()
             optimizer.zero_grad()
 
-            if any(fid % 500 == 0 for fid in fids):
+            if any(fid % 250 == 0 for fid in fids):
                 # save the model
                 mask_generator.save(args.path)
                 # visualize
                 if args.visualize:
-                    maxid = np.argmax([fid % 500 == 0 for fid in fids]).item()
+                    maxid = np.argmax([fid % 250 == 0 for fid in fids]).item()
                     fid = fids[maxid]
                     image = T.ToPILImage()(data["image"][maxid])
-                    mask_slice = mask_slice[maxid : maxid + 1, :, :, :]
-                    mask_slice = mask_slice.softmax(dim=1)[:, 1:2, :, :]
-                    target = target[maxid : maxid + 1, :, :, :]
-                    target = sum((target > thresh).float() for thresh in thresh_list)
                     # hq_image.requires_grad = True
                     # get salinecy
                     # gt_result = application.inference(hq_image.cuda(), nograd=False)[0]
@@ -323,13 +322,6 @@ def main(args):
                         image,
                         mask_slice.cpu().detach(),
                         f"train/{args.path}/{fid}_train.png",
-                        args,
-                    )
-
-                    visualize_heat(
-                        image,
-                        target.cpu().detach(),
-                        f"train/{args.path}/{fid}_saliency.png",
                         args,
                     )
                     # application.plot_results_on(
@@ -451,7 +443,10 @@ def main(args):
 
             # inference
             with torch.no_grad():
-                mask_slice = mask_generator(hq_image)
+                mask_slice = mask_generator(hq_image)[:, 1:2, :, :]
+                # normalize to [0,1]
+                mask_slice = mask_slice - mask_slice.min()
+                mask_slice = mask_slice / mask_slice.max()
 
                 # loss = 0
                 # for idx, thresh in enumerate(thresholds):
@@ -459,27 +454,17 @@ def main(args):
                 #         [saliency[thresh][fid].long().cuda() for fid in fids]
                 #     )
                 #     loss = loss + weight[idx] * get_loss(mask_slice, target, 1)
-                loss = get_loss(mask_slice, target, thresh_list)
+                loss = get_loss(mask_slice, target, 10)
 
-            if any(fid % 500 == 0 for fid in fids):
+            if any(fid % 250 == 0 for fid in fids):
                 if args.visualize:
-                    maxid = np.argmax([fid % 500 == 0 for fid in fids]).item()
+                    maxid = np.argmax([fid % 250 == 0 for fid in fids]).item()
                     fid = fids[maxid]
                     image = T.ToPILImage()(data["image"][maxid])
-                    mask_slice = mask_slice[maxid : maxid + 1, :, :, :]
-                    mask_slice = mask_slice.softmax(dim=1)[:, 1:2, :, :]
-                    target = target[maxid : maxid + 1, :, :, :]
-                    target = sum((target > thresh).float() for thresh in thresh_list)
                     visualize_heat(
                         image,
                         mask_slice.detach().cpu(),
                         f"train/{args.path}/{fid}_cross.png",
-                        args,
-                    )
-                    visualize_heat(
-                        image,
-                        target.cpu().detach(),
-                        f"train/{args.path}/{fid}_saliency.png",
                         args,
                     )
 

@@ -8,7 +8,7 @@ from itertools import product
 # v_list = ['train_first/trafficcam_%d_train' % (i+1) for i in range(4)] + ['train_first/dashcam_%d_train' % (i+1) for i in range(4)]
 # v_list = [v_list[4]]
 
-model_name = "COCO_multiweightloss_vgg11"
+model_name = "COCO_multiweightloss_vgg11_crossthresh"
 filename = "vgg11"
 
 subprocess.run(

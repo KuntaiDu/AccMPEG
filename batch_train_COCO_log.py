@@ -8,15 +8,15 @@ from itertools import product
 # v_list = ['train_first/trafficcam_%d_train' % (i+1) for i in range(4)] + ['train_first/dashcam_%d_train' % (i+1) for i in range(4)]
 # v_list = [v_list[4]]
 
-model_name = "COCO_full_normalizedsaliency_vgg11_crossthresh_0.05_0.005"
+model_name = "COCO_full_logdsaliency_vgg11"
 filename = "vgg11"
 
 subprocess.run(
     [
         "python",
-        "train_COCO.py",
+        "train_COCO_log.py",
         "-g",
-        f"COCO_full_normalizedsaliency.pickle",
+        f"COCO_full_logsaliency.pickle",
         "-p",
         f"maskgen_pths/{model_name}.pth",
         "--init",

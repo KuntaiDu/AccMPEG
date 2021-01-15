@@ -182,8 +182,8 @@ def main(args):
             if data == None:
                 continue
             fid = data["fid"].item()
-            if fid % 3 != args.local_rank:
-                continue
+            # if fid % 3 != args.local_rank:
+            #     continue
             hq_image = data["image"].cuda(non_blocking=True)
             hq_image.requires_grad = True
             # get salinecy
@@ -204,14 +204,9 @@ def main(args):
             )
             # determine the threshold
             mask_grad = mask_grad.detach().cpu()
-            # normalize gradient to [0, 1]
-            mask_grad = mask_grad - mask_grad.min()
-            mask_grad = mask_grad / mask_grad.max()
-            mask_grad = mask_grad.detach().cpu()
 
             # save it
-            for thresh in thresholds:
-                saliency[fid] = mask_grad.detach().cpu()
+            saliency[fid] = mask_grad.detach().cpu()
 
             # visualize the saliency
             if fid % 500 == 0:
