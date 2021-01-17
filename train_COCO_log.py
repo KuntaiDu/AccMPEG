@@ -31,7 +31,7 @@ from torchvision.datasets import CocoDetection
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from utils.bbox_utils import center_size
-from utils.loss_utils import cross_entropy_thresh as get_loss
+from utils.loss_utils import log_cross_entropy as get_loss
 from utils.mask_utils import *
 from utils.results_utils import read_results
 from utils.video_utils import get_qp_from_name, read_videos, write_video
@@ -174,16 +174,15 @@ def main(args):
             desc=f"Generating saliency as ground truths",
             unit="frames",
         )
-        for thresh in thresholds:
-            saliency[thresh] = {}
+        saliency = {}
         for data in loader:
             progress_bar.update()
             # get data
             if data == None:
                 continue
             fid = data["fid"].item()
-            # if fid % 3 != args.local_rank:
-            #     continue
+            if fid % 4 != args.local_rank:
+                continue
             hq_image = data["image"].cuda(non_blocking=True)
             hq_image.requires_grad = True
             # get salinecy
@@ -280,7 +279,7 @@ def main(args):
             mask_slice = mask_generator(hq_image)
 
             # calculate loss
-            loss = get_loss(mask_slice, target, thresh_list)
+            loss = get_loss(mask_slice, target)
             loss.backward()
 
             # optimization and logging
@@ -304,8 +303,8 @@ def main(args):
                     image = T.ToPILImage()(data["image"][maxid])
                     mask_slice = mask_slice[maxid : maxid + 1, :, :, :]
                     mask_slice = mask_slice.softmax(dim=1)[:, 1:2, :, :]
-                    target = target[maxid : maxid + 1, :, :, :]
-                    target = sum((target > thresh).float() for thresh in thresh_list)
+                    target = target + 1e-6
+                    target = target[maxid : maxid + 1, :, :, :].log()
                     # hq_image.requires_grad = True
                     # get salinecy
                     # gt_result = application.inference(hq_image.cuda(), nograd=False)[0]
@@ -454,7 +453,7 @@ def main(args):
                 #         [saliency[thresh][fid].long().cuda() for fid in fids]
                 #     )
                 #     loss = loss + weight[idx] * get_loss(mask_slice, target, 1)
-                loss = get_loss(mask_slice, target, thresh_list)
+                loss = get_loss(mask_slice, target)
 
             if any(fid % 500 == 0 for fid in fids):
                 if args.visualize:
@@ -463,8 +462,8 @@ def main(args):
                     image = T.ToPILImage()(data["image"][maxid])
                     mask_slice = mask_slice[maxid : maxid + 1, :, :, :]
                     mask_slice = mask_slice.softmax(dim=1)[:, 1:2, :, :]
-                    target = target[maxid : maxid + 1, :, :, :]
-                    target = sum((target > thresh).float() for thresh in thresh_list)
+                    target = target + 1e-6
+                    target = target[maxid : maxid + 1, :, :, :].log()
                     visualize_heat(
                         image,
                         mask_slice.detach().cpu(),

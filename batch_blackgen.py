@@ -6,22 +6,26 @@ import yaml
 
 # v_list = ['dashcam_%d_test' % (i+1) for i in range(4)] + ['trafficcam_%d_test' % (i+1) for i in range(4)]
 # v_list = [v_list[0]]
-
-# v_list = ["visdrone/videos/vis_%d" % i for i in [170]]
-v_list = [
-    "visdrone/videos/vis_171",
-    "visdrone/videos/vis_170",
-    "visdrone/videos/vis_173",
-    "visdrone/videos/vis_169",
-    "visdrone/videos/vis_172",
+v_list = ["youtube_videos/dashcam_%d_crop" % (i + 1) for i in range(4)] + [
+    "youtube_videos/trafficcam_%d_crop" % (i + 1) for i in range(4)
 ]
+
+# v_list = [
+#     "visdrone/videos/vis_171",
+#     "visdrone/videos/vis_170",
+#     "visdrone/videos/vis_173",
+#     "visdrone/videos/vis_169",
+#     "visdrone/videos/vis_172",
+#     "visdrone/videos/vis_209",
+#     "visdrone/videos/vis_217",
+# ]
 # v_list = [v_list[2]]
 base = 50
 high = 30
 tile = 16
 model_name = "COCO_full_normalizedsaliency_vgg11_crossthresh"
-conv_list = [1]
-bound_list = [0.20]
+conv_list = [3]
+bound_list = [0.3]
 
 
 for v, conv, bound in product(v_list, conv_list, bound_list):

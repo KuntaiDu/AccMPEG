@@ -1,9 +1,15 @@
+from pdb import set_trace
+
 import torch
 import torch.nn as nn
 import torchvision.transforms as T
 from torchvision.models import vgg11_bn
 
 cfg = [16, 16, "M", 32, 32, "M", 64, 64, "M", 128, 128, "M", 256]
+
+# tile_size: 16
+# 720p: 480x720, 30x45
+# 1280p: 720x1280, 45x80
 
 
 class FCN(nn.Module):

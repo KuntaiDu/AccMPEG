@@ -24,6 +24,7 @@ temp*
 
 # ignore pickle file
 *.pickle
+*pickle*
 
 # ignore intermediate results
 *.log
@@ -31,8 +32,10 @@ temp*
 *.png
 *.pdf
 *.txt
-
-
+*.mask
+*.args
+*.pth
+*.best
 
 
 # ignore results
@@ -49,3 +52,4 @@ visualize/*
 *.ipynb
 
 visdrone/*
+youtube_videos/*
