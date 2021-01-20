@@ -24,7 +24,7 @@ from PIL import Image
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from torchvision import io
 
-from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+#from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
 from maskgen.fcn_16_single_channel import FCN
 from utils.bbox_utils import center_size
@@ -63,7 +63,7 @@ def main(args):
     #)
     training_set, cross_validation_set = torch.utils.data.random_split(
         train_val_set,
-        [math.ceil(0.7 * len(train_val_set)), math.floor(0.3 * len(train_val_set))],
+        [math.ceil(0.5 * len(train_val_set)), math.floor(0.5 * len(train_val_set))],
         generator=torch.Generator().manual_seed(100),
     )
     # training_sampler = torch.utils.data.DistributedSampler(training_set)

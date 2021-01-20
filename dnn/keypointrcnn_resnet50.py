@@ -154,6 +154,7 @@ class KeypointRCNN_ResNet50_FPN(DNN):
                 results = self.model(video)
 
         for result in results:
+            #if len(result['keypoints'])==0:
             top_ind = torch.mean(result['keypoints_scores'], dim=1) == torch.max(torch.mean(result['keypoints_scores'], dim=1))
             for key in result:
                 if key not in ['keypoints_dict', 'dnn_shape']:
@@ -230,7 +231,7 @@ class KeypointRCNN_ResNet50_FPN(DNN):
         """
 
         assert video.keys() == gt.keys()
-        kpt_thresh = 8  # took value from kpt project
+        kpt_thresh = 3  # took value from kpt project
 
         f1s = []
         prs = []
