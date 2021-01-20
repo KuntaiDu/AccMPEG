@@ -8,9 +8,13 @@ import yaml
 
 # v_list = ["visdrone/videos/vis_%d" % i for i in [170, 171]]
 v_list = ["visdrone/videos/vis_171"]
+#v_list = ['train_first/trafficcam_1_train', 'train_first/dashcam_1_train']
+#v_list = ['videos/skate_1']
+#v_list = ['videos/surfing_2_3']
+v_list = ['videos/kiteboarding_1']
 # v_list = [v_list[2]]
-base = 50
-high = 30
+base = 46
+high = 24
 tile = 16
 perc = 5
 model_name = "fcn_black_vis_172"

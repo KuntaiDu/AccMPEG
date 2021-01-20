@@ -8,12 +8,14 @@ import yaml
 # v_list = [v_list[0]]
 
 # v_list = ["visdrone/videos/vis_%d" % i for i in [170]]
-v_list = ["visdrone/videos/vis_170", "visdrone/videos/vis_173"]
+#v_list = ["visdrone/videos/vis_170", "visdrone/videos/vis_173"]
+v_list = ["videos/kiteboarding_1"]
 # v_list = [v_list[2]]
-base = 50
-high = 30
+base = 46
+high = 24
 tile = 16
-model_name = "saliency_vis_172_cross_entropy"
+#model_name = "saliency_vis_172_cross_entropy"
+model_name = "saliency_kiteboarding_1_cross_entropy"
 conv_list = [1]
 bound_list = [0.1]
 

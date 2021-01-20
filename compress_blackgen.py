@@ -18,7 +18,8 @@ import torchvision.transforms as T
 from PIL import Image
 from torchvision import io
 
-from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+#from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
 from maskgen.fcn_16_single_channel import FCN
 from utils.bbox_utils import center_size
 from utils.loss_utils import focal_loss as get_loss
@@ -46,7 +47,7 @@ def main(args):
     qps = [get_qp_from_name(video_name) for video_name in video_names]
 
     # construct applications
-    application = FasterRCNN_ResNet50_FPN()
+    application = KeypointRCNN_ResNet50_FPN() #FasterRCNN_ResNet50_FPN()
 
     mask_generator = FCN()
     mask_generator.load(args.path)
@@ -57,7 +58,7 @@ def main(args):
     mask = torch.ones(mask_shape).float()
 
     ground_truth_dict = read_results(
-        args.ground_truth, "FasterRCNN_ResNet50_FPN", logger
+        args.ground_truth, "KeypointRCNN_ResNet50_FPN", logger
     )
     # logger.info('Reading ground truth mask')
     # with open(args.mask + '.mask', 'rb') as f:

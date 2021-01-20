@@ -4,8 +4,8 @@ import os
 import subprocess
 from pathlib import Path
 
-gt_qp = 30
-qp_list = [30, 32, 34, 36, 38, 42, 46, 50, 51]
+gt_qp = 24
+qp_list = [24, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48]
 quality_list = ["veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
 
 
@@ -84,7 +84,7 @@ def main(args):
                     "-i",
                     output_name,
                     "-g",
-                    f"{video_name}_qp_30_ground_truth.mp4",
+                    f"{video_name}_qp_{gt_qp}_ground_truth.mp4",
                 ]
             )
 
