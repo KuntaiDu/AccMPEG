@@ -10,6 +10,7 @@ import random
 from pathlib import Path
 from pdb import set_trace
 import math
+import numpy as np
 
 import coloredlogs
 import enlighten
@@ -26,14 +27,20 @@ from torchvision import io
 
 #from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
-from maskgen.fcn_16_single_channel import FCN
+#from maskgen.fcn_16_single_channel import FCN
+from maskgen.vgg11 import FCN
 from utils.bbox_utils import center_size
 from utils.loss_utils import cross_entropy as get_loss
+#from utils.loss_utils import cross_entropy_thresh as get_loss
 from utils.mask_utils import *
 from utils.results_utils import read_results
 from utils.video_utils import get_qp_from_name, read_videos, write_video
+from utils.visualize_utils import visualize_heat
 
 sns.set()
+
+#thresholds = [0.2, 1, 5]
+thresholds = [10, 100]
 
 
 def main(args):
@@ -56,6 +63,13 @@ def main(args):
 
     # construct training set and cross validation set
     train_val_set = ConcatDataset(videos)
+
+    #train_val_set, _ = torch.utils.data.random_split(
+    #    train_val_set,
+    #    [math.ceil(0.1 * len(train_val_set)), math.floor(0.9 * len(train_val_set))],
+    #    generator=torch.Generator().manual_seed(100),
+    #)
+
     #training_set, cross_validation_set = torch.utils.data.random_split(
     #    train_val_set,
     #    [int(0.8 * len(train_val_set)), int(0.2 * len(train_val_set))],
@@ -105,6 +119,8 @@ def main(args):
             desc=f"Generating saliency as ground truths",
             unit="frames",
         )
+        for thresh in thresholds:
+            saliency[thresh] = {}
         for data in loader:
             progress_bar.update()
             # get data
@@ -120,15 +136,26 @@ def main(args):
                 gt_result, args.confidence_threshold, True
             )
             #sums = scores.sum()
-            sums = box_scores.sum() * 0.3 + kpt_scores.sum() * 0.7
+            sums = box_scores.sum() * 0.5 + kpt_scores.sum() * 0.5
             sums.backward()
-            mask_grad = hq_image.grad.abs().sum(dim=1, keepdim=True)
+            mask_grad = hq_image.grad.norm(p=2, dim=1, keepdim=True)
             mask_grad = F.conv2d(
                 mask_grad,
                 torch.ones([1, 1, args.tile_size, args.tile_size]).cuda(),
                 stride=args.tile_size,
             )
-            saliency[fid] = (mask_grad > args.saliency_threshold).detach().cpu()
+            for thresh in thresholds:
+                saliency[thresh][fid] = (mask_grad > thresh).detach().cpu()
+            # visualize gt
+            if fid % 100 == 0:
+                #img = data["image"][0]
+                #img = np.reshape(img,(720, 1280,3))
+                image = T.ToPILImage()(data["image"][0])
+                mask_vis = sum(mask_grad > thresh for thresh in thresholds)
+                visualize_heat(
+                    image, mask_vis, f"train/{args.path}/{fid}_saliency.png", args
+                )
+
         # write saliency to disk
         with open(args.ground_truth, "wb") as f:
             pickle.dump(saliency, f)
@@ -150,6 +177,7 @@ def main(args):
 
         training_losses = []
 
+        masks = []
         for idx, data in enumerate(training_loader):
 
             progress_bar.update(incr=len(data["fid"]))
@@ -159,20 +187,25 @@ def main(args):
             mask_slice = mask_generator(hq_image)
             fids = [fid.item() for fid in data["fid"]]
 
+            mask_slice_temp = mask_slice.softmax(dim=1)[:, 1:2, :, :]
+            masks.append(mask_slice_temp.detach().cpu())
             # calculate loss
-            target = torch.cat([saliency[fid].long().cuda() for fid in fids])
-            loss = get_loss(mask_slice, target, 1)
+            loss = 0
+            for thresh in thresholds:
+                target = torch.cat(
+                    [saliency[thresh][fid].long().cuda() for fid in fids]
+                )
+                loss = loss + get_loss(mask_slice_temp, target, 1.0)
             loss.backward()
 
             # optimization and logging
-            mask_slice_temp = mask_slice.softmax(dim=1)[:, 1:2, :, :]
-            logger.info(
-                "Min: %f, Mean: %f, Std: %f, Training loss: %f",
-                mask_slice_temp.min().item(),
-                mask_slice_temp.mean().item(),
-                mask_slice_temp.std().item(),
-                loss.item(),
-            )
+            #logger.info(
+            #    "Min: %f, Mean: %f, Std: %f, Training loss: %f",
+            #    mask_slice_temp.min().item(),
+            #    mask_slice_temp.mean().item(),
+            #    mask_slice_temp.std().item(),
+            #    loss.item(),
+            #)
             training_losses.append(loss.item())
             optimizer.step()
             optimizer.zero_grad()
@@ -183,6 +216,10 @@ def main(args):
 
         mean_training_loss = torch.tensor(training_losses).mean()
         logger.info("Average training loss: %.3f", mean_training_loss.item())
+        mean_mask = torch.cat(masks).mean()
+        logger.info("mean of masks: %.3f", mean_mask.item())
+        std_mask = torch.cat(masks).std()
+        logger.info("std of masks: %.3f", std_mask.item())
 
         """
             Cross validation
@@ -209,11 +246,15 @@ def main(args):
             with torch.no_grad():
                 mask_slice = mask_generator(hq_image)
 
-                target = torch.cat([saliency[fid].long().cuda() for fid in fids])
-                loss = get_loss(mask_slice, target, 1)
+                loss = 0
+                for thresh in thresholds:
+                    target = torch.cat(
+                        [saliency[thresh][fid].long().cuda() for fid in fids]
+                    )
+                    loss = loss + get_loss(mask_slice, target, 1)
 
             # optimization and logging
-            logger.info(f"Cross validation loss: %.3f", loss.item())
+            #logger.info(f"Cross validation loss: %.3f", loss.item())
             cross_validation_losses.append(loss.item())
 
         mean_cross_validation_loss = torch.tensor(cross_validation_losses).mean().item()

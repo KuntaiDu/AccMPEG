@@ -12,14 +12,14 @@ v_list = ["visdrone/videos/vis_171"]
 base = 51
 high = 30
 tile = 16
-bound_list = [0.1, 0.5, 1, 5]
+bound_list = [0.1, 0.2]
 smooth_list = [1]
 
 
 for v, bound, smooth in product(v_list, bound_list, smooth_list):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = f"{v}_blackgen_lossdiff_smooth_{smooth}_qp_{high}_bound_{bound}.mp4"
+    output = f"{v}_blackgen_lossdiff2_smooth_{smooth}_qp_{high}_bound_{bound}.mp4"
     # if not os.path.exists(output):
     if True:
         os.system(

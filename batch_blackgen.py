@@ -17,21 +17,21 @@ tile = 16
 #model_name = "saliency_vis_172_cross_entropy"
 model_name = "saliency_kiteboarding_1_cross_entropy"
 conv_list = [1]
-bound_list = [0.1]
+bound_list = [0.45]
 
 
 for v, conv, bound in product(v_list, conv_list, bound_list):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = f"{v}_compressed_blackgen_{model_name}_bound_{bound}_qp_{high}.mp4"
+    output = f"{v}_blackgen2_{model_name}_bound_{bound}_qp_{high}_conv_{conv}.mp4"
 
-    if not os.path.exists(output):
-        # if True:
+    # if not os.path.exists(output):
+    if True:
         os.system(
             f"python compress_blackgen.py -i {v}_qp_{base}.mp4 "
             f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
             f" --conv_size {conv} --visualize True"
-            f" -g {v}_qp_{high}_ground_truth.mp4 --bound {bound} --force_qp {high}"
+            f" -g {v}_qp_{high}_ground_truth.mp4 --bound {bound} --force_qp {high} --smooth_frames 30"
         )
         os.system(f"python inference.py -i {output}")
 

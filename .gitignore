@@ -2,6 +2,8 @@
 # ignore all image files
 *.png
 *.jpg
+*.tar
+
 
 # ignore all mp4 files
 *mp4*
@@ -12,6 +14,9 @@
 __pycache__/
 *.pyc
 
+# ignore model files
+*pth*
+
 # ignore videos
 videos/*
 youtube_videos/*
@@ -19,6 +24,7 @@ temp*
 
 # ignore pickle file
 *.pickle
+*pickle*
 
 # ignore intermediate results
 *.log
@@ -26,11 +32,18 @@ temp*
 *.png
 *.pdf
 *.txt
-
+*.mask
+*.args
+*.pth
+*.best
 
 
 # ignore results
 results/*
+heat/*
+train/*
+visualize/*
+
 
 # ignore vscode
 .vscode/
@@ -39,3 +52,4 @@ results/*
 *.ipynb
 
 visdrone/*
+youtube_videos/*

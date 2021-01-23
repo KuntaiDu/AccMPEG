@@ -149,6 +149,7 @@ def main(args):
             # visualization
             if args.visualize and fid % 50 == 0:
                 heat = tile_mask(mask_slice, args.tile_size)[0, 0, :, :]
+                heat = heat * 10
                 heat[heat > 10] = 10
                 fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=300)
                 ax = sns.heatmap(

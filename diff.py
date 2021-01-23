@@ -1,14 +1,20 @@
 import argparse
 import logging
+import pickle
 from pathlib import Path
 
 import coloredlogs
 import enlighten
+
+<<<<<<< HEAD
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+>>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
 import torch
-import torchvision.transforms as T
-from kornia.color.yuv import rgb_to_yuv
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from utils.mask_utils import *
 from utils.results_utils import read_results
 from utils.video_utils import read_video
 
@@ -32,11 +38,15 @@ def main(args):
     result_x = read_results(args.inputs[0], application.name, logger)
     result_y = read_results(args.inputs[1], application.name, logger)
 
+    mask = None
+    if args.mask != "":
+        mask = pickle.load(open(args.mask, "rb"))
+
     for fid, imx in enumerate(x):
 
         progress_bar.update()
 
-        if fid % 100 != 0:
+        if fid % 10 != 0:
             continue
 
         _, _, x_boxes, _ = application.filter_results(
@@ -54,7 +64,22 @@ def main(args):
             result_y[fid], image, "SteelBlue", args, x_boxes
         )
 
-        image.save(args.output[0] + "/%010d.png" % fid)
+        if mask is not None:
+            heat = tile_mask(mask[fid : fid + 1, :, :, :], args.tile_size)[0, 0, :, :]
+            fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=300)
+            ax = sns.heatmap(
+                heat.cpu().detach().numpy(),
+                zorder=3,
+                alpha=0.3,
+                ax=ax,
+                xticklabels=False,
+                yticklabels=False,
+            )
+            ax.imshow(image, zorder=3, alpha=0.7)
+            fig.savefig(args.output[0] + "/%010d.png" % fid, bbox_inches="tight")
+            plt.close(fig)
+        else:
+            image.save(args.output[0] + "/%010d.png" % fid)
 
 
 if __name__ == "__main__":
@@ -88,6 +113,11 @@ if __name__ == "__main__":
         help="The IoU threshold for calculating accuracy in object detection.",
         default=0.5,
     )
+    parser.add_argument(
+        "--tile_size", type=int, help="The tile size of the mask.", default=16
+    )
+
+    parser.add_argument("--mask", type=str, help="The mask file.", default="")
 
     args = parser.parse_args()
 

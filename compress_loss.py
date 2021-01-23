@@ -84,18 +84,21 @@ def main(args):
             progress_bar.update()
 
             lq_image, hq_image = video_slices[0], video_slices[1]
+
+            mean = torch.tensor([0.485, 0.456, 0.406])
+            lq_image = torch.ones_like(hq_image) * mean[None, :, None, None]
             # lq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_34/%05d.png' % (fid+offset2)))[None, :, :, :]
 
             # construct hybrid image
-            hq_image = hq_image.cuda()
-            hq_image.requires_grad = True
-            loss = application.calc_loss(hq_image, [ground_truth_dict[fid]], args)
-            # lq_image = lq_image.cuda()
-            # lq_image.requires_grad = True
-            # loss = application.calc_loss(lq_image, [ground_truth_dict[fid]], args)
+            # hq_image = hq_image.cuda()
+            # hq_image.requires_grad = True
+            # loss = application.calc_loss(hq_image, [ground_truth_dict[fid]], args)
+            lq_image = lq_image.cuda()
+            lq_image.requires_grad = True
+            loss = application.calc_loss(lq_image, [ground_truth_dict[fid]], args)
             loss.backward()
-            mask_grad = hq_image.grad.norm(dim=1, p=2, keepdim=True)
-            # mask_grad = lq_image.grad.norm(dim=1, p=2, keepdim=True)
+            # mask_grad = hq_image.grad.norm(dim=1, p=2, keepdim=True)
+            mask_grad = lq_image.grad.norm(dim=1, p=2, keepdim=True)
             mask_grad = F.conv2d(
                 mask_grad,
                 torch.ones([1, 1, args.tile_size, args.tile_size]).cuda(),
