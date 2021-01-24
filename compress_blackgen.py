@@ -116,13 +116,14 @@ def main(args):
                 #     torch.cat([hq_image, hq_image - lq_image], dim=1).cuda()
                 # )
                 hq_image = hq_image.cuda()
+                # mask_generator = mask_generator.cpu()
                 with Timer("maskgen", logger):
                     mask_gen = mask_generator(hq_image)
                 # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
                 mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
-                mask_lb = dilate_binarize(mask_gen, args.bound, args.conv_size)
+                # mask_lb = dilate_binarize(mask_gen, args.bound, args.conv_size)
                 # mask_ub = dilate_binarize(mask_gen, args.upper_bound, args.conv_size)
-                mask_slice[:, :, :, :] = mask_lb
+                mask_slice[:, :, :, :] = mask_gen
                 # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
 
             # mask_slice[:, :, :, :] = ground_truth_mask[fid + offset2].float()

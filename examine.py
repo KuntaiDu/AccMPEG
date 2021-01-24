@@ -80,6 +80,12 @@ if __name__ == "__main__":
         default=0.5,
     )
     parser.add_argument(
+        "--gt_confidence_threshold",
+        type=float,
+        help="The confidence score threshold for calculating accuracy.",
+        default=0.5,
+    )
+    parser.add_argument(
         "--iou_threshold",
         type=float,
         help="The IoU threshold for calculating accuracy in object detection.",

@@ -1,4 +1,5 @@
 import logging
+from pdb import set_trace
 
 import torch
 import torch.nn.functional as F
@@ -138,13 +139,10 @@ class FasterRCNN_ResNet50_FPN(DNN):
             Generate inference results. Will put results on cpu if detach=True.
         """
 
-        assert len(video.shape) == 4, "The video tensor should be 4D"
-
-        assert (
-            self.is_cuda and video.is_cuda
-        ), "The video tensor and the model must be placed on GPU to perform inference"
-
         self.model.eval()
+
+        video = [v for v in video]
+        video = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in video]
 
         if nograd:
             with torch.no_grad():
@@ -232,6 +230,9 @@ class FasterRCNN_ResNet50_FPN(DNN):
         f1s = []
         prs = []
         res = []
+        tps = []
+        fps = []
+        fns = []
 
         for fid in video.keys():
 
@@ -239,7 +240,7 @@ class FasterRCNN_ResNet50_FPN(DNN):
                 video[fid], args.confidence_threshold
             )
             gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
-                gt[fid], args.confidence_threshold
+                gt[fid], args.gt_confidence_threshold
             )
             if len(video_labels) == 0 or len(gt_labels) == 0:
                 if len(video_labels) == 0 and len(gt_labels) == 0:
@@ -270,6 +271,13 @@ class FasterRCNN_ResNet50_FPN(DNN):
                         self.step2(video_scores - args.confidence_threshold),
                     ).max()
                 )
+            tp = min(
+                [
+                    tp,
+                    len(gt_labels),
+                    len(video_labels[video_scores > args.confidence_threshold]),
+                ]
+            )
             fn = len(gt_labels) - tp
             fp = len(video_labels[video_scores > args.confidence_threshold]) - tp
 
@@ -281,6 +289,9 @@ class FasterRCNN_ResNet50_FPN(DNN):
             f1s.append(f1)
             prs.append(pr)
             res.append(re)
+            tps.append(tp)
+            fps.append(fp)
+            fns.append(fn)
 
             # if fid % 10 == 9:
             #     #pass
@@ -292,6 +303,9 @@ class FasterRCNN_ResNet50_FPN(DNN):
             "f1": torch.tensor(f1s).mean().item(),
             "pr": torch.tensor(prs).mean().item(),
             "re": torch.tensor(res).mean().item(),
+            "tp": sum(tps).item(),
+            "fp": sum(fps).item(),
+            "fn": sum(fns).item(),
         }
 
     def calc_loss(self, videos, gt_results, args, train=False):
@@ -299,9 +313,8 @@ class FasterRCNN_ResNet50_FPN(DNN):
             Inference and calculate the loss between video and gt using thresholds from args
         """
 
-        assert (
-            len(videos.shape) == 4
-        ), f"The shape of videos({videos.shape}) must be 4D."
+        videos = [v for v in videos]
+        videos = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in videos]
 
         def transform_result(gt_result):
             # calculate the ground truth
@@ -428,3 +441,18 @@ class FasterRCNN_ResNet50_FPN(DNN):
 
         return (IoU > args.iou_threshold).sum(dim=0) == 0
 
+    def region_proposal(self, video):
+        self.model.eval()
+
+        video = [v for v in video]
+        video = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in video]
+
+        images, targets = self.model.transform(video, None)
+        features = self.model.backbone(images.tensors)
+        if isinstance(features, torch.Tensor):
+            from collections import OrderedDict
+
+            features = OrderedDict([("0", features)])
+        proposals, _ = self.model.rpn(images, features, targets)
+
+        return proposals

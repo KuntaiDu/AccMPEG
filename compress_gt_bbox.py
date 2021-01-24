@@ -46,9 +46,9 @@ def main(args):
     # construct applications
     application = FasterRCNN_ResNet50_FPN()
 
-    mask_generator = FCN()
-    mask_generator.load(args.path)
-    mask_generator.train().cuda()
+    # mask_generator = FCN()
+    # mask_generator.load(args.path)
+    # mask_generator.train().cuda()
 
     # construct the mask
     mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
@@ -100,9 +100,7 @@ def main(args):
                 )
                 boxes = center_size(boxes)
 
-                size1 = boxes[:, 2] * boxes[:, 3]
-                size2 = boxes[:, 2] * boxes[:, 3]
-                # ratios.append(size2.sum() / size1.sum())
+                # direct cover
                 mask_slice[:, :, :, :] = dilate_binarize(
                     generate_mask_from_regions(mask_slice, boxes, 0, args.tile_size),
                     0.5,
@@ -230,13 +228,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tile_size", type=int, help="The tile size of the mask.", default=8
     )
-    parser.add_argument(
-        "-p",
-        "--path",
-        type=str,
-        help="The path of pth file that stores the generator parameters.",
-        required=True,
-    )
+    # parser.add_argument(
+    #     "-p",
+    #     "--path",
+    #     type=str,
+    #     help="The path of pth file that stores the generator parameters.",
+    #     required=True,
+    # )
     parser.add_argument(
         "--tile_percentage",
         type=float,

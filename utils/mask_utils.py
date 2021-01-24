@@ -364,7 +364,7 @@ def dilate_binarize(mask, lower_bound, kernel_size, cuda=True):
         (mask > lower_bound), torch.ones_like(mask), torch.zeros_like(mask),
     )
     mask = F.conv2d(mask, kernel, stride=1, padding=(kernel_size - 1) // 2,)
-    mask = torch.where(mask > 0, torch.ones_like(mask), torch.zeros_like(mask),)
+    mask = torch.where(mask > 0.5, torch.ones_like(mask), torch.zeros_like(mask),)
     return mask
 
 
@@ -390,19 +390,34 @@ def write_black_bkgd_video_smoothed_continuous(mask, args, qps, bws, logger):
         mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
 
     if hasattr(args, "upper_bound") and hasattr(args, "lower_bound"):
-        mask = torch.where(
-            (mask < args.upper_bound) & (mask >= args.lower_bound),
-            torch.ones_like(mask),
-            torch.zeros_like(mask),
-        )
-        mask = dilate_binarize(mask.cuda(), 0.5, args.conv_size).cpu()
+        logger.info("Using upper bound and lower bound.")
+        # mask = torch.where(
+        #     (mask < args.upper_bound) & (mask >= args.lower_bound),
+        #     torch.ones_like(mask),
+        #     torch.zeros_like(mask),
+        # )
+        # mask = dilate_binarize(mask.cuda(), 0.5, args.conv_size).cpu()
+        assert args.upper_bound >= args.lower_bound
+        mask = mask.cuda()
+        x = dilate_binarize(mask, args.lower_bound, args.conv_size)
+        y = dilate_binarize(mask, args.upper_bound, args.conv_size)
+        # set_trace()
+        mask = x - y
+        mask = mask.cpu()
     else:
-        mask = dilate_binarize(mask.cuda(), args.bound, args.conv_size).cpu()
+        logger.info("Using single bound.")
+        if hasattr(args, "conv_size_large") and args.conv_size_large != -1:
+            mask = mask.cuda()
+            maska = dilate_binarize(mask, args.bound, args.conv_size).cpu()
+            maskb = dilate_binarize(mask, args.bound, args.conv_size_large).cpu()
+            mask = maskb - maska
+        else:
+            mask = dilate_binarize(mask.cuda(), args.bound, args.conv_size).cpu()
 
     with open(f"{args.output}.mask", "wb") as f:
         pickle.dump(mask, f)
 
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    with ThreadPoolExecutor(max_workers=5) as executor:
         for fid, mask_slice in enumerate(mask.split(1)):
             progress_bar.update()
             # read image
@@ -625,6 +640,8 @@ def percentile(t: torch.tensor, q: float) -> float:
 
 
 def merge_black_bkgd_images(images):
+
+    images = [F.interpolate(image, size=(720, 1280)) for image in images]
 
     mean = torch.tensor([0.485, 0.456, 0.406])[None, :, None, None]
     ret = torch.zeros_like(images[0])

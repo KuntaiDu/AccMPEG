@@ -8,6 +8,7 @@ from pdb import set_trace
 import coloredlogs
 import enlighten
 import torch
+import torchvision.transforms as T
 from torchvision import io
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
@@ -27,8 +28,13 @@ def main(args):
     assert len(args.inputs) == 1
     video_name = args.inputs[0]
 
+    assert len(glob.glob(video_name + "*.mp4")) == 2
+
     videos, _, _ = read_videos(
-        glob.glob(video_name + "*.mp4"), logger, normalize=False, from_source=False
+        sorted(glob.glob(video_name + "*.mp4")),
+        logger,
+        normalize=False,
+        from_source=False,
     )
 
     # from utils.video_utils import write_video
@@ -56,6 +62,15 @@ def main(args):
                 video_slice.cuda(), detach=True
             )[0]
 
+            if fid % 100 == 0:
+                folder = Path("inference/" + video_name)
+                folder.mkdir(exist_ok=True, parents=True)
+                image = T.ToPILImage()(video_slice[0])
+                application.plot_results_on(
+                    inference_results[fid], image, "Azure", args
+                )
+                image.save(folder / ("%010d.png" % fid))
+
         write_results(video_name, application.name, inference_results, logger)
 
 
@@ -76,6 +91,19 @@ if __name__ == "__main__":
         help="The video file names to obtain inference results.",
         required=True,
         nargs="+",
+    )
+
+    parser.add_argument(
+        "--confidence_threshold",
+        type=float,
+        help="The confidence score threshold for calculating accuracy.",
+        default=0.5,
+    )
+    parser.add_argument(
+        "--iou_threshold",
+        type=float,
+        help="The IoU threshold for calculating accuracy in object detection.",
+        default=0.5,
     )
 
     args = parser.parse_args()

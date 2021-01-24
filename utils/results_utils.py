@@ -189,3 +189,8 @@ def read_ground_truth_mask(file_name, logger):
 
     with open(file_name, "rb") as f:
         return pickle.load(f)
+
+
+def clean_results(gt, videos, app, args):
+
+    raise NotImplementedError("Plan to implement it if the sanity check works.")
