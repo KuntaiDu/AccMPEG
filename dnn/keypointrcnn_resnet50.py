@@ -154,13 +154,20 @@ class KeypointRCNN_ResNet50_FPN(DNN):
                 results = self.model(video)
 
         for result in results:
-            #if len(result['keypoints'])==0:
-            top_ind = torch.mean(result['keypoints_scores'], dim=1) == torch.max(torch.mean(result['keypoints_scores'], dim=1))
-            for key in result:
-                if key not in ['keypoints_dict', 'dnn_shape']:
-                    result[key] = result[key][top_ind]
-                else:
-                    result[key] = []
+            if len(result['boxes'])==0:
+                pass
+            else:
+                try:
+                    top_ind = torch.mean(result['keypoints_scores'], dim=1) == torch.max(torch.mean(result['keypoints_scores'], dim=1))
+                except:
+                    import pdb
+                    pdb.set_trace()
+                    print("shouldnt happen")
+                for key in result:
+                    if key not in ['keypoints_dict', 'dnn_shape']:
+                        result[key] = result[key][top_ind]
+                    else:
+                        result[key] = []
 
         if detach:
             # detach and put everything to CPU.
@@ -204,11 +211,18 @@ class KeypointRCNN_ResNet50_FPN(DNN):
 
     def filter_results(self, video_results, confidence_threshold, cuda=False):
 
-        video_ind = torch.mean(video_results['keypoints_scores'], dim=1) == torch.max(torch.mean(video_results['keypoints_scores'], dim=1))
-        box_scores = video_results['scores'][video_ind]
-        kpt_scores = video_results['keypoints_scores'][video_ind]
-        kpts = video_results['keypoints'][video_ind]
-        boxes = video_results['boxes'][video_ind]
+        if len(video_results['boxes']) == 0:
+            video_ind = 0
+            box_scores = torch.tensor([])
+            kpt_scores = torch.tensor([])
+            kpts = torch.tensor([])
+            boxes = torch.tensor([])
+        else:
+            video_ind = torch.mean(video_results['keypoints_scores'], dim=1) == torch.max(torch.mean(video_results['keypoints_scores'], dim=1))
+            box_scores = video_results['scores'][video_ind]
+            kpt_scores = video_results['keypoints_scores'][video_ind]
+            kpts = video_results['keypoints'][video_ind]
+            boxes = video_results['boxes'][video_ind]
 
         if cuda:
             return (
@@ -239,21 +253,35 @@ class KeypointRCNN_ResNet50_FPN(DNN):
 
         for fid in video.keys():
 
-            box_scores, kpt_scores, kpts, boxes = self.filter_results(
-                video[fid], args.confidence_threshold
-            )
-            gt_box_scores, gt_kpt_scores, gt_kpts, gt_boxes = self.filter_results(
-                gt[fid], args.confidence_threshold
-            )
+            if len(gt[fid]['boxes']) == 0 and len(video[fid]['boxes'])==0:
+                prs.append(0.0)
+                res.append(0.0)
+                f1s.append(1.0)
+            elif len(video[fid]['boxes'])==0 or len(gt[fid]['boxes']) == 0:
+                prs.append(0.0)
+                res.append(0.0)
+                f1s.append(0.0)
+            else:
+                box_scores, kpt_scores, kpts, boxes = self.filter_results(
+                    video[fid], args.confidence_threshold
+                )
+                gt_box_scores, gt_kpt_scores, gt_kpts, gt_boxes = self.filter_results(
+                    gt[fid], args.confidence_threshold
+                )
 
-            acc = kpts - gt_kpts
-            acc = acc[0]
-            acc = torch.sqrt(acc[:, 0] ** 2 + acc[:, 1] ** 2)
-            acc[acc < kpt_thresh * kpt_thresh] = 0
-            accuracy = 1 - (len(acc.nonzero()) /  acc.numel())
-            prs.append(0.0)
-            res.append(0.0)
-            f1s.append(accuracy)
+                try:
+                    acc = kpts - gt_kpts
+                except:
+                    import pdb
+                    pdb.set_trace()
+                    print("shouldnt happen")
+                acc = acc[0]
+                acc = torch.sqrt(acc[:, 0] ** 2 + acc[:, 1] ** 2)
+                acc[acc < kpt_thresh * kpt_thresh] = 0
+                accuracy = 1 - (len(acc.nonzero()) /  acc.numel())
+                prs.append(0.0)
+                res.append(0.0)
+                f1s.append(accuracy)
         return {
             "f1": torch.tensor(f1s).mean().item(),
             "pr": torch.tensor(prs).mean().item(),
