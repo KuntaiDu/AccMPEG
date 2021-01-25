@@ -73,7 +73,7 @@ def main(args):
                     video_slice, detach=True
                 )[0]
 
-                if fid % 10 == 0:
+                if fid % 100 == 0:
                     folder = Path("inference/" + video_name)
                     folder.mkdir(exist_ok=True, parents=True)
                     image = T.ToPILImage()(video_slice[0].cpu())

@@ -7,8 +7,8 @@ from pathlib import Path
 from munch import Munch
 
 gt_qp = 30
-# qp_list = [30, 32, 34, 36, 38, 42, 46, 50, 51]
-qp_list = [32, 42]
+qp_list = [30, 32, 34, 36, 38, 42, 46, 50, 51]
+# qp_list = [32, 42]
 quality_list = ["veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
 
 
@@ -76,23 +76,8 @@ def main(args):
                     ]
                 )
 
-                subprocess.run(["python", "inference.py", "-i", output_name])
+            subprocess.run(["python", "inference.py", "-i", output_name])
 
-        # for qp in qp_list:
-        #     output_name = f"{video_name}_qp_{qp}.mp4"
-        #     subprocess.run(
-        #         [
-        #             "python",
-        #             "examine.py",
-        #             "-i",
-        #             output_name,
-        #             "-g",
-        #             f"{video_name}_qp_30_ground_truth.mp4",
-        #         ]
-        #     )
-
-        for qp in qp_list:
-            output_name = f"{video_name}_qp_{qp}.mp4"
             subprocess.run(
                 [
                     "python",
@@ -107,6 +92,19 @@ def main(args):
                     "0.7",
                 ]
             )
+
+        # for qp in qp_list:
+        #     output_name = f"{video_name}_qp_{qp}.mp4"
+        #     subprocess.run(
+        #         [
+        #             "python",
+        #             "examine.py",
+        #             "-i",
+        #             output_name,
+        #             "-g",
+        #             f"{video_name}_qp_30_ground_truth.mp4",
+        #         ]
+        #     )
 
 
 if __name__ == "__main__":
@@ -132,8 +130,16 @@ if __name__ == "__main__":
     # args.inputs = [
     #     "visdrone/videos/vis_%d" % i for i in [169, 170, 171, 172, 173, 209, 217]
     # ]
-    args.inputs = ["dashcam/dashcam_%d" % (i + 1) for i in [9]]
-    args.force = True
+    # args.inputs = ["dashcam/dashcam_%d" % (i + 1) for i in [9]]
+    # args.inputs = [
+    #     "visdrone/videos/vis_171",
+    #     "visdrone/videos/vis_170",
+    #     "visdrone/videos/vis_173",
+    #     "visdrone/videos/vis_169",
+    #     "visdrone/videos/vis_172",
+    # ]
+    args.inputs = ['dashcam/dashcam_%d' % i for i in range(1, 11)]
+    args.force = False
 
     # args = parser.parse_args()
     main(args)

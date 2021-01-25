@@ -144,71 +144,22 @@ class FCN_ResNet50(DNN):
 
         assert video.keys() == gt.keys()
 
-        f1s = []
-        prs = []
-        res = []
-        tps = []
-        fps = []
-        fns = []
+        accs = []
 
         for fid in video.keys():
 
-            video_ind, video_scores, video_bboxes, video_labels = self.filter_results(
-                video[fid], args.confidence_threshold
-            )
-            gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
-                gt[fid], args.gt_confidence_threshold
-            )
-            if len(video_labels) == 0 or len(gt_labels) == 0:
-                if len(video_labels) == 0 and len(gt_labels) == 0:
-                    f1s.append(1.0)
-                    prs.append(1.0)
-                    res.append(1.0)
-                else:
-                    f1s.append(0.0)
-                    prs.append(0.0)
-                    res.append(0.0)
-                continue
+            video_result = video[fid]
+            gt_result = gt[fid]
 
-            IoU = jaccard(video_bboxes, gt_bboxes)
+            mask = ~((video_result == 0) & (gt_result == 0))
+            correct = (video_result == gt_result) & mask
 
-            # let IoU = 0 if the label is wrong
-            fat_video_labels = video_labels[:, None].repeat(1, len(gt_labels))
-            fat_gt_labels = gt_labels[None, :].repeat(len(video_labels), 1)
-            IoU[fat_video_labels != fat_gt_labels] = 0
-
-            # calculate f1
-            tp = 0
-
-            for i in range(len(gt_labels)):
-                tp = (
-                    tp
-                    + torch.min(
-                        self.step2(IoU[:, i] - args.iou_threshold),
-                        self.step2(video_scores - args.confidence_threshold),
-                    ).max()
-                )
-            tp = min(
-                [
-                    tp,
-                    len(gt_labels),
-                    len(video_labels[video_scores > args.confidence_threshold]),
-                ]
-            )
-            fn = len(gt_labels) - tp
-            fp = len(video_labels[video_scores > args.confidence_threshold]) - tp
-
-            f1 = 2 * tp / (2 * tp + fp + fn)
-            pr = tp / (tp + fp)
-            re = tp / (tp + fn)
-            # import pdb; pdb.set_trace()
-
-            f1s.append(f1)
-            prs.append(pr)
-            res.append(re)
-            tps.append(tp)
-            fps.append(fp)
-            fns.append(fn)
+            ncorrect = len(correct.nonzero(as_tuple=False))
+            nall = len(mask.nonzero(as_tuple=False))
+            if nall != 0:
+                accs.append(ncorrect / nall)
+            else:
+                accs.append(1.0)
 
             # if fid % 10 == 9:
             #     #pass
@@ -216,14 +167,7 @@ class FCN_ResNet50(DNN):
             #     print('pr:', torch.tensor(prs[-9:]).mean().item())
             #     print('re:', torch.tensor(res[-9:]).mean().item())
 
-        return {
-            "f1": torch.tensor(f1s).mean().item(),
-            "pr": torch.tensor(prs).mean().item(),
-            "re": torch.tensor(res).mean().item(),
-            "tp": sum(tps).item(),
-            "fp": sum(fps).item(),
-            "fn": sum(fns).item(),
-        }
+        return {"acc": torch.Tensor(accs).mean().item()}
 
     def calc_loss(self, videos, gt_results, args, train=False):
         """

@@ -10,17 +10,17 @@ import yaml
 #     "youtube_videos/trafficcam_%d_crop" % (i + 1) for i in range(4)
 # ]
 
-# v_list = ["dashcam/dashcam_%d" % i for i in [1, 2, 3, 4, 5, 6, 8, 9, 10, 7]]
-v_list = ["dashcam/dashcam_%d" % i for i in [7]]
+v_list = ["dashcam/dashcam_%d" % i for i in [1, 2, 3, 4, 5, 6, 8, 9, 10, 7]]
+# v_list = ["dashcam/dashcam_%d" % i for i in [7]]
 
 # v_list = [
-#     # "visdrone/videos/vis_171",
-#     # "visdrone/videos/vis_170",
-#     # "visdrone/videos/vis_173",
-#     # "visdrone/videos/vis_169",
-#     # "visdrone/videos/vis_172",
-#     "visdrone/videos/vis_209",
-#     "visdrone/videos/vis_217",
+#     "visdrone/videos/vis_170",
+#     "visdrone/videos/vis_173",
+#     "visdrone/videos/vis_169",
+#     "visdrone/videos/vis_172",
+#     "visdrone/videos/vis_171",
+#     # "visdrone/videos/vis_209",
+#     # "visdrone/videos/vis_217",
 # ]
 # v_list = [v_list[2]]
 # v_list = ["visdrone/videos/vis_171"]
@@ -37,7 +37,7 @@ for v, conv, bound in product(v_list, conv_list, bound_list):
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
     output = f"{v}_blackgen_final_single_bound_{bound}_qp_{high}_conv_{conv}.mp4"
 
-    if True or not os.path.exists(output):
+    if not os.path.exists(output):
         # if True:
         os.system(
             f"python compress_blackgen.py -i {v}_qp_{base}.mp4 "
@@ -45,7 +45,7 @@ for v, conv, bound in product(v_list, conv_list, bound_list):
             f" --conv_size {conv} --visualize True"
             f" -g {v}_qp_{high}.mp4 --bound {bound} --force_qp {high} --smooth_frames 30"
         )
-        os.system(f"python inference.py -i {output}")
+    os.system(f"python inference.py -i {output}")
 
     os.system(
         f"python examine.py -i {output} -g {v}_qp_{high}.mp4 --gt_confidence_threshold 0.7 --confidence_threshold 0.7"
