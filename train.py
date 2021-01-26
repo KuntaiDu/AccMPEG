@@ -128,16 +128,27 @@ def main(args):
             hq_image = data["image"].cuda()
             hq_image.requires_grad = True
             # get salinecy
-            gt_result = application.inference(hq_image.cuda(), nograd=False)[0]
+            #gt_result = application.inference(hq_image.cuda(), nograd=False)[0]
+            gt_result = application.inference_coco(hq_image.cuda(), nograd=False)[0]
             #_, scores, boxes, _ = application.filter_results(
             #    gt_result, args.confidence_threshold, True
             #)
-            box_scores, kpt_scores, _, _ = application.filter_results(
+
+            box_scores, kpt_scores, _, _ = application.filter_results_coco(
                 gt_result, args.confidence_threshold, True
             )
+            #box_scores, kpt_scores, _, _ = application.filter_results(
+            #    gt_result, args.confidence_threshold, True
+            #)
             #sums = scores.sum()
             sums = box_scores.sum() * 0.5 + kpt_scores.sum() * 0.5
-            sums.backward()
+            try:
+                sums.backward()
+            except:
+                import pdb
+                pdb.set_trace()
+                print("no human in frame:", fid)
+                continue
             mask_grad = hq_image.grad.norm(p=2, dim=1, keepdim=True)
             mask_grad = F.conv2d(
                 mask_grad,

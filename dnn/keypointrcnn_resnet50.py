@@ -133,6 +133,37 @@ class KeypointRCNN_ResNet50_FPN(DNN):
             self.model, device_ids=[local_rank], find_unused_parameters=True
         )
 
+    def inference_coco(self, video, detach=False, nograd=True):
+        """
+            Generate inference results. Will put results on cpu if detach=True.
+        """
+
+        assert len(video.shape) == 4, "The video tensor should be 4D"
+
+        assert (
+            self.is_cuda and video.is_cuda
+        ), "The video tensor and the model must be placed on GPU to perform inference"
+
+        self.model.eval()
+
+        if nograd:
+            with torch.no_grad():
+                results = self.model(video)
+        else:
+            with torch.enable_grad():
+                results = self.model(video)
+
+        if detach:
+            # detach and put everything to CPU.
+            for result in results:
+                for key in result:
+                    if key not in ['keypoints_dict', 'dnn_shape']:
+                        result[key] = result[key].cpu().detach()
+                    else:
+                        result[key] = []
+
+        return results
+
     def inference(self, video, detach=False, nograd=True):
         """
             Generate inference results. Will put results on cpu if detach=True.
@@ -208,6 +239,40 @@ class KeypointRCNN_ResNet50_FPN(DNN):
             (bboxes[:, 2] - bboxes[:, 0]) / 1280 * (bboxes[:, 3] - bboxes[:, 1]) / 720
         )
         return size < 0.08
+
+    def filter_results_coco(self, video_results, confidence_threshold, cuda=False):
+
+        if len(video_results['boxes']) == 0:
+            import pdb
+            pdb.set_trace()
+            video_ind = 0
+            box_scores = torch.tensor([])
+            kpt_scores = torch.tensor([])
+            kpts = torch.tensor([])
+            boxes = torch.tensor([])
+        else:
+            video_scores = video_results["scores"]
+            video_ind = video_scores > 0.0 #confidence_threshold
+
+            box_scores = video_results['scores'][video_ind]
+            boxes = video_results['boxes'][video_ind]
+            kpt_scores = video_results['keypoints_scores'][video_ind]
+            kpts = video_results['keypoints'][video_ind]
+
+        if cuda:
+            return (
+                box_scores.cuda(),
+                kpt_scores.cuda(),
+                kpts.cuda(),
+                boxes.cuda(),
+            )
+        else:
+            return (
+                box_scores.cpu(),
+                kpt_scores.cpu(),
+                kpts.cpu(),
+                boxes.cpu(),
+            )
 
     def filter_results(self, video_results, confidence_threshold, cuda=False):
 
