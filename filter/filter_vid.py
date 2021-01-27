@@ -137,8 +137,8 @@ def filter(bboxes, scores, classes):
 
     # discard if human bounding box is too close to the boundary
     f3 = filter_position_of_human(bboxes, scores, classes)
-    #if not f3:
-    #    return False, "3"
+    if not f3:
+        return False, "3"
 
     return True, "0"
 
