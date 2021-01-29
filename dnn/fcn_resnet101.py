@@ -5,7 +5,11 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
-from torchvision.models.segmentation import fcn_resnet50, fcn_resnet101
+from torchvision.models.segmentation import (
+    deeplabv3_resnet50,
+    fcn_resnet50,
+    fcn_resnet101,
+)
 from utils.bbox_utils import *
 
 from .dnn import DNN
@@ -65,10 +69,10 @@ label_colors = torch.Tensor(
 )
 
 
-class FCN_ResNet50(DNN):
+class FCN_ResNet101(DNN):
     def __init__(self):
 
-        self.model = fcn_resnet101(pretrained=True)
+        self.model = fcn_resnet50(pretrained=True)
         self.model.eval()
 
         self.class_ids = [0, 2, 6, 7, 14, 15]
@@ -110,6 +114,7 @@ class FCN_ResNet50(DNN):
         # video = [v for v in video]
         # video = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in video]
         video = F.interpolate(video, size=(720, 1280))
+        # set_trace()
 
         if nograd:
             with torch.no_grad():
@@ -131,11 +136,32 @@ class FCN_ResNet50(DNN):
     # def step(self, tensor):
     #     return (10 * tensor).sigmoid()
 
-    def filter_results(
-        self, video_results, confidence_threshold, cuda=False, train=False
-    ):
+    def filter_results(self, video_results, args):
 
-        raise NotImplementedError()
+        return video_results
+
+        from skimage import measure
+
+        bin_video = torch.where(
+            video_results > 0,
+            torch.ones_like(video_results),
+            torch.zeros_like(video_results),
+        )
+
+        # set_trace()
+
+        bin_video = torch.tensor(
+            measure.label(bin_video.numpy().astype(int)), dtype=torch.int32
+        )
+        nclass = torch.max(bin_video).item()
+        mask = torch.zeros_like(video_results)
+
+        for i in range(1, nclass + 1):
+            size = torch.sum(bin_video == i) * 1.0 / bin_video.numel()
+            if size < args.size_bound:
+                mask[bin_video == i] = 1
+
+        return video_results * mask
 
     def calc_accuracy(self, video, gt, args):
         """
@@ -148,8 +174,11 @@ class FCN_ResNet50(DNN):
 
         for fid in video.keys():
 
-            video_result = video[fid]
-            gt_result = gt[fid]
+            if fid % 10 == 0:
+                print(fid)
+
+            video_result = self.filter_results(video[fid], args)
+            gt_result = self.filter_results(gt[fid], args)
 
             mask = ~((video_result == 0) & (gt_result == 0))
             correct = (video_result == gt_result) & mask
@@ -174,28 +203,12 @@ class FCN_ResNet50(DNN):
             Inference and calculate the loss between video and gt using thresholds from args
         """
 
-        videos = [v for v in videos]
-        videos = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in videos]
+        videos = F.interpolate(videos, size=(720, 1280))
 
-        def transform_result(gt_result):
-            # calculate the ground truth
-            gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
-                gt_result, args.confidence_threshold, cuda=True, train=train
-            )
-            # construct targets
-            target = {"boxes": gt_bboxes, "labels": gt_labels}
-            return target
-
-        targets = [transform_result(gt_result) for gt_result in gt_results]
+        targets = gt_results.cuda()
 
         # switch the model to training mode to obtain loss
-        self.model.train()
-        self.model.zero_grad()
-        assert self.is_cuda, "Model must be placed on GPU"
-        losses = self.model(videos, targets)
-
-        # return losses["loss_classifier"] + losses["loss_box_reg"]
-        return sum(losses.values())
+        return F.cross_entropy(self.model(videos)["out"], targets[None, :, :, :])
 
     def plot_results_on(self, gt, image, c, args, boxes=None, train=False):
         if gt == None:

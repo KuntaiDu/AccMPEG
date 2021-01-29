@@ -31,7 +31,7 @@ def main(args):
     # from utils.video_utils import write_video
     # write_video(videos[0], 'download.mp4', logger)
 
-    application_bundle = [FCN_ResNet50()]
+    application_bundle = [FasterRCNN_ResNet50_FPN()]
     if args.enable_cloudseg:
         super_resoluter = CARN()
 

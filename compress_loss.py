@@ -49,7 +49,10 @@ def main(args):
 
     # construct the mask
     mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
-    mask = torch.ones(mask_shape).float()
+    mask = torch.zeros(mask_shape).float()
+    mask = mask.cuda()
+    sum_grads = torch.zeros_like(mask)
+    mask.requires_grad = True
 
     ground_truth_dict = read_results(
         args.ground_truth, "FasterRCNN_ResNet50_FPN", logger
@@ -65,7 +68,7 @@ def main(args):
     # if iteration > 3 * (args.num_iterations // 4):
     #     (args.binarize_weight * torch.tensor(iteration*1.0) * (binarized_mask - mask).abs().pow(2).mean()).backward()
 
-    for temp in range(1):
+    for iteration in range(6):
 
         logger.info(f"Processing application {application.name}")
         progress_bar = enlighten.get_manager().counter(
@@ -84,27 +87,22 @@ def main(args):
             progress_bar.update()
 
             lq_image, hq_image = video_slices[0], video_slices[1]
+            lq_image = lq_image.cuda(non_blocking=True)
+            hq_image = hq_image.cuda(non_blocking=True)
 
             mean = torch.tensor([0.485, 0.456, 0.406])
-            lq_image = torch.ones_like(hq_image) * mean[None, :, None, None]
             # lq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_34/%05d.png' % (fid+offset2)))[None, :, :, :]
 
             # construct hybrid image
+            mask_tile = tile_mask(mask_slice, args.tile_size)
+            mix_image = lq_image * (1 - mask_tile) + hq_image * mask_tile
+            loss = application.calc_loss(mix_image, [ground_truth_dict[fid]], args)
+            loss.backward(retain_graph=True)
+            losses.append(loss.item())
             # hq_image = hq_image.cuda()
             # hq_image.requires_grad = True
             # loss = application.calc_loss(hq_image, [ground_truth_dict[fid]], args)
-            lq_image = lq_image.cuda()
-            lq_image.requires_grad = True
-            loss = application.calc_loss(lq_image, [ground_truth_dict[fid]], args)
-            loss.backward()
             # mask_grad = hq_image.grad.norm(dim=1, p=2, keepdim=True)
-            mask_grad = lq_image.grad.norm(dim=1, p=2, keepdim=True)
-            mask_grad = F.conv2d(
-                mask_grad,
-                torch.ones([1, 1, args.tile_size, args.tile_size]).cuda(),
-                stride=args.tile_size,
-            )
-            mask_slice[:, :, :, :] = mask_grad
             # mask_slice[:, :, :, :] = dilate_binarize(
             #     mask_grad, args.bound, args.conv_size, True,
             # ).cpu()
@@ -165,17 +163,23 @@ def main(args):
                 fig.savefig(f"heat/{args.output}/{fid}_attn.png", bbox_inches="tight")
                 plt.close(fig)
 
-                fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
-                sns.distplot(mask_grad.cpu().flatten().detach().numpy(), ax=ax)
-                Path(f"dist/{args.output}/").mkdir(parents=True, exist_ok=True)
-                fig.savefig(f"dist/{args.output}/{fid}_dist.png", bbox_inches="tight")
-                plt.close(fig)
+                # fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
+                # sns.distplot(mask_grad.cpu().flatten().detach().numpy(), ax=ax)
+                # Path(f"dist/{args.output}/").mkdir(parents=True, exist_ok=True)
+                # fig.savefig(f"dist/{args.output}/{fid}_dist.png", bbox_inches="tight")
+                # plt.close(fig)
 
-        logger.info("In video %s", args.output)
+        mask.requires_grad = False
+        sum_grads = sum_grads + mask.grad
+        mask = torch.where(
+            sum_grads < percentile(sum_grads, 100 - args.percentile),
+            torch.ones_like(mask),
+            torch.zeros_like(mask),
+        )
+        mask.requires_grad = True
+
         logger.info("The average loss is %.3f" % torch.tensor(losses).mean())
 
-        with open("temp.txt", "w") as f:
-            f.write(f"{torch.tensor(f1s).mean()}")
         logger.info("The average f1 is %.3f" % torch.tensor(f1s).mean())
 
         application.cpu()
@@ -221,11 +225,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "-o", "--output", type=str, help="The output name.", required=True
     )
+    parser.add_argument("--bound", type=float, help="The output name.", default=0.5)
     parser.add_argument(
         "--confidence_threshold",
         type=float,
         help="The confidence score threshold for calculating accuracy.",
-        default=0.5,
+        default=0.7,
     )
     parser.add_argument(
         "--iou_threshold",
@@ -234,7 +239,7 @@ if __name__ == "__main__":
         default=0.5,
     )
     parser.add_argument(
-        "--bound", type=float, help="The bound for the mask.", default=0.5,
+        "--percentile", type=float, help="The bound for the mask.", default=99,
     )
     parser.add_argument(
         "--tile_size", type=int, help="The tile size of the mask.", default=8

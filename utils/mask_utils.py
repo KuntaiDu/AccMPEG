@@ -417,7 +417,7 @@ def write_black_bkgd_video_smoothed_continuous(mask, args, qps, bws, logger):
     with open(f"{args.output}.mask", "wb") as f:
         pickle.dump(mask, f)
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=4) as executor:
         for fid, mask_slice in enumerate(mask.split(1)):
             progress_bar.update()
             # read image
@@ -611,7 +611,7 @@ def generate_mask_from_regions(mask_slice, regions, minval, tile_size):
         mask_slice, torch.ones([1, 3, tile_size, tile_size]), stride=tile_size
     )
     mask_slice = torch.where(
-        mask_slice > 0, torch.ones_like(mask_slice), torch.zeros_like(mask_slice)
+        mask_slice > 0.5, torch.ones_like(mask_slice), torch.zeros_like(mask_slice)
     )
     mask_slice_orig[:, :, :, :] = mask_slice[:, :, :, :]
 

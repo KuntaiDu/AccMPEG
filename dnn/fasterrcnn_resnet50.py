@@ -230,9 +230,9 @@ class FasterRCNN_ResNet50_FPN(DNN):
         f1s = []
         prs = []
         res = []
-        tps = []
-        fps = []
-        fns = []
+        tps = [torch.tensor(0)]
+        fps = [torch.tensor(0)]
+        fns = [torch.tensor(0)]
 
         for fid in video.keys():
 

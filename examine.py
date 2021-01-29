@@ -27,7 +27,7 @@ def main(args):
     bws = [read_bandwidth(video) for video in args.inputs]
     video_names = args.inputs
 
-    application_bundle = [FCN_ResNet50()]
+    application_bundle = [FasterRCNN_ResNet50_FPN()]
 
     for application in application_bundle:
 
@@ -45,7 +45,7 @@ def main(args):
                 "ground_truth_name": args.ground_truth,
             }
             res.update(metrics)
-            with open("stats", "a") as f:
+            with open(args.stats, "a") as f:
                 f.write(yaml.dump([res]))
 
 
@@ -58,6 +58,8 @@ if __name__ == "__main__":
     )
 
     parser = argparse.ArgumentParser()
+
+    parser.add_argument("--stats", type=str, default="stats")
 
     parser.add_argument(
         "-i",
@@ -92,6 +94,7 @@ if __name__ == "__main__":
         help="The IoU threshold for calculating accuracy in object detection.",
         default=0.5,
     )
+    parser.add_argument("--size_bound", type=float, default=0.05)
 
     args = parser.parse_args()
 

@@ -8,7 +8,7 @@ from pdb import set_trace
 from munch import Munch
 
 gt_qp = 30
-qp_list = [40]
+qp_list = [25]
 
 
 def main(args):
@@ -80,7 +80,7 @@ def main(args):
             subprocess.run(
                 [
                     "python",
-                    "inference.py",
+                    "inference_segmentation.py",
                     "-i",
                     output_name,
                     "--enable_cloudseg",
@@ -91,7 +91,7 @@ def main(args):
             subprocess.run(
                 [
                     "python",
-                    "examine.py",
+                    "examine_segmentation.py",
                     "-i",
                     output_name,
                     "-g",
@@ -100,6 +100,8 @@ def main(args):
                     "0.7",
                     "--confidence_threshold",
                     "0.7",
+                    "--stats",
+                    "stats_segmentation",
                 ]
             )
 
@@ -137,12 +139,10 @@ if __name__ == "__main__":
     # )
 
     args = Munch()
-    # args.inputs = [
-    #     "visdrone/videos/vis_%d" % i for i in [169, 170, 171, 172, 173, 209, 217]
+    args.inputs = ["visdrone/videos/vis_%d" % i for i in [171, 172, 173]]
+    # args.inputs = ["dashcam/dashcam_%d" % (i + 1) for i in range(10)] + [
+    #     f"visdrone/videos/vis_{i}" for i in [169, 170, 171, 172, 173]
     # ]
-    args.inputs = ["dashcam/dashcam_%d" % (i + 1) for i in range(10)] + [
-        f"visdrone/videos/vis_{i}" for i in [169, 170, 171, 172, 173]
-    ]
     args.force = False
 
     # args = parser.parse_args()
