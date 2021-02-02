@@ -11,8 +11,7 @@ import torch
 import yaml
 from torchvision import io
 
-from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from dnn.fcn_resnet50 import FCN_ResNet50
+from dnn.dnn_factory import DNN_Factory
 from utils.bbox_utils import jaccard
 from utils.results_utils import read_results, write_results
 from utils.video_utils import read_bandwidth
@@ -27,26 +26,22 @@ def main(args):
     bws = [read_bandwidth(video) for video in args.inputs]
     video_names = args.inputs
 
-    application_bundle = [FasterRCNN_ResNet50_FPN()]
+    app = DNN_Factory().get_model(args.app)
 
-    for application in application_bundle:
+    ground_truth_dict = read_results(args.ground_truth, app.name, logger)
 
-        ground_truth_results = read_results(args.ground_truth, application.name, logger)
-
-        for video_name, bw in zip(video_names, bws):
-            video_results = read_results(video_name, application.name, logger)
-            metrics = application.calc_accuracy(
-                video_results, ground_truth_results, args
-            )
-            res = {
-                "application": application.name,
-                "video_name": video_name,
-                "bw": bw,
-                "ground_truth_name": args.ground_truth,
-            }
-            res.update(metrics)
-            with open(args.stats, "a") as f:
-                f.write(yaml.dump([res]))
+    for video_name, bw in zip(video_names, bws):
+        video_dict = read_results(video_name, app.name, logger)
+        metrics = app.calc_accuracy(video_dict, ground_truth_dict, args)
+        res = {
+            "application": app.name,
+            "video_name": video_name,
+            "bw": bw,
+            "ground_truth_name": args.ground_truth,
+        }
+        res.update(metrics)
+        with open(args.stats, "a") as f:
+            f.write(yaml.dump([res]))
 
 
 if __name__ == "__main__":
@@ -70,6 +65,9 @@ if __name__ == "__main__":
         nargs="+",
     )
     parser.add_argument(
+        "--app", type=str, help="The name of the model.", required=True,
+    )
+    parser.add_argument(
         "-g",
         "--ground_truth",
         type=str,
@@ -80,13 +78,13 @@ if __name__ == "__main__":
         "--confidence_threshold",
         type=float,
         help="The confidence score threshold for calculating accuracy.",
-        default=0.5,
+        default=0.7,
     )
     parser.add_argument(
         "--gt_confidence_threshold",
         type=float,
         help="The confidence score threshold for calculating accuracy.",
-        default=0.5,
+        default=0.7,
     )
     parser.add_argument(
         "--iou_threshold",

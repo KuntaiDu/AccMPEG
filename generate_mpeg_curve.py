@@ -6,8 +6,8 @@ from pathlib import Path
 
 from munch import Munch
 
-gt_qp = 24
-qp_list = [24, 25, 26, 27, 28, 30, 32, 36, 42, 48]
+gt_qp = 30
+qp_list = [30, 31, 32, 34, 36, 40, 42, 44, 46, 48, 50]
 # qp_list = [32, 42]
 quality_list = ["veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
 
@@ -76,7 +76,9 @@ def main(args):
                     ]
                 )
 
-            subprocess.run(["python", "inference2.py", "-i", output_name])
+            subprocess.run(
+                ["python", "inference.py", "-i", output_name, "--app", args.app]
+            )
 
             subprocess.run(
                 [
@@ -86,12 +88,8 @@ def main(args):
                     output_name,
                     "-g",
                     f"{video_name}_qp_{gt_qp}.mp4",
-                    "--gt_confidence_threshold",
-                    "0.7",
-                    "--confidence_threshold",
-                    "0.7",
-                    "--stats",
-                    "stats_segmentation_fcn50",
+                    "--app",
+                    args.app,
                 ]
             )
 
@@ -133,16 +131,18 @@ if __name__ == "__main__":
     #     "visdrone/videos/vis_%d" % i for i in [169, 170, 171, 172, 173, 209, 217]
     # ]
     # args.inputs = ["dashcam/dashcam_%d" % (i + 1) for i in [9]]
-    args.inputs = [
-        "visdrone/videos/vis_171",
-        "visdrone/videos/vis_170",
-        "visdrone/videos/vis_173",
-        "visdrone/videos/vis_169",
-        "visdrone/videos/vis_172",
-    ]
+    # args.inputs = [
+    #     # "visdrone/videos/vis_171",
+    #     # "visdrone/videos/vis_170",
+    #     # "visdrone/videos/vis_173",
+    #     # "visdrone/videos/vis_169",
+    #     # "visdrone/videos/vis_172",
+    # ]
+    args.inputs = ["large_dashcam/large_dashcam_1"]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
     # args.inputs = ["visdrone/videos/vis_171"]
     args.force = False
+    args.app = "COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml"
 
     # args = parser.parse_args()
     main(args)

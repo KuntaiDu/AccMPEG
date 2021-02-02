@@ -110,6 +110,8 @@ class FasterRCNN_ResNet50_FPN(DNN):
         self.model = fasterrcnn_resnet50_fpn(pretrained=True)
         self.model.eval()
 
+        self.name = "FasterRCNN_ResNet50_FPN"
+
         self.logger = logging.getLogger(self.name)
         handler = logging.NullHandler()
         self.logger.addHandler(handler)

@@ -56,9 +56,9 @@ def main(args):
     mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
     mask = torch.ones(mask_shape).float()
 
-    ground_truth_dict = read_results(
-        args.ground_truth, "FasterRCNN_ResNet50_FPN", logger
-    )
+    # ground_truth_dict = read_results(
+    #     args.ground_truth, "FasterRCNN_ResNet50_FPN", logger
+    # )
     # logger.info('Reading ground truth mask')
     # with open(args.mask + '.mask', 'rb') as f:
     #     ground_truth_mask = pickle.load(f)
@@ -75,12 +75,12 @@ def main(args):
 
     for temp in range(1):
 
-        logger.info(f"Processing application {application.name}")
+        logger.info(f"Processing application")
         progress_bar = enlighten.get_manager().counter(
-            total=len(videos[-1]), desc=f"{application.name}", unit="frames"
+            total=len(videos[-1]), desc=f"Obj detection", unit="frames"
         )
 
-        application.cuda()
+        # application.cuda()
 
         losses = []
         f1s = []
@@ -160,10 +160,10 @@ def main(args):
                     xticklabels=False,
                     yticklabels=False,
                 )  # 1.3s
-                with torch.no_grad():
-                    inf = application.inference(hq_image, detach=True)[0]
+                # with torch.no_grad():
+                #     inf = application.inference(hq_image, detach=True)[0]
                 image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-                image = application.plot_results_on(inf, image, (255, 255, 255), args)
+                # image = application.plot_results_on(inf, image, (255, 255, 255), args)
                 # image = application.plot_results_on(video_results, image, (0, 255, 255), args)
                 ax.imshow(image, zorder=3, alpha=0.5)
                 ax.tick_params(left=False, bottom=False)

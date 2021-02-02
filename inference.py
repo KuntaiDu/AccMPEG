@@ -1,4 +1,5 @@
 import argparse
+import glob
 import logging
 import pickle
 from pathlib import Path
@@ -11,8 +12,8 @@ import torchvision.transforms as T
 from torchvision import io
 
 from dnn.CARN.interface import CARN
-from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from dnn.fcn_resnet50 import FCN_ResNet50
+from dnn.dnn_factory import DNN_Factory
+from utils.mask_utils import merge_black_bkgd_images
 from utils.results_utils import write_results
 from utils.video_utils import read_videos
 
@@ -25,64 +26,60 @@ def main(args):
     handler = logging.NullHandler()
     logger.addHandler(handler)
 
-    videos, _, video_names = read_videos(
-        args.inputs, logger, normalize=False, from_source=False
-    )
+    if "dual" not in args.input:
+        videos, _, _ = read_videos(
+            [args.input], logger, normalize=False, from_source=False
+        )
+    else:
+        assert len(glob.glob(args.input + "*.mp4")) == 2
+
+        videos, _, _ = read_videos(
+            sorted(glob.glob(args.input + "*.mp4")),
+            logger,
+            normalize=False,
+            from_source=False,
+        )
     # from utils.video_utils import write_video
     # write_video(videos[0], 'download.mp4', logger)
 
-    application_bundle = [FasterRCNN_ResNet50_FPN()]
+    app = DNN_Factory().get_model(args.app)
     if args.enable_cloudseg:
         super_resoluter = CARN()
 
-    for application in application_bundle:
+    logger.info(f"Run %s on %s", app.name, args.input)
+    progress_bar = enlighten.get_manager().counter(
+        total=len(videos[0]), desc=f"{app.name}: {args.input}", unit="frames",
+    )
+    inference_results = {}
 
-        # put the application on GPU
-        application.cuda()
+    for fid, video_slice in enumerate(zip(*videos)):
 
-        for vid, video in enumerate(videos):
+        if "dual" in args.input:
+            video_slice = merge_black_bkgd_images(video_slice)
+        else:
+            video_slice = video_slice[0]
+        progress_bar.update()
 
-            video_name = video_names[vid]
-            logger.info(f"Run {application.name} on {video_name}")
-            progress_bar = enlighten.get_manager().counter(
-                total=len(video),
-                desc=f"{application.name}: {video_name}",
-                unit="frames",
-            )
-            inference_results = {}
+        # video_slice = video_slice.cuda()
 
-            for fid, video_slice in enumerate(video):
-                progress_bar.update()
+        if args.enable_cloudseg:
+            assert "dual" not in args.input, "Dual does not work well with cloudseg."
+            video_slice = super_resoluter(video_slice)
 
-                # transforms = T.Compose(
-                #     [
-                #         T.ToPILImage(),
-                #         T.ColorJitter(0.05, 0.05, 0.05, 0.05),
-                #         T.ToTensor(),
-                #     ]
-                # )
+        # video_slice = transforms(video_slice[0])[None, :, :, :]
+        # video_slice = video_slice + torch.randn_like(video_slice) * 0.05
+        inference_results[fid] = app.inference(video_slice, detach=True)
 
-                video_slice = video_slice.cuda()
+        if fid % 100 == 0:
+            folder = Path("visualize/" + args.input + "/" + app.name + "/inference/")
+            folder.mkdir(exist_ok=True, parents=True)
+            image = T.ToPILImage()(video_slice[0].cpu())
+            image = app.visualize(image, inference_results[fid], args)
+            image.save(folder / ("%010d.png" % fid))
 
-                if args.enable_cloudseg:
-                    video_slice = super_resoluter(video_slice)
+        # set_trace()
 
-                # video_slice = transforms(video_slice[0])[None, :, :, :]
-                # video_slice = video_slice + torch.randn_like(video_slice) * 0.05
-                inference_results[fid] = application.inference(
-                    video_slice, detach=True
-                )[0]
-
-                if fid % 100 == 0:
-                    folder = Path("inference/" + video_name)
-                    folder.mkdir(exist_ok=True, parents=True)
-                    image = T.ToPILImage()(video_slice[0].cpu())
-                    image = application.plot_results_on(
-                        inference_results[fid], image, "Azure", args
-                    )
-                    image.save(folder / ("%010d.png" % fid))
-
-            write_results(video_name, application.name, inference_results, logger)
+    write_results(args.input, app.name, inference_results, logger)
 
 
 if __name__ == "__main__":
@@ -97,17 +94,19 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-i",
-        "--inputs",
+        "--input",
         type=str,
         help="The video file names to obtain inference results.",
         required=True,
-        nargs="+",
+    )
+    parser.add_argument(
+        "--app", type=str, help="The name of the model.", required=True,
     )
     parser.add_argument(
         "--confidence_threshold",
         type=float,
         help="The confidence score threshold for calculating accuracy.",
-        default=0.5,
+        default=0.7,
     )
     parser.add_argument(
         "--iou_threshold",
