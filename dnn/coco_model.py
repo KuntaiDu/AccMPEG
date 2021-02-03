@@ -198,22 +198,22 @@ class COCO_Model(DNN):
                     if result.pred_classes[i] != gt.pred_classes[j]:
                         IoU[i, j] = 0
 
-            tp = torch.tensor(0)
+            tp = 0
 
             for i in range(len(gt)):
                 if sum(IoU[:, i] > args.iou_threshold):
                     tp += 1
             fn = len(gt) - tp
             fp = len(result) - tp
-            fp = max(fp, torch.tensor(0))
+            fp = max(fp, 0)
 
             f1 = 2 * tp / (2 * tp + fp + fn)
             if tp + fp == 0:
-                pr = torch.tensor(1.0)
+                pr = 1.0
             else:
                 pr = tp / (tp + fp)
             if tp + fn == 0:
-                re = torch.tensor(1.0)
+                re = 1.0
             else:
                 re = tp / (tp + fn)
 
@@ -231,6 +231,12 @@ class COCO_Model(DNN):
             "tp": torch.tensor(tps).sum().item(),
             "fp": torch.tensor(fps).sum().item(),
             "fn": torch.tensor(fns).sum().item(),
+            "f1s": f1s,
+            "prs": prs,
+            "res": res,
+            "tps": tps,
+            "fns": fns,
+            "fps": fps,
         }
 
     def calc_accuracy_keypoint(self, result_dict, gt_dict, args):
