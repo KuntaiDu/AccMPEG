@@ -51,5 +51,8 @@ visualize/*
 # ignore ipynb
 *.ipynb
 
+# video folders
 visdrone/*
 youtube_videos/*
+large_dashcam/*
+dashcam/*

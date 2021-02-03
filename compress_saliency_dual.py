@@ -51,19 +51,19 @@ def main(args):
     # construct the mask
     mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
     mask = torch.ones(mask_shape).float()
-    # mask2 = torch.ones(mask_shape).float()
+    mask2 = torch.ones(mask_shape).float()
 
-    # ###
-    # ###
-    # ###
-    # mask_generator = FCN()
-    # mask_generator.load(
-    #     "maskgen_pths/COCO_full_normalizedsaliency_vgg11_crossthresh.pth.best"
-    # )
-    # mask_generator.eval().cuda()
-    # ###
-    # ###
-    # ###
+    ###
+    ###
+    ###
+    mask_generator = FCN()
+    mask_generator.load(
+        "maskgen_pths/COCO_full_normalizedsaliency_vgg11_crossthresh.pth.best"
+    )
+    mask_generator.eval().cuda()
+    ###
+    ###
+    ###
 
     ground_truth_dict = read_results(args.ground_truth, app.name, logger)
     # logger.info('Reading ground truth mask')
@@ -87,8 +87,8 @@ def main(args):
         losses = []
         f1s = []
 
-        for fid, (video_slices, mask_slice) in enumerate(
-            zip(zip(*videos), mask.split(1))
+        for fid, (video_slices, mask_slice, mask2_slice) in enumerate(
+            zip(zip(*videos), mask.split(1), mask2.split(1))
         ):
 
             progress_bar.update()
@@ -132,9 +132,10 @@ def main(args):
                     mask_grad.max() - mask_grad.min()
                 )
                 mask_slice[:, :, :, :] = mask_grad
-                # mask_slice[:, :, :, :] = dilate_binarize(
-            #     mask_grad, args.bound, args.conv_size, True,
-            # ).cpu()
+
+                mask2_slice[:, :, :, :] = (
+                    mask_generator(hq_image.cuda()).softmax(dim=1)[:, 1:2, :, :].cpu()
+                )
             # mask_gen = mask_generator(
             #     torch.cat([hq_image, hq_image - lq_image], dim=1).cuda()
             # )
@@ -185,7 +186,16 @@ def main(args):
                 # image = app.plot_results_on(video_results, image, (0, 255, 255), args)
 
     mask.requires_grad = False
-    write_black_bkgd_video_smoothed_continuous(mask, args, args.force_qp, logger)
+
+    mask = torch.where(mask > args.bound, torch.ones_like(mask), torch.zeros_like(mask))
+    mask2 = mask * mask2
+    mask2 = torch.where(
+        mask2 > args.heat_bound, torch.ones_like(mask2), torch.zeros_like(mask2)
+    )
+    mask = mask - mask2
+
+    write_black_bkgd_video_smoothed_continuous(mask, args, args.large_qp, logger)
+    write_black_bkgd_video_smoothed_continuous(mask2, args, args.qp, logger)
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 
@@ -242,7 +252,10 @@ if __name__ == "__main__":
         "--bound", type=float, help="The bound for the mask.", default=0.5,
     )
     parser.add_argument(
-        "--tile_size", type=int, help="The tile size of the mask.", default=8
+        "--heat_bound", type=float, help="The bound for the heat.", default=0.5,
+    )
+    parser.add_argument(
+        "--tile_size", type=int, help="The tile size of the mask.", default=1
     )
     parser.add_argument(
         "--smooth_frames",
@@ -257,7 +270,8 @@ if __name__ == "__main__":
     #     "--lower_bound", type=float, help="The lower bound for the mask", required=True,
     # )
     parser.add_argument("--conv_size", type=int, required=True)
-    parser.add_argument("--force_qp", type=int, default=-1)
+    parser.add_argument("--qp", type=int, required=True)
+    parser.add_argument("--large_qp", type=int, required=True)
 
     # parser.add_argument('--mask', type=str,
     #                     help='The path of the ground truth video, for loss calculation purpose.', required=True)
