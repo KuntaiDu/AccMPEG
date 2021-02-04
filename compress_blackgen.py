@@ -58,9 +58,9 @@ def main(args):
     mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
     mask = torch.ones(mask_shape).float()
 
-    ground_truth_dict = read_results(
-        args.ground_truth, "KeypointRCNN_ResNet50_FPN", logger
-    )
+    # ground_truth_dict = read_results(
+    #     args.ground_truth, "FasterRCNN_ResNet50_FPN", logger
+    # )
     # logger.info('Reading ground truth mask')
     # with open(args.mask + '.mask', 'rb') as f:
     #     ground_truth_mask = pickle.load(f)
@@ -77,12 +77,12 @@ def main(args):
 
     for temp in range(1):
 
-        logger.info(f"Processing application {application.name}")
+        logger.info(f"Processing application")
         progress_bar = enlighten.get_manager().counter(
-            total=len(videos[-1]), desc=f"{application.name}", unit="frames"
+            total=len(videos[-1]), desc=f"Obj detection", unit="frames"
         )
 
-        application.cuda()
+        # application.cuda()
 
         losses = []
         f1s = []
@@ -118,13 +118,14 @@ def main(args):
                 #     torch.cat([hq_image, hq_image - lq_image], dim=1).cuda()
                 # )
                 hq_image = hq_image.cuda()
+                # mask_generator = mask_generator.cpu()
                 with Timer("maskgen", logger):
                     mask_gen = mask_generator(hq_image)
                 # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
                 mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
-                mask_lb = dilate_binarize(mask_gen, args.bound, args.conv_size)
+                # mask_lb = dilate_binarize(mask_gen, args.bound, args.conv_size)
                 # mask_ub = dilate_binarize(mask_gen, args.upper_bound, args.conv_size)
-                mask_slice[:, :, :, :] = mask_lb
+                mask_slice[:, :, :, :] = mask_gen
                 # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
 
             # mask_slice[:, :, :, :] = ground_truth_mask[fid + offset2].float()
@@ -161,10 +162,10 @@ def main(args):
                     xticklabels=False,
                     yticklabels=False,
                 )  # 1.3s
-                with torch.no_grad():
-                    inf = application.inference(hq_image, detach=True)[0]
+                # with torch.no_grad():
+                #     inf = application.inference(hq_image, detach=True)[0]
                 image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-                image = application.plot_results_on(inf, image, (255, 255, 255), args)
+                # image = application.plot_results_on(inf, image, (255, 255, 255), args)
                 # image = application.plot_results_on(video_results, image, (0, 255, 255), args)
                 ax.imshow(image, zorder=3, alpha=0.5)
                 ax.tick_params(left=False, bottom=False)

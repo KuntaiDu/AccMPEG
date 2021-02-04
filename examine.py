@@ -12,6 +12,7 @@ import yaml
 from torchvision import io
 
 from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
+from dnn.dnn_factory import DNN_Factory
 from utils.bbox_utils import jaccard
 from utils.results_utils import read_results, write_results
 from utils.video_utils import read_bandwidth
@@ -26,26 +27,22 @@ def main(args):
     bws = [read_bandwidth(video) for video in args.inputs]
     video_names = args.inputs
 
-    application_bundle = [KeypointRCNN_ResNet50_FPN()]
+    app = DNN_Factory().get_model(args.app)
 
-    for application in application_bundle:
+    ground_truth_dict = read_results(args.ground_truth, app.name, logger)
 
-        ground_truth_results = read_results(args.ground_truth, application.name, logger)
-
-        for video_name, bw in zip(video_names, bws):
-            video_results = read_results(video_name, application.name, logger)
-            metrics = application.calc_accuracy(
-                video_results, ground_truth_results, args
-            )
-            res = {
-                "application": application.name,
-                "video_name": video_name,
-                "bw": bw,
-                "ground_truth_name": args.ground_truth,
-            }
-            res.update(metrics)
-            with open("stats", "a") as f:
-                f.write(yaml.dump([res]))
+    for video_name, bw in zip(video_names, bws):
+        video_dict = read_results(video_name, app.name, logger)
+        metrics = app.calc_accuracy(video_dict, ground_truth_dict, args)
+        res = {
+            "application": app.name,
+            "video_name": video_name,
+            "bw": bw,
+            "ground_truth_name": args.ground_truth,
+        }
+        res.update(metrics)
+        with open(args.stats, "a") as f:
+            f.write(yaml.dump([res]))
 
 
 if __name__ == "__main__":
@@ -58,6 +55,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("--stats", type=str, default="stats")
+
     parser.add_argument(
         "-i",
         "--inputs",
@@ -65,6 +64,9 @@ if __name__ == "__main__":
         help="The video file names to obtain inference results.",
         required=True,
         nargs="+",
+    )
+    parser.add_argument(
+        "--app", type=str, help="The name of the model.", required=True,
     )
     parser.add_argument(
         "-g",
@@ -77,7 +79,13 @@ if __name__ == "__main__":
         "--confidence_threshold",
         type=float,
         help="The confidence score threshold for calculating accuracy.",
-        default=0.5,
+        default=0.7,
+    )
+    parser.add_argument(
+        "--gt_confidence_threshold",
+        type=float,
+        help="The confidence score threshold for calculating accuracy.",
+        default=0.7,
     )
     parser.add_argument(
         "--iou_threshold",
@@ -85,6 +93,7 @@ if __name__ == "__main__":
         help="The IoU threshold for calculating accuracy in object detection.",
         default=0.5,
     )
+    parser.add_argument("--size_bound", type=float, default=0.05)
 
     args = parser.parse_args()
 

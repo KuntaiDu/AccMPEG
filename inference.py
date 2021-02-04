@@ -1,15 +1,21 @@
 import argparse
+import glob
 import logging
 import pickle
 from pathlib import Path
+from pdb import set_trace
 
 import coloredlogs
 import enlighten
 import torch
+import torchvision.transforms as T
 from torchvision import io
 
 #from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
+from dnn.CARN.interface import CARN
+from dnn.dnn_factory import DNN_Factory
+from utils.mask_utils import merge_black_bkgd_images
 from utils.results_utils import write_results
 from utils.video_utils import read_videos
 
@@ -22,37 +28,60 @@ def main(args):
     handler = logging.NullHandler()
     logger.addHandler(handler)
 
-    videos, _, video_names = read_videos(
-        args.inputs, logger, normalize=False, from_source=False
-    )
+    if "dual" not in args.input:
+        videos, _, _ = read_videos(
+            [args.input], logger, normalize=False, from_source=False
+        )
+    else:
+        assert len(glob.glob(args.input + "*.mp4")) == 2
+
+        videos, _, _ = read_videos(
+            sorted(glob.glob(args.input + "*.mp4")),
+            logger,
+            normalize=False,
+            from_source=False,
+        )
     # from utils.video_utils import write_video
     # write_video(videos[0], 'download.mp4', logger)
 
-    application_bundle = [KeypointRCNN_ResNet50_FPN()]
+    app = DNN_Factory().get_model(args.app)
+    if args.enable_cloudseg:
+        super_resoluter = CARN()
 
-    for application in application_bundle:
+    logger.info(f"Run %s on %s", app.name, args.input)
+    progress_bar = enlighten.get_manager().counter(
+        total=len(videos[0]), desc=f"{app.name}: {args.input}", unit="frames",
+    )
+    inference_results = {}
 
-        # put the application on GPU
-        application.cuda()
+    for fid, video_slice in enumerate(zip(*videos)):
 
-        for vid, video in enumerate(videos):
+        if "dual" in args.input:
+            video_slice = merge_black_bkgd_images(video_slice)
+        else:
+            video_slice = video_slice[0]
+        progress_bar.update()
 
-            video_name = video_names[vid]
-            logger.info(f"Run {application.name} on {video_name}")
-            progress_bar = enlighten.get_manager().counter(
-                total=len(video),
-                desc=f"{application.name}: {video_name}",
-                unit="frames",
-            )
-            inference_results = {}
+        # video_slice = video_slice.cuda()
 
-            for fid, video_slice in enumerate(video):
-                progress_bar.update()
-                inference_results[fid] = application.inference(
-                    video_slice.cuda(), detach=True
-                )[0]
+        if args.enable_cloudseg:
+            assert "dual" not in args.input, "Dual does not work well with cloudseg."
+            video_slice = super_resoluter(video_slice)
 
-            write_results(video_name, application.name, inference_results, logger)
+        # video_slice = transforms(video_slice[0])[None, :, :, :]
+        # video_slice = video_slice + torch.randn_like(video_slice) * 0.05
+        inference_results[fid] = app.inference(video_slice, detach=True)
+
+        if fid % 100 == 0:
+            folder = Path("visualize/" + args.input + "/" + app.name + "/inference/")
+            folder.mkdir(exist_ok=True, parents=True)
+            image = T.ToPILImage()(video_slice[0].cpu())
+            image = app.visualize(image, inference_results[fid], args)
+            image.save(folder / ("%010d.png" % fid))
+
+        # set_trace()
+
+    write_results(args.input, app.name, inference_results, logger)
 
 
 if __name__ == "__main__":
@@ -67,11 +96,31 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-i",
-        "--inputs",
+        "--input",
         type=str,
         help="The video file names to obtain inference results.",
         required=True,
-        nargs="+",
+    )
+    parser.add_argument(
+        "--app", type=str, help="The name of the model.", required=True,
+    )
+    parser.add_argument(
+        "--confidence_threshold",
+        type=float,
+        help="The confidence score threshold for calculating accuracy.",
+        default=0.7,
+    )
+    parser.add_argument(
+        "--iou_threshold",
+        type=float,
+        help="The IoU threshold for calculating accuracy in object detection.",
+        default=0.5,
+    )
+    parser.add_argument(
+        "--enable_cloudseg",
+        type=bool,
+        help="Super-resolute the image before inference.",
+        default=False,
     )
 
     args = parser.parse_args()

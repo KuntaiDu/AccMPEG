@@ -5,12 +5,8 @@ from pathlib import Path
 
 import coloredlogs
 import enlighten
-
-<<<<<<< HEAD
 import matplotlib.pyplot as plt
 import seaborn as sns
-
->>>>>>> 93c028ba893c3eeffc6b513f0a76e17451c150ad
 import torch
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
@@ -104,7 +100,7 @@ if __name__ == "__main__":
         "--confidence_threshold",
         type=float,
         help="The confidence score threshold for calculating accuracy.",
-        default=0.5,
+        default=0.7,
     )
 
     parser.add_argument(
