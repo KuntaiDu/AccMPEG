@@ -10,6 +10,7 @@ from detectron2.data import DatasetCatalog, MetadataCatalog
 from detectron2.engine import DefaultPredictor
 from detectron2.utils.events import EventStorage
 from detectron2.utils.visualizer import Visualizer
+from detectron2.structures.keypoints import Keypoints
 from PIL import Image
 
 from .dnn import DNN
@@ -128,7 +129,7 @@ class COCO_Model(DNN):
         if result["instances"].has("pred_masks"):
             result["instances"].gt_masks = result["instances"].pred_masks
         if result["instances"].has("pred_keypoints"):
-            result["instances"].gt_keypoints = result["instances"].pred_keypoints
+            result["instances"].gt_keypoints = Keypoints(result["instances"].pred_keypoints)
 
         # convert result to target
         image, h, w, _ = self.preprocess_image(image)

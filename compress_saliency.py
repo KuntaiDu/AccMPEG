@@ -47,7 +47,6 @@ def main(args):
     bws = [0, 1]
     qps = [get_qp_from_name(video_name) for video_name in video_names]
 
-    application = KeypointRCNN_ResNet50_FPN()
     # construct apps
     app = DNN_Factory().get_model(args.app)
 
