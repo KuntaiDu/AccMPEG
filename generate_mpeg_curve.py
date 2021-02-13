@@ -6,8 +6,8 @@ from pathlib import Path
 
 from munch import Munch
 
-gt_qp = 30
-qp_list = [30, 31, 32, 34, 36, 40, 42, 44, 46, 48, 50]
+gt_qp = 24
+qp_list = [24, 26, 28, 30, 31, 32, 34, 36, 40, 42, 44, 46, 48]
 # qp_list = [32, 42]
 quality_list = [
     "veryfast",

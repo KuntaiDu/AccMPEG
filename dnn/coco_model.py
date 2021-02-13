@@ -8,6 +8,7 @@ from detectron2 import model_zoo
 from detectron2.config import get_cfg
 from detectron2.data import DatasetCatalog, MetadataCatalog
 from detectron2.engine import DefaultPredictor
+from detectron2.structures.keypoints import Keypoints
 from detectron2.utils.events import EventStorage
 from detectron2.utils.visualizer import Visualizer
 from PIL import Image
@@ -187,9 +188,9 @@ class COCO_Model(DNN):
         if result["instances"].has("pred_masks"):
             result["instances"].gt_masks = result["instances"].pred_masks
         if result["instances"].has("pred_keypoints"):
-            result["instances"].gt_keypoints = result[
-                "instances"
-            ].pred_keypoints
+            result["instances"].gt_keypoints = Keypoints(
+                result["instances"].pred_keypoints
+            )
 
         # convert result to target
         image, h, w, _ = self.preprocess_image(image)
@@ -214,7 +215,7 @@ class COCO_Model(DNN):
 
         if "Detection" in self.name:
             return self.calc_accuracy_detection(result_dict, gt_dict, args)
-        elif "KeyPoint" in self.name:
+        elif "keypoint" in self.name:
             return self.calc_accuracy_keypoint(result_dict, gt_dict, args)
 
     def calc_accuracy_detection(self, result_dict, gt_dict, args):
@@ -301,4 +302,67 @@ class COCO_Model(DNN):
         }
 
     def calc_accuracy_keypoint(self, result_dict, gt_dict, args):
-        pass
+        f1s = []
+        prs = []
+        res = []
+        tps = []
+        fps = []
+        fns = []
+        for fid in result_dict.keys():
+            result = result_dict[fid]["instances"].get_fields()
+            gt = gt_dict[fid]["instances"].get_fields()
+            if len(gt["scores"]) == 0 and len(result["scores"]) == 0:
+                prs.append(0.0)
+                res.append(0.0)
+                f1s.append(1.0)
+                tps.append(0.0)
+                fps.append(0.0)
+                fns.append(0.0)
+            elif len(result["scores"]) == 0 or len(gt["scores"]) == 0:
+                prs.append(0.0)
+                res.append(0.0)
+                f1s.append(0.0)
+                tps.append(0.0)
+                fps.append(0.0)
+                fns.append(0.0)
+            else:
+                video_ind_res = result["scores"] == torch.max(result["scores"])
+                kpts_res = result["pred_keypoints"][video_ind_res]
+                video_ind_gt = gt["scores"] == torch.max(gt["scores"])
+                kpts_gt = gt["pred_keypoints"][video_ind_gt]
+
+                try:
+                    acc = kpts_res - kpts_gt
+                except:
+                    import pdb
+
+                    pdb.set_trace()
+                    print("shouldnt happen")
+
+                kpt_thresh = 3
+
+                acc = acc[0]
+                acc = torch.sqrt(acc[:, 0] ** 2 + acc[:, 1] ** 2)
+                acc[acc < kpt_thresh * kpt_thresh] = 0
+                accuracy = 1 - (len(acc.nonzero()) / acc.numel())
+                prs.append(0.0)
+                res.append(0.0)
+                f1s.append(accuracy)
+                tps.append(0.0)
+                fps.append(0.0)
+                fns.append(0.0)
+
+        return {
+            "f1": torch.tensor(f1s).mean().item(),
+            "pr": torch.tensor(prs).mean().item(),
+            "re": torch.tensor(res).mean().item(),
+            "tp": torch.tensor(tps).sum().item(),
+            "fp": torch.tensor(fps).sum().item(),
+            "fn": torch.tensor(fns).sum().item(),
+            "f1s": f1s,
+            "prs": prs,
+            "res": res,
+            "tps": tps,
+            "fns": fns,
+            "fps": fps,
+        }

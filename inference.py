@@ -14,6 +14,8 @@ import torchvision.transforms as T
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
 
+#from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
 from dnn.CARN.interface import CARN
 from dnn.dnn_factory import DNN_Factory
 from utils.mask_utils import merge_black_bkgd_images

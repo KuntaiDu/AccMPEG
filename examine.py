@@ -11,6 +11,7 @@ import torch
 import yaml
 from torchvision import io
 
+from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
 from dnn.dnn_factory import DNN_Factory
 from utils.bbox_utils import jaccard
 from utils.results_utils import read_results, write_results
