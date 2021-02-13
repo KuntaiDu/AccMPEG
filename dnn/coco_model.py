@@ -14,6 +14,63 @@ from PIL import Image
 
 from .dnn import DNN
 
+panoptic_segmentation_labels = [
+    "things",
+    "banner",
+    "blanket",
+    "bridge",
+    "cardboard",
+    "counter",
+    "curtain",
+    "door-stuff",
+    "floor-wood",
+    "flower",
+    "fruit",
+    "gravel",
+    "house",
+    "light",
+    "mirror-stuff",
+    "net",
+    "pillow",
+    "platform",
+    "playingfield",
+    "railroad",
+    "river",
+    "road",
+    "roof",
+    "sand",
+    "sea",
+    "shelf",
+    "snow",
+    "stairs",
+    "tent",
+    "towel",
+    "wall-brick",
+    "wall-stone",
+    "wall-tile",
+    "wall-wood",
+    "water",
+    "window-blind",
+    "window",
+    "tree",
+    "fence",
+    "ceiling",
+    "sky",
+    "cabinet",
+    "table",
+    "floor",
+    "pavement",
+    "mountain",
+    "grass",
+    "dirt",
+    "paper",
+    "food",
+    "building",
+    "rock",
+    "wall",
+    "rug",
+]
+
 
 class COCO_Model(DNN):
     def __init__(self, name):
@@ -79,9 +136,9 @@ class COCO_Model(DNN):
         image, h, w, _ = self.preprocess_image(image)
 
         with torch.no_grad():
-            ret = self.predictor.model([{"image": image[0], "height": h, "width": w}])[
-                0
-            ]
+            ret = self.predictor.model(
+                [{"image": image[0], "height": h, "width": w}]
+            )[0]
 
         if detach:
             for key in ret:
@@ -109,7 +166,9 @@ class COCO_Model(DNN):
     def visualize(self, image, result, args):
         # set_trace()
         result = self.filter_result(result, args)
-        v = Visualizer(image, MetadataCatalog.get(self.cfg.DATASETS.TRAIN[0]), scale=1)
+        v = Visualizer(
+            image, MetadataCatalog.get(self.cfg.DATASETS.TRAIN[0]), scale=1
+        )
         out = v.draw_instance_predictions(result["instances"])
         return Image.fromarray(out.get_image(), "RGB")
 
@@ -128,7 +187,9 @@ class COCO_Model(DNN):
         if result["instances"].has("pred_masks"):
             result["instances"].gt_masks = result["instances"].pred_masks
         if result["instances"].has("pred_keypoints"):
-            result["instances"].gt_keypoints = result["instances"].pred_keypoints
+            result["instances"].gt_keypoints = result[
+                "instances"
+            ].pred_keypoints
 
         # convert result to target
         image, h, w, _ = self.preprocess_image(image)

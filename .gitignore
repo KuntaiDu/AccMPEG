@@ -56,3 +56,6 @@ visdrone/*
 youtube_videos/*
 large_dashcam/*
 dashcam/*
+
+# data for tensorboard visualization
+runs/*

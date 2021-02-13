@@ -9,7 +9,15 @@ from munch import Munch
 gt_qp = 30
 qp_list = [30, 31, 32, 34, 36, 40, 42, 44, 46, 48, 50]
 # qp_list = [32, 42]
-quality_list = ["veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
+quality_list = [
+    "veryfast",
+    "faster",
+    "fast",
+    "medium",
+    "slow",
+    "slower",
+    "veryslow",
+]
 
 
 def main(args):
@@ -77,7 +85,16 @@ def main(args):
                 )
 
             subprocess.run(
-                ["python", "inference.py", "-i", output_name, "--app", args.app]
+                [
+                    "python",
+                    "inference.py",
+                    "-i",
+                    output_name,
+                    "--app",
+                    args.app,
+                    # "--confidence_threshold",
+                    # "0.95",
+                ]
             )
 
             subprocess.run(
@@ -90,6 +107,10 @@ def main(args):
                     f"{video_name}_qp_{gt_qp}.mp4",
                     "--app",
                     args.app,
+                    "--confidence_threshold",
+                    "0.7",
+                    "--gt_confidence_threshold",
+                    "0.7",
                 ]
             )
 
@@ -138,10 +159,14 @@ if __name__ == "__main__":
     #     # "visdrone/videos/vis_169",
     #     # "visdrone/videos/vis_172",
     # ]
-    args.inputs = ["large_dashcam/large_dashcam_1"]
+    # args.inputs = ["DAVIS/videos/DAVIS_1"]
+    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)] + [
+        "dashcam/dashcam_%d" % i for i in range(1, 11)
+    ]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
     # args.inputs = ["visdrone/videos/vis_171"]
     args.force = False
+    # args.app = "COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml"
     args.app = "COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml"
 
     # args = parser.parse_args()

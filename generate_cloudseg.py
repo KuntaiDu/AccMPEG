@@ -8,7 +8,7 @@ from pdb import set_trace
 from munch import Munch
 
 gt_qp = 30
-qp_list = [25]
+qp_list = [40]
 
 
 def main(args):
@@ -55,7 +55,7 @@ def main(args):
         # generate mpeg curve
         for qp in qp_list:
             input_name = f"{video_name}/%010d.png"
-            output_name = f"{video_name}_cloudseg_qp_{qp}.mp4"
+            output_name = f"{video_name}_288p_qp_{qp}.mp4"
             print(f"Generate video for {output_name}")
             # encode_with_qp(input_name, output_name, qp, args)
 
@@ -70,7 +70,7 @@ def main(args):
                         "-start_number",
                         "0",
                         "-vf",
-                        "scale=640:360",
+                        "scale=480:272",
                         "-qp",
                         f"{qp}",
                         output_name,
@@ -80,28 +80,30 @@ def main(args):
             subprocess.run(
                 [
                     "python",
-                    "inference_segmentation.py",
+                    "inference.py",
                     "-i",
                     output_name,
-                    "--enable_cloudseg",
-                    "True",
+                    "--app",
+                    args.app,
+                    "--confidence_threshold",
+                    "0.95",
                 ]
             )
 
             subprocess.run(
                 [
                     "python",
-                    "examine_segmentation.py",
+                    "examine.py",
                     "-i",
                     output_name,
                     "-g",
-                    f"{video_name}_qp_30.mp4",
-                    "--gt_confidence_threshold",
-                    "0.7",
+                    f"{video_name}_qp_{gt_qp}.mp4",
+                    "--app",
+                    args.app,
                     "--confidence_threshold",
-                    "0.7",
-                    "--stats",
-                    "stats_segmentation",
+                    "0.95",
+                    "--gt_confidence_threshold",
+                    "0.95",
                 ]
             )
 
@@ -139,11 +141,12 @@ if __name__ == "__main__":
     # )
 
     args = Munch()
-    args.inputs = ["visdrone/videos/vis_%d" % i for i in [171, 172, 173]]
-    # args.inputs = ["dashcam/dashcam_%d" % (i + 1) for i in range(10)] + [
-    #     f"visdrone/videos/vis_{i}" for i in [169, 170, 171, 172, 173]
-    # ]
+    args.inputs = ["DAVIS/videos/DAVIS_1"]
+    # args.inputs = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
+    # args.inputs = ["visdrone/videos/vis_171"]
     args.force = False
+    # args.app = "COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml"
+    args.app = "Segmentation/deeplabv3_resnet50"
 
     # args = parser.parse_args()
     main(args)

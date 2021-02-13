@@ -4,14 +4,13 @@
 
 from .coco_model import COCO_Model
 from .fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from .fcn_resnet101 import FCN_ResNet101
+from .segmentation import Segmentation
 
 
 class DNN_Factory:
     def __init__(self):
         self.name2model = {
             "FasterRCNN_ResNet50_FPN": FasterRCNN_ResNet50_FPN,
-            "FCN_ResNet101": FCN_ResNet101,
         }
         pass
 
@@ -19,6 +18,8 @@ class DNN_Factory:
 
         if name in self.name2model:
             return self.name2model[name]()
+        elif "Segmentation" in name:
+            return Segmentation(name)
         else:
             assert "yaml" in name
             return COCO_Model(name)

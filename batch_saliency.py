@@ -7,7 +7,7 @@ import yaml
 # v_list = [v_list[0]]
 
 # v_list = ["visdrone/videos/vis_%d" % i for i in [170, 171]]
-v_list = ["large_dashcam/large_dashcam_1"]
+v_list = ["DAVIS/videos/DAVIS_1"]
 # v_list = [v_list[2]]
 base = 50
 high = 30
@@ -15,12 +15,15 @@ tile = 16
 perc = 5
 # model_name = "fcn_black_vis_172"
 conv_list = [5]
-bound_list = [0.1, 0.05]
+bound_list = [0.03]
 smooth_list = [1]
-app = "COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml"
+# app = "COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml"
+app = "Segmentation/fcn_resnet50"
 
 
-for v, conv, bound, smooth in product(v_list, conv_list, bound_list, smooth_list):
+for v, conv, bound, smooth in product(
+    v_list, conv_list, bound_list, smooth_list
+):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
     output = f"{v}_blackgen_saliency_bound_{bound}_conv_{conv}.mp4"
@@ -30,7 +33,7 @@ for v, conv, bound, smooth in product(v_list, conv_list, bound_list, smooth_list
             f"python compress_saliency.py -i {v}_qp_{base}.mp4 "
             f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  "
             f" --conv_size {conv} "
-            f" -g {v}_qp_{high}.mp4 --bound {bound} --smooth_frames {smooth} --force_qp {high} --app {app}"
+            f" -g {v}_qp_{high}.mp4 --bound {bound} --smooth_frames {smooth} --qp {high} --app {app}"
         )
         os.system(f"python inference.py -i {output} --app {app}")
 
