@@ -8,12 +8,69 @@ from detectron2 import model_zoo
 from detectron2.config import get_cfg
 from detectron2.data import DatasetCatalog, MetadataCatalog
 from detectron2.engine import DefaultPredictor
+from detectron2.structures.keypoints import Keypoints
 from detectron2.utils.events import EventStorage
 from detectron2.utils.visualizer import Visualizer
-from detectron2.structures.keypoints import Keypoints
 from PIL import Image
 
 from .dnn import DNN
+
+panoptic_segmentation_labels = [
+    "things",
+    "banner",
+    "blanket",
+    "bridge",
+    "cardboard",
+    "counter",
+    "curtain",
+    "door-stuff",
+    "floor-wood",
+    "flower",
+    "fruit",
+    "gravel",
+    "house",
+    "light",
+    "mirror-stuff",
+    "net",
+    "pillow",
+    "platform",
+    "playingfield",
+    "railroad",
+    "river",
+    "road",
+    "roof",
+    "sand",
+    "sea",
+    "shelf",
+    "snow",
+    "stairs",
+    "tent",
+    "towel",
+    "wall-brick",
+    "wall-stone",
+    "wall-tile",
+    "wall-wood",
+    "water",
+    "window-blind",
+    "window",
+    "tree",
+    "fence",
+    "ceiling",
+    "sky",
+    "cabinet",
+    "table",
+    "floor",
+    "pavement",
+    "mountain",
+    "grass",
+    "dirt",
+    "paper",
+    "food",
+    "building",
+    "rock",
+    "wall",
+    "rug",
+]
 
 
 class COCO_Model(DNN):
@@ -80,9 +137,9 @@ class COCO_Model(DNN):
         image, h, w, _ = self.preprocess_image(image)
 
         with torch.no_grad():
-            ret = self.predictor.model([{"image": image[0], "height": h, "width": w}])[
-                0
-            ]
+            ret = self.predictor.model(
+                [{"image": image[0], "height": h, "width": w}]
+            )[0]
 
         if detach:
             for key in ret:
@@ -110,7 +167,9 @@ class COCO_Model(DNN):
     def visualize(self, image, result, args):
         # set_trace()
         result = self.filter_result(result, args)
-        v = Visualizer(image, MetadataCatalog.get(self.cfg.DATASETS.TRAIN[0]), scale=1)
+        v = Visualizer(
+            image, MetadataCatalog.get(self.cfg.DATASETS.TRAIN[0]), scale=1
+        )
         out = v.draw_instance_predictions(result["instances"])
         return Image.fromarray(out.get_image(), "RGB")
 
@@ -129,7 +188,9 @@ class COCO_Model(DNN):
         if result["instances"].has("pred_masks"):
             result["instances"].gt_masks = result["instances"].pred_masks
         if result["instances"].has("pred_keypoints"):
-            result["instances"].gt_keypoints = Keypoints(result["instances"].pred_keypoints)
+            result["instances"].gt_keypoints = Keypoints(
+                result["instances"].pred_keypoints
+            )
 
         # convert result to target
         image, h, w, _ = self.preprocess_image(image)
@@ -248,16 +309,16 @@ class COCO_Model(DNN):
         fps = []
         fns = []
         for fid in result_dict.keys():
-            result = result_dict[fid]['instances'].get_fields()
-            gt = gt_dict[fid]['instances'].get_fields()
-            if len(gt['scores']) == 0 and len(result['scores'])==0:
+            result = result_dict[fid]["instances"].get_fields()
+            gt = gt_dict[fid]["instances"].get_fields()
+            if len(gt["scores"]) == 0 and len(result["scores"]) == 0:
                 prs.append(0.0)
                 res.append(0.0)
                 f1s.append(1.0)
                 tps.append(0.0)
                 fps.append(0.0)
                 fns.append(0.0)
-            elif len(result['scores'])==0 or len(gt['scores']) == 0:
+            elif len(result["scores"]) == 0 or len(gt["scores"]) == 0:
                 prs.append(0.0)
                 res.append(0.0)
                 f1s.append(0.0)
@@ -265,15 +326,16 @@ class COCO_Model(DNN):
                 fps.append(0.0)
                 fns.append(0.0)
             else:
-                video_ind_res = result['scores'] == torch.max(result['scores'])
-                kpts_res = result['pred_keypoints'][video_ind_res]
-                video_ind_gt = gt['scores'] == torch.max(gt['scores'])
-                kpts_gt = gt['pred_keypoints'][video_ind_gt]
+                video_ind_res = result["scores"] == torch.max(result["scores"])
+                kpts_res = result["pred_keypoints"][video_ind_res]
+                video_ind_gt = gt["scores"] == torch.max(gt["scores"])
+                kpts_gt = gt["pred_keypoints"][video_ind_gt]
 
                 try:
                     acc = kpts_res - kpts_gt
                 except:
                     import pdb
+
                     pdb.set_trace()
                     print("shouldnt happen")
 
@@ -282,7 +344,7 @@ class COCO_Model(DNN):
                 acc = acc[0]
                 acc = torch.sqrt(acc[:, 0] ** 2 + acc[:, 1] ** 2)
                 acc[acc < kpt_thresh * kpt_thresh] = 0
-                accuracy = 1 - (len(acc.nonzero()) /  acc.numel())
+                accuracy = 1 - (len(acc.nonzero()) / acc.numel())
                 prs.append(0.0)
                 res.append(0.0)
                 f1s.append(accuracy)

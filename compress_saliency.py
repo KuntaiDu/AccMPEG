@@ -51,7 +51,12 @@ def main(args):
     app = DNN_Factory().get_model(args.app)
 
     # construct the mask
-    mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
+    mask_shape = [
+        len(videos[-1]),
+        1,
+        720 // args.tile_size,
+        1280 // args.tile_size,
+    ]
     mask = torch.ones(mask_shape).float()
     # mask2 = torch.ones(mask_shape).float()
 
@@ -170,14 +175,17 @@ def main(args):
             # total_loss.append(loss.item())
 
             # visualize by default.
-            if fid % 100 == 0:
+            if fid % 50 == 0:
                 heat = mask_slice.cpu().detach()
                 image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-                image = app.visualize(image, app.filter_result(gt_result, args), args)
+                image = app.visualize(
+                    image, app.filter_result(gt_result, args), args
+                )
                 visualize_heat(
                     image,
                     heat,
-                    f"visualize/{args.output}/{app.name}/saliency/%010d.png" % fid,
+                    f"visualize/{args.output}/{app.name}/saliency/%010d.png"
+                    % fid,
                     args,
                 )
                 # hq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_24/%05d.png' % (fid+offset2)))[None, :, :, :].cuda()
@@ -187,7 +195,10 @@ def main(args):
                 # image = app.plot_results_on(video_results, image, (0, 255, 255), args)
 
     mask.requires_grad = False
-    write_black_bkgd_video_smoothed_continuous(mask, args, args.force_qp, logger)
+    mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
+    write_black_bkgd_video_smoothed_continuous(
+        mask, args, args.force_qp, logger
+    )
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 
@@ -222,7 +233,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument(
-        "-s", "--source", type=str, help="The original video source.", required=True
+        "-s",
+        "--source",
+        type=str,
+        help="The original video source.",
+        required=True,
     )
     # parser.add_argument('-g', '--ground_truth', type=str, help='The ground truth results.', required=True)
     parser.add_argument(
@@ -259,7 +274,7 @@ if __name__ == "__main__":
     #     "--lower_bound", type=float, help="The lower bound for the mask", required=True,
     # )
     parser.add_argument("--conv_size", type=int, required=True)
-    parser.add_argument("--force_qp", type=int, default=-1)
+    parser.add_argument("--qp", type=int, default=-1)
 
     # parser.add_argument('--mask', type=str,
     #                     help='The path of the ground truth video, for loss calculation purpose.', required=True)

@@ -2,13 +2,16 @@ import argparse
 import glob
 import logging
 import pickle
+from datetime import datetime
 from pathlib import Path
 from pdb import set_trace
 
 import coloredlogs
 import enlighten
 import torch
+import torch.nn.functional as F
 import torchvision.transforms as T
+from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
 
 #from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
@@ -41,8 +44,11 @@ def main(args):
             normalize=False,
             from_source=False,
         )
-    # from utils.video_utils import write_video
-    # write_video(videos[0], 'download.mp4', logger)
+
+    # Construct image writer for visualization purpose
+    writer = SummaryWriter(
+        f"runs/{args.app}/{args.input}_{datetime.now().strftime(r'%d:%H:%M:%S')}"
+    )
 
     app = DNN_Factory().get_model(args.app)
     if args.enable_cloudseg:
@@ -65,7 +71,9 @@ def main(args):
         # video_slice = video_slice.cuda()
 
         if args.enable_cloudseg:
-            assert "dual" not in args.input, "Dual does not work well with cloudseg."
+            assert (
+                "dual" not in args.input
+            ), "Dual does not work well with cloudseg."
             video_slice = super_resoluter(video_slice)
 
         # video_slice = transforms(video_slice[0])[None, :, :, :]
@@ -73,13 +81,20 @@ def main(args):
         inference_results[fid] = app.inference(video_slice, detach=True)
 
         if fid % 100 == 0:
-            folder = Path("visualize/" + args.input + "/" + app.name + "/inference/")
-            folder.mkdir(exist_ok=True, parents=True)
-            image = T.ToPILImage()(video_slice[0].cpu())
-            image = app.visualize(image, inference_results[fid], args)
-            image.save(folder / ("%010d.png" % fid))
+            image = T.ToPILImage()(
+                F.interpolate(video_slice, (720, 1280))[0].cpu()
+            )
+            from PIL import Image
 
-        # set_trace()
+            # image2 = Image.open(
+            #     "DAVIS/videos/DAVIS_1_qp_30.mp4.pngs/%010d.png" % fid
+            # )
+            writer.add_image("decoded_image", T.ToTensor()(image), fid)
+            # writer.add_image(
+            #     "diff", (T.ToTensor()(image) - T.ToTensor()(image2)) + 0.3, fid
+            # )
+            image = app.visualize(image, inference_results[fid], args)
+            writer.add_image("inference_result", T.ToTensor()(image), fid)
 
     write_results(args.input, app.name, inference_results, logger)
 

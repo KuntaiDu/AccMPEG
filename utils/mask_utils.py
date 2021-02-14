@@ -65,7 +65,9 @@ def tile_masks(mask, tile_size):
         Here the mask is of shape [N, 1, H, W]
     """
 
-    return torch.cat([tile_mask(mask_slice, tile_size) for mask_slice in mask.split(1)])
+    return torch.cat(
+        [tile_mask(mask_slice, tile_size) for mask_slice in mask.split(1)]
+    )
 
 
 def mask_clip(mask, minval):
@@ -364,11 +366,15 @@ def dilate_binarize(mask, lower_bound, kernel_size, cuda=True):
         (mask > lower_bound), torch.ones_like(mask), torch.zeros_like(mask),
     )
     mask = F.conv2d(mask, kernel, stride=1, padding=(kernel_size - 1) // 2,)
-    mask = torch.where(mask > 0.5, torch.ones_like(mask), torch.zeros_like(mask),)
+    mask = torch.where(
+        mask > 0.5, torch.ones_like(mask), torch.zeros_like(mask),
+    )
     return mask
 
 
-def write_black_bkgd_video_smoothed_continuous(mask, args, qp, logger):
+def write_black_bkgd_video_smoothed_continuous(
+    mask, args, qp, logger, protect=False, writer=None, tag=None
+):
 
     subprocess.run(["rm", "-r", args.output + "*"])
 
@@ -383,36 +389,38 @@ def write_black_bkgd_video_smoothed_continuous(mask, args, qp, logger):
     os.system(f"cp -r {args.source} {args.output}.source.pngs")
 
     progress_bar = enlighten.get_manager().counter(
-        total=mask.shape[0], desc=f"Generate raw png of {args.output}", unit="frames"
+        total=mask.shape[0],
+        desc=f"Generate raw png of {args.output}",
+        unit="frames",
     )
 
-    for mask_slice in mask.split(args.smooth_frames):
-        mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
+    # for mask_slice in mask.split(args.smooth_frames):
+    #     mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
 
-    if hasattr(args, "upper_bound") and hasattr(args, "lower_bound"):
-        logger.info("Using upper bound and lower bound.")
-        # mask = torch.where(
-        #     (mask < args.upper_bound) & (mask >= args.lower_bound),
-        #     torch.ones_like(mask),
-        #     torch.zeros_like(mask),
-        # )
-        # mask = dilate_binarize(mask.cuda(), 0.5, args.conv_size).cpu()
-        assert args.upper_bound >= args.lower_bound
-        mask = mask.cuda()
-        x = dilate_binarize(mask, args.lower_bound, args.conv_size)
-        y = dilate_binarize(mask, args.upper_bound, args.conv_size)
-        # set_trace()
-        mask = x - y
-        mask = mask.cpu()
-    else:
-        logger.info("Using single bound.")
-        if hasattr(args, "conv_size_large") and args.conv_size_large != -1:
-            mask = mask.cuda()
-            maska = dilate_binarize(mask, args.bound, args.conv_size).cpu()
-            maskb = dilate_binarize(mask, args.bound, args.conv_size_large).cpu()
-            mask = maskb - maska
-        else:
-            mask = dilate_binarize(mask.cuda(), args.bound, args.conv_size).cpu()
+    # if hasattr(args, "upper_bound") and hasattr(args, "lower_bound"):
+    #     logger.info("Using upper bound and lower bound.")
+    #     # mask = torch.where(
+    #     #     (mask < args.upper_bound) & (mask >= args.lower_bound),
+    #     #     torch.ones_like(mask),
+    #     #     torch.zeros_like(mask),
+    #     # )
+    #     # mask = dilate_binarize(mask.cuda(), 0.5, args.conv_size).cpu()
+    #     assert args.upper_bound >= args.lower_bound
+    #     mask = mask.cuda()
+    #     x = dilate_binarize(mask, args.lower_bound, args.conv_size)
+    #     y = dilate_binarize(mask, args.upper_bound, args.conv_size)
+    #     # set_trace()
+    #     mask = x - y
+    #     mask = mask.cpu()
+    # else:
+    #     logger.info("Using single bound.")
+    #     if hasattr(args, "conv_size_large") and args.conv_size_large != -1:
+    #         mask = mask.cuda()
+    #         maska = dilate_binarize(mask, args.bound, args.conv_size).cpu()
+    #         maskb = dilate_binarize(mask, args.bound, args.conv_size_large).cpu()
+    #         mask = maskb - maska
+    #     else:
+    #         mask = dilate_binarize(mask.cuda(), args.bound, args.conv_size).cpu()
 
     # set_trace()
 
@@ -420,6 +428,9 @@ def write_black_bkgd_video_smoothed_continuous(mask, args, qp, logger):
 
     with open(f"{args.output}.mask", "wb") as f:
         pickle.dump(mask, f)
+
+    if protect:
+        mask = dilate_binarize(mask, 0.5, 3, False)
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         for fid, mask_slice in enumerate(mask.split(1)):
@@ -440,7 +451,10 @@ def write_black_bkgd_video_smoothed_continuous(mask, args, qp, logger):
             mask_slice = tile_mask(mask_slice, args.tile_size)
             # construct and write image
             image = torch.where(mask_slice == 1, image, background)
-            image = T.ToPILImage()(image[0, :, :, :])
+            if writer is not None and fid % args.visualize_step_size == 0:
+                assert tag is not None, "Please assign a tag for the writer"
+                writer.add_image(tag, image[0], fid)
+            image = T.ToPILImage()(image[0])
             executor.submit(image.save, filename)
 
     # assert qps[0] == 22
@@ -615,7 +629,9 @@ def generate_mask_from_regions(mask_slice, regions, minval, tile_size):
         mask_slice, torch.ones([1, 3, tile_size, tile_size]), stride=tile_size
     )
     mask_slice = torch.where(
-        mask_slice > 0.5, torch.ones_like(mask_slice), torch.zeros_like(mask_slice)
+        mask_slice > 0.5,
+        torch.ones_like(mask_slice),
+        torch.zeros_like(mask_slice),
     )
     mask_slice_orig[:, :, :, :] = mask_slice[:, :, :, :]
 
