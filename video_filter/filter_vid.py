@@ -213,7 +213,7 @@ for frame_idx in tqdm(range(len(img_names))):
         print(f'{counter}/{num_frames}; keep: {keep}; discard: {discard}')
 
 # write statistics to stat file
-with open(args.stat_file_path, 'a+') as f:
+with open(args.stats_file_path, 'a+') as f:
     f.write(f"Video name: {args.video}, Usable frames: {keep}/{num_frames}\n")
     f.write(f"Error 1: {e1}/{num_frames-keep}, Error 2: {e2}/{num_frames-keep}, Error 3: {e3}/{num_frames-keep}\n")
 checkpoint2 = time.time()
