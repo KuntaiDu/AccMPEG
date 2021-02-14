@@ -1,3 +1,1 @@
-1. To specify tha paths of the videos to filter, refer to line 153-156.
-
-2. To modify the lower and upper bound of acceptable human size, refer to line 104.
+Put the name of the videos to be filtered in video_list in batch_filter_vid.py, and start!
