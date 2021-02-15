@@ -6,8 +6,10 @@ from pathlib import Path
 
 from munch import Munch
 
-gt_qp = 24
-qp_list = [24, 26, 28, 30, 31, 32, 34, 36, 40, 42, 44, 46, 48]
+from utils.results_utils import read_results
+
+gt_qp = 30
+qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
 # qp_list = [32, 42]
 quality_list = [
     "veryfast",
@@ -21,6 +23,8 @@ quality_list = [
 
 
 def main(args):
+
+    logger = logging.getLogger("mpeg_curve")
 
     for video_name in args.inputs:
         assert Path(video_name).is_dir()
@@ -84,18 +88,24 @@ def main(args):
                     ]
                 )
 
-            subprocess.run(
-                [
-                    "python",
-                    "inference.py",
-                    "-i",
-                    output_name,
-                    "--app",
-                    args.app,
-                    # "--confidence_threshold",
-                    # "0.95",
-                ]
-            )
+            try:
+                from pdb import set_trace
+
+                # set_trace()
+                result = read_results(output_name, args.app, logger)
+            except FileNotFoundError:
+                subprocess.run(
+                    [
+                        "python",
+                        "inference.py",
+                        "-i",
+                        output_name,
+                        "--app",
+                        args.app,
+                        # "--confidence_threshold",
+                        # "0.95",
+                    ]
+                )
 
             subprocess.run(
                 [

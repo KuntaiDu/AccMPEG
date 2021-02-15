@@ -48,9 +48,7 @@ def main(args):
 
     # remove previous data
 
-    writer = SummaryWriter(
-        f"runs/{args.app}/{args.output}_{datetime.now().strftime(r'%d:%H:%M:%S')}"
-    )
+    writer = SummaryWriter(f"runs/{args.app}/{args.output}")
 
     # construct apps
     app = DNN_Factory().get_model(args.app)

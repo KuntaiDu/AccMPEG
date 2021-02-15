@@ -269,7 +269,10 @@ class COCO_Model(DNN):
             fp = len(result) - tp
             fp = max(fp, 0)
 
-            f1 = 2 * tp / (2 * tp + fp + fn)
+            if 2 * tp + fp + fn == 0:
+                f1 = 1.0
+            else:
+                f1 = 2 * tp / (2 * tp + fp + fn)
             if tp + fp == 0:
                 pr = 1.0
             else:
@@ -293,38 +296,38 @@ class COCO_Model(DNN):
             "tp": torch.tensor(tps).sum().item(),
             "fp": torch.tensor(fps).sum().item(),
             "fn": torch.tensor(fns).sum().item(),
-            "f1s": f1s,
-            "prs": prs,
-            "res": res,
-            "tps": tps,
-            "fns": fns,
-            "fps": fps,
+            # "f1s": f1s,
+            # "prs": prs,
+            # "res": res,
+            # "tps": tps,
+            # "fns": fns,
+            # "fps": fps,
         }
 
     def calc_accuracy_keypoint(self, result_dict, gt_dict, args):
         f1s = []
-        prs = []
-        res = []
-        tps = []
-        fps = []
-        fns = []
+        # prs = []
+        # res = []
+        # tps = []
+        # fps = []
+        # fns = []
         for fid in result_dict.keys():
             result = result_dict[fid]["instances"].get_fields()
             gt = gt_dict[fid]["instances"].get_fields()
             if len(gt["scores"]) == 0 and len(result["scores"]) == 0:
-                prs.append(0.0)
-                res.append(0.0)
+                # prs.append(0.0)
+                # res.append(0.0)
                 f1s.append(1.0)
-                tps.append(0.0)
-                fps.append(0.0)
-                fns.append(0.0)
+                # tps.append(0.0)
+                # fps.append(0.0)
+                # fns.append(0.0)
             elif len(result["scores"]) == 0 or len(gt["scores"]) == 0:
-                prs.append(0.0)
-                res.append(0.0)
+                # prs.append(0.0)
+                # res.append(0.0)
                 f1s.append(0.0)
-                tps.append(0.0)
-                fps.append(0.0)
-                fns.append(0.0)
+                # tps.append(0.0)
+                # fps.append(0.0)
+                # fns.append(0.0)
             else:
                 video_ind_res = result["scores"] == torch.max(result["scores"])
                 kpts_res = result["pred_keypoints"][video_ind_res]
@@ -345,24 +348,24 @@ class COCO_Model(DNN):
                 acc = torch.sqrt(acc[:, 0] ** 2 + acc[:, 1] ** 2)
                 acc[acc < kpt_thresh * kpt_thresh] = 0
                 accuracy = 1 - (len(acc.nonzero()) / acc.numel())
-                prs.append(0.0)
-                res.append(0.0)
-                f1s.append(accuracy)
-                tps.append(0.0)
-                fps.append(0.0)
-                fns.append(0.0)
+                # prs.append(0.0)
+                # res.append(0.0)
+                # f1s.append(accuracy)
+                # tps.append(0.0)
+                # fps.append(0.0)
+                # fns.append(0.0)
 
         return {
             "f1": torch.tensor(f1s).mean().item(),
-            "pr": torch.tensor(prs).mean().item(),
-            "re": torch.tensor(res).mean().item(),
-            "tp": torch.tensor(tps).sum().item(),
-            "fp": torch.tensor(fps).sum().item(),
-            "fn": torch.tensor(fns).sum().item(),
-            "f1s": f1s,
-            "prs": prs,
-            "res": res,
-            "tps": tps,
-            "fns": fns,
-            "fps": fps,
+            # "pr": torch.tensor(prs).mean().item(),
+            # "re": torch.tensor(res).mean().item(),
+            # "tp": torch.tensor(tps).sum().item(),
+            # "fp": torch.tensor(fps).sum().item(),
+            # "fn": torch.tensor(fns).sum().item(),
+            # "f1s": f1s,
+            # "prs": prs,
+            # "res": res,
+            # "tps": tps,
+            # "fns": fns,
+            # "fps": fps,
         }

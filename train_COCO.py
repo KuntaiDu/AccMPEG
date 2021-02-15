@@ -184,7 +184,7 @@ def main(args):
     # load ground truth results
     saliency = {}
 
-    if False and len(glob.glob(args.ground_truth + "*")) != 0:
+    if len(glob.glob(args.ground_truth + "*")) != 0:
         saliency = {}
         for ground_truth in glob.glob(args.ground_truth + "*"):
             with open(ground_truth, "rb") as f:
@@ -203,10 +203,10 @@ def main(args):
         )
         saliency = {}
 
-        saliency = {}
-        for ground_truth in glob.glob(args.ground_truth + "*"):
-            with open(ground_truth, "rb") as f:
-                saliency.update(pickle.load(f))
+        # saliency = {}
+        # for ground_truth in glob.glob(args.ground_truth + "*"):
+        #     with open(ground_truth, "rb") as f:
+        #         saliency.update(pickle.load(f))
 
         for data in loader:
             progress_bar.update()
@@ -229,37 +229,37 @@ def main(args):
             with torch.no_grad():
                 hq_result = app.inference(hq_image, detach=True)
                 hq_result = app.filter_result(hq_result, args)
-            if len(hq_result["instances"]) == 0 and fid in saliency:
-                del saliency[fid]
+            if len(hq_result["instances"]) == 0:
+                continue
 
+            with torch.enable_grad():
+                loss = app.calc_loss(lq_image, hq_result, args)
+            # lq_image.requires_grad = True
+            # # print(lq_image.requires_grad)
             # with torch.enable_grad():
-            #     loss = app.calc_loss(lq_image, hq_result, args)
-            # # lq_image.requires_grad = True
-            # # # print(lq_image.requires_grad)
-            # # with torch.enable_grad():
-            # #     lq_result = application.model(lq_image)["out"]
-            # #     loss = F.cross_entropy(lq_result, hq_result)
-            # #     # print(lq_image.requires_grad)
-            # loss.backward()
+            #     lq_result = application.model(lq_image)["out"]
+            #     loss = F.cross_entropy(lq_result, hq_result)
+            #     # print(lq_image.requires_grad)
+            loss.backward()
 
-            # mask_grad = lq_image.grad.norm(dim=1, p=2, keepdim=True)
-            # mask_grad = F.conv2d(
-            #     mask_grad,
-            #     torch.ones([1, 1, args.tile_size, args.tile_size]).cuda(),
-            #     stride=args.tile_size,
-            # )
-            # # determine the threshold
-            # mask_grad = mask_grad.detach().cpu()
-            # # normalize gradient to [0, 1]
-            # mask_grad = mask_grad - mask_grad.min()
-            # mask_grad = mask_grad / mask_grad.max()
-            # mask_grad = mask_grad.detach().cpu()
+            mask_grad = lq_image.grad.norm(dim=1, p=2, keepdim=True)
+            mask_grad = F.conv2d(
+                mask_grad,
+                torch.ones([1, 1, args.tile_size, args.tile_size]).cuda(),
+                stride=args.tile_size,
+            )
+            # determine the threshold
+            mask_grad = mask_grad.detach().cpu()
+            # normalize gradient to [0, 1]
+            mask_grad = mask_grad - mask_grad.min()
+            mask_grad = mask_grad / mask_grad.max()
+            mask_grad = mask_grad.detach().cpu()
 
             # # save it
-            # saliency[fid] = mask_grad.detach().cpu()
+            saliency[fid] = mask_grad.detach().cpu()
 
             # visualize the saliency
-            if False and fid % 500 == 0:
+            if fid % 500 == 0:
 
                 # visualize
                 if args.visualize:
@@ -294,7 +294,7 @@ def main(args):
                     #     f.write(f"{mean} {std}")
 
         # write saliency to disk
-        with open(args.ground_truth + f"{args.local_rank}", "wb") as f:
+        with open(args.ground_truth, "wb") as f:
             pickle.dump(saliency, f)
 
     # training

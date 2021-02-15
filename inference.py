@@ -14,13 +14,14 @@ import torchvision.transforms as T
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
 
-#from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
 from dnn.CARN.interface import CARN
 from dnn.dnn_factory import DNN_Factory
 from utils.mask_utils import merge_black_bkgd_images
 from utils.results_utils import write_results
 from utils.video_utils import read_videos
+
+# from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+
 
 # a video is by default a 4-D Tensor [Time, Height, Width, Channel]
 

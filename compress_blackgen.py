@@ -16,18 +16,18 @@ import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
 from PIL import Image
+from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
 
-#from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
+from dnn.dnn_factory import DNN_Factory
 from maskgen.vgg11 import FCN
-#from maskgen.fcn_16_single_channel import FCN
 from utils.bbox_utils import center_size
 from utils.loss_utils import focal_loss as get_loss
 from utils.mask_utils import *
 from utils.results_utils import read_ground_truth, read_results
 from utils.timer import Timer
 from utils.video_utils import get_qp_from_name, read_videos, write_video
+from utils.visualize_utils import visualize_heat_by_summarywriter
 
 sns.set()
 
@@ -48,38 +48,29 @@ def main(args):
     qps = [get_qp_from_name(video_name) for video_name in video_names]
 
     # construct applications
-    application = KeypointRCNN_ResNet50_FPN() #FasterRCNN_ResNet50_FPN()
+    app = DNN_Factory().get_model(args.app)
 
     mask_generator = FCN()
     mask_generator.load(args.path)
     mask_generator.eval().cuda()
 
     # construct the mask
-    mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
+    mask_shape = [
+        len(videos[-1]),
+        1,
+        720 // args.tile_size,
+        1280 // args.tile_size,
+    ]
     mask = torch.ones(mask_shape).float()
 
-    # ground_truth_dict = read_results(
-    #     args.ground_truth, "FasterRCNN_ResNet50_FPN", logger
-    # )
-    # logger.info('Reading ground truth mask')
-    # with open(args.mask + '.mask', 'rb') as f:
-    #     ground_truth_mask = pickle.load(f)
-    # ground_truth_mask = ground_truth_mask[sorted(ground_truth_mask.keys())[1]]
-    # ground_truth_mask = ground_truth_mask.split(1)
-
-    plt.clf()
-    plt.figure(figsize=(16, 10))
-
-    # binarized_mask = mask.clone().detach()
-    # binarize_mask(binarized_mask, bws)
-    # if iteration > 3 * (args.num_iterations // 4):
-    #     (args.binarize_weight * torch.tensor(iteration*1.0) * (binarized_mask - mask).abs().pow(2).mean()).backward()
+    # construct the writer for writing the result
+    writer = SummaryWriter(f"runs/{args.app}/{args.output}")
 
     for temp in range(1):
 
         logger.info(f"Processing application")
         progress_bar = enlighten.get_manager().counter(
-            total=len(videos[-1]), desc=f"Obj detection", unit="frames"
+            total=len(videos[-1]), desc=f"{app.name}", unit="frames"
         )
 
         # application.cuda()
@@ -119,8 +110,8 @@ def main(args):
                 # )
                 hq_image = hq_image.cuda()
                 # mask_generator = mask_generator.cpu()
-                with Timer("maskgen", logger):
-                    mask_gen = mask_generator(hq_image)
+                # with Timer("maskgen", logger):
+                mask_gen = mask_generator(hq_image)
                 # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
                 mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
                 # mask_lb = dilate_binarize(mask_gen, args.bound, args.conv_size)
@@ -128,72 +119,35 @@ def main(args):
                 mask_slice[:, :, :, :] = mask_gen
                 # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
 
-            # mask_slice[:, :, :, :] = ground_truth_mask[fid + offset2].float()
-
-            # lq_image[:, :, :, :] = background
-            # # calculate the loss, to see the generalization error
-            # with torch.no_grad():
-            #     mask_slice = tile_mask(mask_slice, args.tile_size)
-            #     masked_image = generate_masked_image(
-            #         mask_slice, video_slices, bws)
-
-            #     video_results = application.inference(
-            #         masked_image.cuda(), True)[0]
-            #     f1s.append(application.calc_accuracy({
-            #         fid: video_results
-            #     }, {
-            #         fid: ground_truth_dict[fid]
-            #     }, args)['f1'])
-
-            # import pdb; pdb.set_trace()
-            # loss, _ = application.calc_loss(masked_image.cuda(),
-            #                                 application.inference(video_slices[-1].cuda(), detach=True)[0], args)
-            # total_loss.append(loss.item())
-
             # visualization
-            if args.visualize and (fid % 100 == 0):
-                heat = tile_mask(mask_gen, args.tile_size)[0, 0, :, :]
-                fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
-                ax = sns.heatmap(
-                    heat.cpu().detach().numpy(),
-                    zorder=3,
-                    alpha=0.5,
-                    ax=ax,
-                    xticklabels=False,
-                    yticklabels=False,
-                )  # 1.3s
-                # with torch.no_grad():
-                #     inf = application.inference(hq_image, detach=True)[0]
-                image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-                # image = application.plot_results_on(inf, image, (255, 255, 255), args)
-                # image = application.plot_results_on(video_results, image, (0, 255, 255), args)
-                ax.imshow(image, zorder=3, alpha=0.5)
-                ax.tick_params(left=False, bottom=False)
-                Path(f"heat/{args.output}/").mkdir(parents=True, exist_ok=True)
-                fig.savefig(
-                    f"heat/{args.output}/{fid}.png", bbox_inches="tight"
-                )  # 4.6s ==> 1.1s
+            if fid % args.visualize_step_size == 0:
 
-                # plt.clf()
-                # sns.distplot(heat.flatten().detach().numpy())
-                # plt.savefig(
-                #     f"visualize/{args.output}/{fid}_dist.png", bbox_inches="tight"
-                # )
+                image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+
+                visualize_heat_by_summarywriter(
+                    image,
+                    mask_slice.cpu().detach().float(),
+                    "inferred_saliency",
+                    writer,
+                    fid,
+                    args,
+                )
 
         logger.info("In video %s", args.output)
         logger.info("The average loss is %.3f" % torch.tensor(losses).mean())
 
-        with open("temp.txt", "w") as f:
-            f.write(f"{torch.tensor(f1s).mean()}")
-        logger.info("The average f1 is %.3f" % torch.tensor(f1s).mean())
-
-        application.cpu()
+        # application.cpu()
 
     mask.requires_grad = False
-    qps = [min(qps)]
-    if args.force_qp != -1:
-        qps = [args.force_qp]
-    write_black_bkgd_video_smoothed_continuous(mask, args, qps, bws, logger)
+
+    for mask_slice in mask.split(args.smooth_frames):
+        mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
+
+    mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
+
+    write_black_bkgd_video_smoothed_continuous(
+        mask, args, args.qp, logger, writer=writer, tag="hq"
+    )
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 
@@ -207,6 +161,10 @@ if __name__ == "__main__":
     )
 
     parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--app", type=str, help="The name of the model.", required=True,
+    )
 
     parser.add_argument(
         "-i",
@@ -224,7 +182,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument(
-        "-s", "--source", type=str, help="The original video source.", required=True
+        "-s",
+        "--source",
+        type=str,
+        help="The original video source.",
+        required=True,
     )
     # parser.add_argument('-g', '--ground_truth', type=str, help='The ground truth results.', required=True)
     parser.add_argument(
@@ -234,7 +196,7 @@ if __name__ == "__main__":
         "--confidence_threshold",
         type=float,
         help="The confidence score threshold for calculating accuracy.",
-        default=0.5,
+        default=0.7,
     )
     parser.add_argument(
         "--iou_threshold",
@@ -259,19 +221,25 @@ if __name__ == "__main__":
     #     "--lower_bound", type=float, help="The lower bound for the mask", required=True,
     # )
     parser.add_argument(
-        "--bound", type=float, help="The lower bound for the mask", required=True,
-    )
-    parser.add_argument(
-        "--visualize", type=bool, help="Visualize the mask if True", default=False,
+        "--bound",
+        type=float,
+        help="The lower bound for the mask",
+        required=True,
     )
     parser.add_argument(
         "--smooth_frames",
         type=int,
         help="Proposing one single mask for smooth_frames many frames",
-        default=250,
+        default=30,
+    )
+    parser.add_argument(
+        "--visualize_step_size",
+        type=int,
+        help="Proposing one single mask for smooth_frames many frames",
+        default=100,
     )
     parser.add_argument("--conv_size", type=int, default=1)
-    parser.add_argument("--force_qp", type=int, default=-1)
+    parser.add_argument("--qp", type=int, required=True)
 
     # parser.add_argument('--mask', type=str,
     #                     help='The path of the ground truth video, for loss calculation purpose.', required=True)

@@ -7,20 +7,21 @@ from itertools import product
 
 # v_list = ['train_first/trafficcam_%d_train' % (i+1) for i in range(4)] + ['train_first/dashcam_%d_train' % (i+1) for i in range(4)]
 # v_list = [v_list[4]]
-
-model_name = "COCO_full_normalizedsaliency_R_101_DC5_crossthresh"
+attr = "C4"
+model_name = f"COCO_full_normalizedsaliency_R_101_{attr}_crossthresh"
 filename = "vgg11"
+
 
 subprocess.run(
     [
         "python",
         "train_COCO.py",
         "-g",
-        f"COCO_full_normalizedsaliency_R_101_DC5.pickle",
+        f"COCO_full_normalizedsaliency_R_101_{attr}.pickle",
         "-p",
         f"maskgen_pths/{model_name}.pth",
         "--init",
-        f"maskgen_pths/COCO_full_normalizedsaliency_R_101_DC5_crossthresh.pth.best",
+        f"maskgen_pths/COCO_full_normalizedsaliency_R_101_{attr}_crossthresh.pth.best",
         "--tile_size",
         "16",
         "--batch_size",
@@ -32,6 +33,6 @@ subprocess.run(
         "--visualize",
         "True",
         "--app",
-        "COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml",
+        f"COCO-Detection/faster_rcnn_R_101_{attr}_3x.yaml",
     ]
 )

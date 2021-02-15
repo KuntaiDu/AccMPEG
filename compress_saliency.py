@@ -18,8 +18,6 @@ import torchvision.transforms as T
 from PIL import Image
 from torchvision import io
 
-#from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
 from dnn.dnn_factory import DNN_Factory
 from maskgen.fcn_16_single_channel import FCN
 from utils.bbox_utils import center_size
