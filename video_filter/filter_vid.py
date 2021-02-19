@@ -79,7 +79,7 @@ def visualize_prediction(img_path, pred, threshold=0.75, rect_th=3, text_size=3,
 #=====================================
 #filtration
 #=====================================
-def filter_confidence(pred, threshold=0.75):
+def filter_confidence(fname, pred, threshold=0.75):
     pred_class = [COCO_INSTANCE_CATEGORY_NAMES[i] for i in list(pred['labels'].cpu().numpy())] # Get the Prediction Score
     pred_boxes = [[(i[0], i[1]), (i[2], i[3])] for i in list(pred['boxes'].cpu().detach().numpy())] # Bounding boxes
     pred_score = list(pred['scores'].cpu().detach().numpy())
@@ -156,13 +156,14 @@ parser.add_argument('--result_folder_path', required=True)
 parser.add_argument('--stats_file_path', required=True)
 parser.add_argument('--upper_bound', required=True)
 parser.add_argument('--lower_bound', required=True)
+parser.add_argument('--confidence_threshold', required=True)
 args = parser.parse_args()
 
 if not os.path.isdir(args.result_folder_path):
     os.mkdir(args.result_folder_path)
 
 video_path = os.path.join(args.video_folder_path, args.video)
-result_path = os.path.join(args.result_folder_path, f"{args.video}_filtered_ub_{args.upper_bound}_lb_{args.lower_bound}") 
+result_path = os.path.join(args.result_folder_path, f"{args.video}_filtered_conf_{args.confidence_threshold}_ub_{args.upper_bound}_lb_{args.lower_bound}") 
 if not os.path.isdir(result_path):
     os.mkdir(result_path)
 img_names = os.listdir(video_path)
@@ -171,6 +172,7 @@ num_frames = len(img_names)
 # process each frame in the video
 checkpoint1 = time.time()
 print(f"Processing {args.video}......")
+print(f"UB: {args.upper_bound}, LB: {args.lower_bound}")
 counter,keep,discard = 0,0,0
 e1,e2,e3 = 0,0,0
 
@@ -187,7 +189,7 @@ for frame_idx in tqdm(range(len(img_names))):
     obj_predictions = infer_keypoint_detection([image_array])
 
     # we only keep bboxes with confidence score higher than the threshold
-    pred_boxes, pred_score, pred_class = filter_confidence(obj_predictions, threshold=0.5)
+    pred_boxes, pred_score, pred_class = filter_confidence(frame, obj_predictions, threshold=float(args.confidence_threshold))
 
     # filtering based on standards above
     filter_flag, error_type = filter(pred_boxes, pred_score, pred_class)
@@ -196,8 +198,9 @@ for frame_idx in tqdm(range(len(img_names))):
 
     # keep or discard
     if 'True' in str(filter_flag):
-        new_frame_name = str(keep).zfill(10) + ".png"
-        filtered_img_path = os.path.join(result_path, new_frame_name)
+        #new_frame_name = str(keep).zfill(10) + ".png"
+        #filtered_img_path = os.path.join(result_path, new_frame_name)
+        filtered_img_path = os.path.join(result_path, frame)
         copy_img = subprocess.run(['cp', str(img_path), str(filtered_img_path)],
                                     stdout=subprocess.PIPE)
         keep += 1
@@ -209,8 +212,8 @@ for frame_idx in tqdm(range(len(img_names))):
         else:
             e3 = e3 + 1
         discard += 1
-    if counter % 500 == 0:   
-        print(f'{counter}/{num_frames}; keep: {keep}; discard: {discard}')
+    #if counter % 500 == 0:   
+    #    print(f'{counter}/{num_frames}; keep: {keep}; discard: {discard}')
 
 # write statistics to stat file
 with open(args.stats_file_path, 'a+') as f:
