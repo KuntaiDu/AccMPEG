@@ -79,13 +79,14 @@ def visualize_prediction(img_path, pred, threshold=0.75, rect_th=3, text_size=3,
 #=====================================
 #filtration
 #=====================================
-def filter_confidence(fname, pred, threshold=0.75):
+def filter_confidence(fname, pred, threshold):
     pred_class = [COCO_INSTANCE_CATEGORY_NAMES[i] for i in list(pred['labels'].cpu().numpy())] # Get the Prediction Score
     pred_boxes = [[(i[0], i[1]), (i[2], i[3])] for i in list(pred['boxes'].cpu().detach().numpy())] # Bounding boxes
     pred_score = list(pred['scores'].cpu().detach().numpy())
 
     # Get list of index with score greater than threshold.
     list_large_score = [pred_score.index(x) for x in pred_score if x > threshold]
+    #import pdb;pdb.set_trace()
     if not list_large_score:
         return [], [], []
     else: 
@@ -198,9 +199,9 @@ for frame_idx in tqdm(range(len(img_names))):
 
     # keep or discard
     if 'True' in str(filter_flag):
-        #new_frame_name = str(keep).zfill(10) + ".png"
-        #filtered_img_path = os.path.join(result_path, new_frame_name)
-        filtered_img_path = os.path.join(result_path, frame)
+        new_frame_name = str(keep).zfill(10) + ".png"
+        filtered_img_path = os.path.join(result_path, new_frame_name)
+        #filtered_img_path = os.path.join(result_path, frame)
         copy_img = subprocess.run(['cp', str(img_path), str(filtered_img_path)],
                                     stdout=subprocess.PIPE)
         keep += 1
