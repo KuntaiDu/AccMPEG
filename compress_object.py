@@ -16,8 +16,10 @@ import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
 from PIL import Image
+from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
 
+from dnn.dnn_factory import DNN_Factory
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from maskgen.fcn_16_single_channel import FCN
 from utils.bbox_utils import center_size
@@ -43,28 +45,32 @@ def main(args):
     videos = videos
     bws = [0, 1]
     qps = [get_qp_from_name(video_name) for video_name in video_names]
-    qps = [min(qps)]
-    if args.force_qp:
-        qps = [args.force_qp]
 
     # construct applications
-    application = FasterRCNN_ResNet50_FPN()
+    app = DNN_Factory().get_model(args.app)
 
     # mask_generator = FCN()
     # mask_generator.load(args.path)
     # mask_generator.train().cuda()
 
     # construct the mask
-    mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
+    mask_shape = [
+        len(videos[-1]),
+        1,
+        720 // args.tile_size,
+        1280 // args.tile_size,
+    ]
     mask = torch.ones(mask_shape).float()
 
-    ground_truth_results = read_results(
-        args.ground_truth, "FasterRCNN_ResNet50_FPN", logger
-    )
+    ground_truth_dict = read_results(args.ground_truth, app.name, logger)
+
+    writer = SummaryWriter(f"runs/{args.app}/{args.output}")
 
     regions = [
-        center_size(application.filter_results(i, args.confidence_threshold)[2])
-        for i in ground_truth_results.values()
+        center_size(
+            app.filter_result(i, args, gt=True)["instances"].pred_boxes.tensor
+        )
+        for i in ground_truth_dict.values()
     ]
     # logger.info('Reading ground truth mask')
     # with open(args.mask + '.mask', 'rb') as f:
@@ -80,23 +86,23 @@ def main(args):
     # if iteration > 3 * (args.num_iterations // 4):
     #     (args.binarize_weight * torch.tensor(iteration*1.0) * (binarized_mask - mask).abs().pow(2).mean()).backward()
 
-    for iteration in range(1):
+    logger.info(f"Processing application {app.name}")
+    progress_bar = enlighten.get_manager().counter(
+        total=len(videos[-1]), desc=f"{app.name}", unit="frames"
+    )
 
-        logger.info(f"Processing application {application.name}")
-        progress_bar = enlighten.get_manager().counter(
-            total=len(videos[-1]), desc=f"{application.name}", unit="frames"
+    for fid in ground_truth_dict:
+
+        progress_bar.update()
+        # lq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_34/%05d.png' % (fid+offset2)))[None, :, :, :]
+
+        mask[fid : fid + 1, :, :, :] = generate_mask_from_regions(
+            mask[fid : fid + 1, :, :, :], regions[fid], 0, args.tile_size
         )
 
-        for fid in ground_truth_results:
-
-            progress_bar.update()
-            # lq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_34/%05d.png' % (fid+offset2)))[None, :, :, :]
-
-            mask[fid : fid + 1, :, :, :] = generate_mask_from_regions(
-                mask[fid : fid + 1, :, :, :], regions[fid], 0, args.tile_size
-            )
-
-    write_black_bkgd_video_smoothed_continuous(mask, args, qps, bws, logger)
+    write_black_bkgd_video_smoothed_continuous(
+        mask, args, args.qp, logger, writer=writer, tag="hq"
+    )
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 
@@ -126,16 +132,18 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
-        "--num_iterations", type=int, default=10,
+        "-s",
+        "--source",
+        type=str,
+        help="The original video source.",
+        required=True,
     )
-    parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument(
-        "-s", "--source", type=str, help="The original video source.", required=True
-    )
-    parser.add_argument("--delta", type=int, default=32)
     # parser.add_argument('-g', '--ground_truth', type=str, help='The ground truth results.', required=True)
     parser.add_argument(
         "-o", "--output", type=str, help="The output name.", required=True
+    )
+    parser.add_argument(
+        "--visualize_step_size", type=int, help="Visualization", default=100,
     )
     parser.add_argument(
         "--confidence_threshold",
@@ -156,31 +164,18 @@ if __name__ == "__main__":
         default=0.5,
     )
     parser.add_argument(
-        "--tile_size", type=int, help="The tile size of the mask.", default=8
+        "--tile_size", type=int, help="The tile size of the mask.", default=16
     )
-    parser.add_argument("--bound", type=float, default=0.5)
-    parser.add_argument("--smooth_frames", type=int, default=1)
-    # parser.add_argument(
-    #     "-p",
-    #     "--path",
-    #     type=str,
-    #     help="The path of pth file that stores the generator parameters.",
-    #     required=True,
-    # )
-    # parser.add_argument(
-    #     "--upper_bound", type=float, help="The upper bound for the mask", required=True,
-    # )
-    # parser.add_argument(
-    #     "--lower_bound", type=float, help="The lower bound for the mask", required=True,
-    # )
     parser.add_argument(
-        "--visualize", type=bool, help="Visualize the mask if True", default=False,
+        "--visualize",
+        type=bool,
+        help="Visualize the mask if True",
+        default=True,
     )
-    parser.add_argument("--conv_size", type=int, required=True)
-    parser.add_argument("--force_qp", type=int, default=-1)
-
-    # parser.add_argument('--mask', type=str,
-    #                     help='The path of the ground truth video, for loss calculation purpose.', required=True)
+    parser.add_argument("--qp", type=int, required=True)
+    parser.add_argument(
+        "--app", type=str, help="The name of the model.", required=True,
+    )
 
     args = parser.parse_args()
 

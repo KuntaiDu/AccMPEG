@@ -18,6 +18,7 @@ from dnn.CARN.interface import CARN
 from dnn.dnn_factory import DNN_Factory
 from utils.mask_utils import merge_black_bkgd_images
 from utils.results_utils import write_results
+from utils.timer import Timer
 from utils.video_utils import read_videos
 
 # from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
@@ -33,23 +34,23 @@ def main(args):
     logger.addHandler(handler)
 
     if "dual" not in args.input:
+        assert args.from_source == False
         videos, _, _ = read_videos(
-            [args.input], logger, normalize=False, from_source=False
+            [args.input], logger, normalize=False, from_source=args.from_source
         )
     else:
-        assert len(glob.glob(args.input + "*.mp4")) == 2
+        ext = args.input.split(".")[-1]
+        assert len(glob.glob(args.input + f"*.{ext}")) == 2
 
         videos, _, _ = read_videos(
-            sorted(glob.glob(args.input + "*.mp4")),
+            sorted(glob.glob(args.input + f"*.{ext}")),
             logger,
             normalize=False,
-            from_source=False,
+            from_source=args.from_source,
         )
 
     # Construct image writer for visualization purpose
-    writer = SummaryWriter(
-        f"runs/{args.app}/{args.input}_{datetime.now().strftime(r'%d:%H:%M:%S')}"
-    )
+    writer = SummaryWriter(f"runs/{args.app}/{args.input}")
 
     app = DNN_Factory().get_model(args.app)
     if args.enable_cloudseg:
@@ -75,10 +76,11 @@ def main(args):
             assert (
                 "dual" not in args.input
             ), "Dual does not work well with cloudseg."
-            video_slice = super_resoluter(video_slice)
+            video_slice = super_resoluter(video_slice.cuda())
 
         # video_slice = transforms(video_slice[0])[None, :, :, :]
         # video_slice = video_slice + torch.randn_like(video_slice) * 0.05
+        # with Timer("inference", logger):
         inference_results[fid] = app.inference(video_slice, detach=True)
 
         if fid % 100 == 0:
@@ -137,6 +139,9 @@ if __name__ == "__main__":
         type=bool,
         help="Super-resolute the image before inference.",
         default=False,
+    )
+    parser.add_argument(
+        "--from_source", type=bool, help="No reencoding?", default=False,
     )
 
     args = parser.parse_args()

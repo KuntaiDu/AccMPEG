@@ -24,23 +24,35 @@ import yaml
 #     # "visdrone/videos/vis_209",
 #     # "visdrone/videos/vis_217",
 # ]
-v_list = ["dashcam/dashcam_%d" % i for i in [5, 6, 7, 8, 9, 10]] + [
-    f"visdrone/videos/vis_{i}" for i in [169, 170, 171, 172, 173]
-]
+# v_list = [f"visdrone/videos/vis_{i}" for i in [169, 170, 171, 172, 173]] + [
+#     "dashcam/dashcam_%d" % i for i in range(1, 11)
+# ]
+
+# v_list = ["dashcam/dashcam_%d" % i for i in range(2, 11)]
+v_list = ["visdrone/videos/vis_%d" % i for i in [171, 169, 170, 172, 173]]
+attr_list = ["FPN"]
 # v_list = ["visdrone/videos/vis_171"]
 # v_list = [v_list[2]]
-base = 50
-high = 30
+base_high_list = [(40, 30), (44, 34), (48, 38)]
+# high = 30
+gt = 30
 tile = 16
-model_name = "COCO_full_normalizedsaliency_vgg11_crossthresh"
+
+ext_list = ["mp4"]
 # lower_bound_list = [0.3]
 
-for v in v_list:
+# conf_list = [0.9, 0.8, 0.6]
+
+
+for ext, v, attr, (base, high) in product(
+    ext_list, v_list, attr_list, base_high_list
+):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = f"{v}_blackgen_dual_eaar_qp_{base}_{high}.mp4"
+    output = f"{v}_blackgen_dual_dds2_qp_{base}_{high}_{attr}_conf_0.8_tile_{tile}.{ext}"
+    app = f"COCO-Detection/faster_rcnn_R_101_{attr}_3x.yaml"
 
-    if True or len(glob.glob(output + "*.mp4")) == 0:
+    if True:
         # if True:
 
         subprocess.run(["rm", "-r", output + "*"])
@@ -48,49 +60,38 @@ for v in v_list:
         subprocess.run(
             [
                 "python",
-                "compress_eaar.py",
+                "compress_dds.py",
                 "-i",
-                f"{v}_qp_{base}.mp4",
-                f"{v}_qp_{high}.mp4",
+                f"{v}_qp_{base}.{ext}",
+                f"{v}_qp_{high}.{ext}",
                 "-s",
                 f"{v}",
                 "-o",
-                f"{output}.qp{high}.mp4",
+                f"{output}.qp{high}.{ext}",
                 "--tile_size",
                 f"{tile}",
-                "--visualize",
-                "True",
                 # "-g",
                 # f"{v}_qp_{high}_ground_truth.mp4",
-                "--force_qp",
+                "--qp",
                 f"{high}",
-                "--smooth_frames",
-                "1",
+                "--app",
+                app,
             ]
         )
 
-        os.system(f"cp {v}_qp_{base}.mp4 {output}.base.mp4")
+        os.system(f"cp {v}_qp_{base}.{ext} {output}.base.{ext}")
 
-        # subprocess.run(
-        #     [
-        #         "ffmpeg",
-        #         "-y",
-        #         "-i",
-        #         f"{v}/%010d.png",
-        #         "-start_number",
-        #         "0",
-        #         "-qp",
-        #         f"30",
-        #         "-vf",
-        #         "scale=480:272",
-        #         f"{output}.base.mp4",
-        #     ]
-        # )
-
-        os.system(f"python inference_dual.py -i {output}")
+    os.system(f"python inference.py -i {output} --app {app}")
 
     os.system(
-        f"python examine.py -i {output} -g {v}_qp_{high}.mp4 --gt_confidence_threshold 0.7 --confidence_threshold 0.7"
+        f"python examine.py -i {output} -g {v}_qp_{gt}.{ext} --gt_confidence_threshold 0.7 --confidence_threshold 0.7 --app {app} --stats stats_FPN_measurement"
+    )
+
+    seg_app = "Segmentation/fcn_resnet50"
+
+    os.system(f"python inference.py -i {output} --app {seg_app}")
+    os.system(
+        f"python examine.py -i {output} -g {v}_qp_{gt}.mp4  --stats stats_fcn50_measurement --app {seg_app}"
     )
 
     # if not os.path.exists(f"diff/{output}.gtdiff.mp4"):

@@ -8,12 +8,19 @@ import torch
 import torch.nn.functional as F
 
 
-def cross_entropy(mask, target, weight=1.0):
+def cross_entropy(mask, target, thresh_list):
+
+    weight = 1.0
 
     # Cross entropy
+    mask = mask.softmax(dim=1)[:, 1:2, :, :]
     mask = torch.where(mask < 1e-6, torch.ones_like(mask) * 1e-6, mask)
-    mask = torch.where(mask > (1 - 1e-6), torch.ones_like(mask) * (1 - 1e-6), mask)
-    return (-weight * target * mask.log() - (1 - target) * (1 - mask).log()).mean()
+    mask = torch.where(
+        mask > (1 - 1e-6), torch.ones_like(mask) * (1 - 1e-6), mask
+    )
+    return (
+        -weight * target * mask.log() - (1 - target) * (1 - mask).log()
+    ).mean()
 
 
 def log_cross_entropy(mask, target, weight=1):
@@ -25,7 +32,9 @@ def log_cross_entropy(mask, target, weight=1):
 
     diff = (mask - target).abs()
     diff = torch.where(diff < 1e-6, torch.ones_like(diff) * 1e-6, diff)
-    diff = torch.where(diff > (1 - 1e-6), torch.ones_like(diff) * (1 - 1e-6), diff)
+    diff = torch.where(
+        diff > (1 - 1e-6), torch.ones_like(diff) * (1 - 1e-6), diff
+    )
 
     # Hope to reduce the diff, so all elements in diff should be classified as 0.
     pt = 1 - diff
@@ -41,9 +50,10 @@ def cross_entropy_thresh(mask, target, thresh_list):
     return ret
 
 
-def mean_squared_error(mask, target):
+def mean_squared_error(mask, target, thresh_list):
 
-    return (mask - target).norm(p=2)
+    mask = mask.softmax(dim=1)[:, 1:2, :, :]
+    return ((mask - target) ** 2).mean()
 
 
 def focal_loss(mask, target, weight=1):
@@ -64,7 +74,9 @@ def focal_loss(mask, target, weight=1):
 
     diff = (mask - target).abs()
     diff = torch.where(diff < 1e-6, torch.ones_like(diff) * 1e-6, diff)
-    diff = torch.where(diff > (1 - 1e-6), torch.ones_like(diff) * (1 - 1e-6), diff)
+    diff = torch.where(
+        diff > (1 - 1e-6), torch.ones_like(diff) * (1 - 1e-6), diff
+    )
 
     # Hope to reduce the diff, so all elements in diff should be classified as 0.
     pt = 1 - diff

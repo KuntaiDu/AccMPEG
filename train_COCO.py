@@ -104,9 +104,10 @@ class COCO_Dataset(Dataset):
         )
 
         return {
-            "hq": transform_hq(image),
+            "image": transform_hq(image),
             "lq": transform_lq(image),
             "fid": idx,
+            "video_name": "COCO",
         }
 
 
@@ -132,10 +133,21 @@ def main(args):
     cross_writer = SummaryWriter("runs/cross")
 
     # construct training set and cross validation set
+    # train_val_set = torch.utils.data.ConcatDataset(
+    #     read_videos(
+    #         ["visdrone/videos/vis_%d_qp_30.mp4" % i for i in range(169, 174)],
+    #         logger,
+    #         dataloader=False,
+    #         from_source=True,
+    #     )[0]
+    # )
     train_val_set = COCO_Dataset()
     # train_val_set, _ = torch.utils.data.random_split(
     #     train_val_set,
-    #     [math.ceil(0.1 * len(train_val_set)), math.floor(0.9 * len(train_val_set))],
+    #     [
+    #         math.ceil(0.1 * len(train_val_set)),
+    #         math.floor(0.9 * len(train_val_set)),
+    #     ],
     #     generator=torch.Generator().manual_seed(100),
     # )
     training_set, cross_validation_set = torch.utils.data.random_split(
@@ -168,7 +180,7 @@ def main(args):
     maskgen = importlib.util.module_from_spec(maskgen_spec)
     maskgen_spec.loader.exec_module(maskgen)
     mask_generator = maskgen.FCN()
-    if os.path.exists(args.init):
+    if args.init != "" and os.path.exists(args.init):
         logger.info(f"Load the model from %s", args.init)
         mask_generator.load(args.init)
     mask_generator.train()
@@ -216,7 +228,10 @@ def main(args):
             fid = data["fid"].item()
             # if fid % 3 != args.local_rank:
             #     continue
-            hq_image = data["hq"]
+            # hq_image = data["hq"]
+            hq_image = data["image"]
+            vname = data["video_name"]
+
             # lq_image = data["lq"].cuda(non_blocking=True)
             lq_image = (
                 torch.ones_like(hq_image)
@@ -228,9 +243,9 @@ def main(args):
 
             with torch.no_grad():
                 hq_result = app.inference(hq_image, detach=True)
-                hq_result = app.filter_result(hq_result, args)
-            if len(hq_result["instances"]) == 0:
-                continue
+                # hq_result = app.filter_result(hq_result, args)
+            # if len(hq_result["instances"]) == 0:
+            #     continue
 
             with torch.enable_grad():
                 loss = app.calc_loss(lq_image, hq_result, args)
@@ -256,6 +271,7 @@ def main(args):
             mask_grad = mask_grad.detach().cpu()
 
             # # save it
+            # saliency[fid] = mask_grad.detach().cpu()
             saliency[fid] = mask_grad.detach().cpu()
 
             # visualize the saliency
@@ -263,7 +279,8 @@ def main(args):
 
                 # visualize
                 if args.visualize:
-                    image = T.ToPILImage()(data["hq"][0])
+                    # image = T.ToPILImage()(data["hq"][0])
+                    image = T.ToPILImage()(data["image"][0])
                     # application.plot_results_on(
                     #     hq_result[0].cpu(), image, "Azure", args, train=True
                     # )
@@ -316,6 +333,7 @@ def main(args):
         training_losses = []
 
         for idx, data in enumerate(training_loader):
+            # break
 
             progress_bar.update(incr=args.batch_size)
 
@@ -328,12 +346,14 @@ def main(args):
             if data == None:
                 continue
             fids = [fid.item() for fid in data["fid"]]
-            if any(fid not in saliency for fid in fids):
+            names = [name for name in data["video_name"]]
+            if any(fid not in saliency for vname, fid in zip(names, fids)):
                 continue
-            target = torch.cat([saliency[fid] for fid in fids]).cuda(
-                non_blocking=True
-            )
-            hq_image = data["hq"].cuda(non_blocking=True)
+            # set_trace()
+            target = torch.cat(
+                [saliency[fid] for vname, fid in zip(names, fids)]
+            ).cuda(non_blocking=True)
+            hq_image = data["image"].cuda(non_blocking=True)
             mask_slice = mask_generator(hq_image)
 
             # calculate loss
@@ -360,7 +380,7 @@ def main(args):
                 if args.visualize:
                     maxid = np.argmax([fid % 500 == 0 for fid in fids]).item()
                     fid = fids[maxid]
-                    image = T.ToPILImage()(data["hq"][maxid])
+                    image = T.ToPILImage()(data["image"][maxid])
                     mask_slice = mask_slice[maxid : maxid + 1, :, :, :]
                     mask_slice = mask_slice.softmax(dim=1)[:, 1:2, :, :]
                     target = target[maxid : maxid + 1, :, :, :]
@@ -498,14 +518,22 @@ def main(args):
             if data == None:
                 continue
             fids = [fid.item() for fid in data["fid"]]
-            if any(fid not in saliency for fid in fids):
+            names = data["video_name"]
+            # if any(fid not in saliency for fid in fids):
+            #     continue
+            # if any(type(saliency[fid]) is not torch.Tensor for fid in fids):
+            #     continue
+            if any(fid not in saliency for vname, fid in zip(names, fids)):
                 continue
-            if any(type(saliency[fid]) is not torch.Tensor for fid in fids):
-                continue
-            target = torch.cat([saliency[fid] for fid in fids]).cuda(
-                non_blocking=True
-            )
-            hq_image = data["hq"].cuda(non_blocking=True)
+            # target = torch.cat([saliency[fid] for fid in fids]).cuda(
+            #     non_blocking=True
+            # )
+            target = torch.cat(
+                [saliency[fid] for vname, fid in zip(names, fids)]
+            ).cuda(non_blocking=True)
+            # if len(target) != len(fids):
+            #     set_trace()
+            hq_image = data["image"].cuda(non_blocking=True)
 
             # inference
             with torch.no_grad():
@@ -517,13 +545,16 @@ def main(args):
                 #         [saliency[thresh][fid].long().cuda() for fid in fids]
                 #     )
                 #     loss = loss + weight[idx] * get_loss(mask_slice, target, 1)
-                loss = get_loss(mask_slice, target, thresh_list)
+                try:
+                    loss = get_loss(mask_slice, target, thresh_list)
+                except ValueError:
+                    set_trace()
 
             if any(fid % 500 == 0 for fid in fids):
                 if args.visualize:
                     maxid = np.argmax([fid % 500 == 0 for fid in fids]).item()
                     fid = fids[maxid]
-                    image = T.ToPILImage()(data["hq"][maxid])
+                    image = T.ToPILImage()(data["image"][maxid])
                     mask_slice = mask_slice[maxid : maxid + 1, :, :, :]
                     mask_slice = mask_slice.softmax(dim=1)[:, 1:2, :, :]
                     target = target[maxid : maxid + 1, :, :, :]
@@ -603,7 +634,7 @@ if __name__ == "__main__":
         "--init",
         type=str,
         help="The path to init the generator parameters.",
-        required=True,
+        default="",
     )
     parser.add_argument(
         "--log", type=str, help="The logging file.", required=True,

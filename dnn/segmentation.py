@@ -224,7 +224,7 @@ class Segmentation(DNN):
             #     print('pr:', torch.tensor(prs[-9:]).mean().item())
             #     print('re:', torch.tensor(res[-9:]).mean().item())
 
-        return {"acc": torch.Tensor(accs).mean().item(), "accs": accs}
+        return {"acc": torch.Tensor(accs).mean().item()}
 
     def calc_loss(self, videos, gt_results, args, train=False):
         """

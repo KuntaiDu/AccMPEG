@@ -2,6 +2,7 @@ import glob
 import os
 import subprocess
 from pathlib import Path
+from pdb import set_trace
 
 import matplotlib.pyplot as plt
 import torch
@@ -43,13 +44,18 @@ class Video(Dataset):
         # if image is not image_post:
         #     T.ToPILImage()(image_post).save(f'{self.video}.pngs/%010d.png' % idx)
         if self.return_fid:
-            return {"image": image_post, "fid": idx}
+            return {"image": image_post, "fid": idx, "video_name": self.video}
         else:
             return image_post
 
 
 def read_videos(
-    video_list, logger, sort=False, normalize=True, dataloader=True, from_source=False
+    video_list,
+    logger,
+    sort=False,
+    normalize=True,
+    dataloader=True,
+    from_source=False,
 ):
     """
         Read a list of video and return two lists. 
@@ -123,7 +129,11 @@ def read_bandwidth(video_name):
     if "dual" not in video_name:
         return os.path.getsize(video_name)
     else:
-        return sum(os.path.getsize(i) for i in glob.glob(video_name + "*.mp4"))
+        ext = video_name.split(".")[-1]
+
+        return sum(
+            os.path.getsize(i) for i in glob.glob(video_name + f"*.{ext}")
+        )
 
 
 def write_video(video_tensor, video_name, logger):
@@ -133,7 +143,9 @@ def write_video(video_tensor, video_name, logger):
     # [N, C, H, W] ==> [N, H, W, C]
     video_tensor = video_tensor.permute(0, 2, 3, 1)
     # go back to original domain
-    video_tensor = video_tensor.mul(255).add_(0.5).clamp_(0, 255).to("cpu", torch.uint8)
+    video_tensor = (
+        video_tensor.mul(255).add_(0.5).clamp_(0, 255).to("cpu", torch.uint8)
+    )
     # lossless encode. Should be replaced
     io.write_video(video_name, video_tensor, fps=25, options={"crf": "0"})
 

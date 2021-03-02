@@ -16,8 +16,7 @@ import yaml
 from PIL import Image
 from torchvision import io
 
-from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from dnn.fcn_resnet50 import FCN_ResNet50
+from dnn.dnn_factory import DNN_Factory
 from utils.bbox_utils import jaccard
 from utils.results_utils import read_results, write_results
 from utils.video_utils import read_bandwidth
@@ -29,8 +28,7 @@ def main(args):
     handler = logging.NullHandler()
     logger.addHandler(handler)
 
-    application = FasterRCNN_ResNet50_FPN()
-    application.cuda()
+    app = DNN_Factory().get_model(args.app)
     fids = json.load(open(args.json, "r"))
 
     # inference first
@@ -73,7 +71,7 @@ def main(args):
 
     for _ in range(1):
 
-        ground_truth_results = read_results(args.ground_truth, application.name, logger)
+        ground_truth_results = read_results(args.ground_truth, app.name, logger)
 
         video_results = {}
 
@@ -81,7 +79,7 @@ def main(args):
             print(fid)
             image = Image.open(f"{args.input}.pngs/%010d.png" % new_fid)
             image = T.ToTensor()(image)[None, :, :, :].cuda()
-            video_results[fid] = application.inference(image, detach=True)[0]
+            video_results[fid] = app.inference(image, detach=True)
 
         last_fid = 0
 
@@ -92,9 +90,9 @@ def main(args):
             else:
                 video_results[fid] = video_results[last_fid]
 
-        metrics = application.calc_accuracy(video_results, ground_truth_results, args)
+        metrics = app.calc_accuracy(video_results, ground_truth_results, args)
         res = {
-            "application": application.name,
+            "application": app.name,
             "video_name": args.input,
             "bw": os.path.getsize(args.input),
             "ground_truth_name": args.ground_truth,
@@ -130,6 +128,9 @@ if __name__ == "__main__":
         type=float,
         help="The confidence score threshold for calculating accuracy.",
         default=0.7,
+    )
+    parser.add_argument(
+        "--app", type=str, help="The name of the model.", required=True,
     )
     parser.add_argument(
         "--gt_confidence_threshold",
