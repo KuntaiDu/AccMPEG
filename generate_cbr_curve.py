@@ -8,26 +8,25 @@ from munch import Munch
 
 from utils.results_utils import read_results
 
-# gt_qp = 30
-# qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
-
-# gt_qp = 30
-# qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
-
-gt_qp = 50
-qp_list = [50, 51, 52, 53, 54, 56, 58, 60, 62]
+gt_qp = 6
+qp_list = [
+    6,
+    1,
+    2,
+    3,
+    4,
+    5,
+]
 # qp_list = [32, 42]
-# quality_list = [
-#     "veryfast",
-#     "faster",
-#     "fast",
-#     "medium",
-#     "slow",
-#     "slower",
-#     "veryslow",
-# ]
-
-attr = "webm"
+quality_list = [
+    "veryfast",
+    "faster",
+    "fast",
+    "medium",
+    "slow",
+    "slower",
+    "veryslow",
+]
 
 
 def main(args):
@@ -76,68 +75,53 @@ def main(args):
         # generate mpeg curve
         for qp in qp_list:
             input_name = f"{video_name}/%010d.png"
-            output_name = f"{video_name}_qp_{qp}.{attr}"
+            output_name = f"{video_name}_cbr_{qp}.mp4"
             print(f"Generate video for {output_name}")
             # encode_with_qp(input_name, output_name, qp, args)
 
             if args.force or not os.path.exists(output_name):
 
-                if attr == "hevc":
+                # subprocess.run(
+                #     [
+                #         "ffmpeg",
+                #         "-y",
+                #         "-i",
+                #         input_name,
+                #         "-start_number",
+                #         "0",
+                #         "-c:v",
+                #         "libx265",
+                #         "-x265-params",
+                #         f"qp={qp}",
+                #         output_name,
+                #     ]
+                # )
 
-                    subprocess.run(
-                        [
-                            "ffmpeg",
-                            "-y",
-                            "-i",
-                            input_name,
-                            "-start_number",
-                            "0",
-                            "-c:v",
-                            "libx265",
-                            "-x265-params",
-                            f"qp={qp}",
-                            output_name,
-                        ]
-                    )
-                elif attr == "mp4":
+                # ffmpeg -i input.mp4 -c:v libx264 -x264-params "nal-hrd=cbr" -b:v 1M -minrate 1M -maxrate 1M -bufsize 2M output.ts
 
-                    subprocess.run(
-                        [
-                            "ffmpeg",
-                            "-y",
-                            "-i",
-                            input_name,
-                            "-start_number",
-                            "0",
-                            "-qp",
-                            f"{qp}",
-                            output_name,
-                        ]
-                    )
-
-                elif attr == "webm":
-
-                    print("here")
-
-                    subprocess.run(
-                        [
-                            "ffmpeg",
-                            "-y",
-                            "-i",
-                            input_name,
-                            "-start_number",
-                            "0",
-                            "-c:v",
-                            "libvpx-vp9",
-                            "-crf",
-                            f"{qp}",
-                            "-b:v",
-                            "0",
-                            "-threads",
-                            "8",
-                            output_name,
-                        ]
-                    )
+                subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        input_name,
+                        "-start_number",
+                        "0",
+                        "-c:v",
+                        "libx264",
+                        "-x264-params",
+                        "nal-hrd=cbr",
+                        "-b:v",
+                        f"{qp}M",
+                        "-minrate",
+                        f"{qp}M",
+                        "-maxrate",
+                        f"{qp}M",
+                        "-bufsize",
+                        "2M",
+                        output_name,
+                    ]
+                )
 
                 # subprocess.run(
                 #     [
@@ -179,7 +163,7 @@ def main(args):
                     "-i",
                     output_name,
                     "-g",
-                    f"{video_name}_qp_{gt_qp}.{attr}",
+                    f"{video_name}_cbr_{gt_qp}.mp4",
                     "--app",
                     args.app,
                     "--confidence_threshold",
@@ -240,17 +224,14 @@ if __name__ == "__main__":
     # args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)] + [
     #     "dashcam/dashcam_%d" % i for i in range(1, 11)
     # ]
-    # args.inputs = ["dashcam/dashcam_%d" % i for i in range(5, 11)]
-    # args.inputs = ["adapt/drive_%d" % i for i in range(60)]
-    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)]
+    args.inputs = ["adapt/drive_%d" % i for i in range(60)]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in range(4, 11)]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
     # args.inputs = ["visdrone/videos/vis_171"]
     args.force = True
     args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
     # args.app = "Segmentation/fcn_resnet50"
-    assert attr == "webm"
-    args.stats = f"stats_FPN_{attr}_new"
+    args.stats = "stats_adapt_drive"
 
     # args = parser.parse_args()
     main(args)

@@ -143,11 +143,22 @@ def main(args):
     for mask_slice in mask.split(args.smooth_frames):
         mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
 
-    mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
+    if args.bound is not None:
+        mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
+    else:
+        assert args.perc is not None
+        mask = (mask > percentile(mask, args.perc)).float()
+        mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
 
-    write_black_bkgd_video_smoothed_continuous(
-        mask, args, args.qp, logger, writer=writer, tag="hq"
-    )
+    if args.bound is not None:
+        write_black_bkgd_video_smoothed_continuous(
+            mask, args, args.qp, logger, writer=writer, tag="hq"
+        )
+    else:
+        perc_to_crf = {99: 0.5, 97: 1, 95: 1.5, 90: 2}
+        write_black_bkgd_video_smoothed_continuous_crf(
+            mask, args, perc_to_crf[args.perc], logger, writer=writer, tag="hq"
+        )
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 
@@ -220,11 +231,12 @@ if __name__ == "__main__":
     # parser.add_argument(
     #     "--lower_bound", type=float, help="The lower bound for the mask", required=True,
     # )
-    parser.add_argument(
-        "--bound",
-        type=float,
-        help="The lower bound for the mask",
-        required=True,
+    action = parser.add_mutually_exclusive_group(required=True)
+    action.add_argument(
+        "--bound", type=float, help="The lower bound for the mask",
+    )
+    action.add_argument(
+        "--perc", type=float, help="The percentage of modules to be encoded."
     )
     parser.add_argument(
         "--smooth_frames",

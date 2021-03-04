@@ -52,60 +52,71 @@ def main(args):
         #     + ["-o", f"{video_name}_qp_{gt_qp}_ground_truth.mp4"]
         # )
 
+        apps = [
+            "COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml",
+            "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml",
+            "COCO-Detection/faster_rcnn_R_101_C4_3x.yaml",
+        ]
+        stats = ["stats_DC5", "stats_FPN", "stats_C4"]
+
         # generate mpeg curve
         for qp in qp_list:
             input_name = f"{video_name}/%010d.png"
-            output_name = f"{video_name}_288p_qp_{qp}.mp4"
+            output_name = f"{video_name}_cloudseg_640x360_qp_{qp}.mp4"
             print(f"Generate video for {output_name}")
             # encode_with_qp(input_name, output_name, qp, args)
 
-            if args.force or not os.path.exists(output_name):
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    input_name,
+                    "-start_number",
+                    "0",
+                    "-vf",
+                    "scale=640:360",
+                    "-qp",
+                    f"{qp}",
+                    output_name,
+                ]
+            )
+
+            for app, stat in zip(apps, stats):
 
                 subprocess.run(
                     [
-                        "ffmpeg",
-                        "-y",
+                        "python",
+                        "inference.py",
                         "-i",
-                        input_name,
-                        "-start_number",
-                        "0",
-                        "-vf",
-                        "scale=480:272",
-                        "-qp",
-                        f"{qp}",
                         output_name,
+                        "--app",
+                        app,
+                        "--confidence_threshold",
+                        "0.7",
+                        "--enable_cloudseg",
+                        "True",
                     ]
                 )
 
-            subprocess.run(
-                [
-                    "python",
-                    "inference.py",
-                    "-i",
-                    output_name,
-                    "--app",
-                    args.app,
-                    "--confidence_threshold",
-                    "0.95",
-                ]
-            )
-
-            subprocess.run(
-                [
-                    "python",
-                    "examine.py",
-                    "-i",
-                    output_name,
-                    "-g",
-                    f"{video_name}_qp_{gt_qp}.mp4",
-                    "--app",
-                    args.app,
-                    "--confidence_threshold",
-                    "0.95",
-                    "--gt_confidence_threshold",
-                    "0.95",
-                ]
-            )
+                subprocess.run(
+                    [
+                        "python",
+                        "examine.py",
+                        "-i",
+                        output_name,
+                        "-g",
+                        f"{video_name}_qp_{gt_qp}.mp4",
+                        "--app",
+                        app,
+                        "--confidence_threshold",
+                        "0.7",
+                        "--gt_confidence_threshold",
+                        "0.7",
+                        "--stats",
+                        stat,
+                    ]
+                )
 
         # for qp in qp_list:
         #     output_name = f"{video_name}_qp_{qp}.mp4"
@@ -141,12 +152,13 @@ if __name__ == "__main__":
     # )
 
     args = Munch()
-    args.inputs = ["DAVIS/videos/DAVIS_1"]
+    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)] + [
+        "dashcam/dashcam_%d" % i for i in range(1, 11)
+    ]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
     # args.inputs = ["visdrone/videos/vis_171"]
-    args.force = False
+    args.force = True
     # args.app = "COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml"
-    args.app = "Segmentation/deeplabv3_resnet50"
 
     # args = parser.parse_args()
     main(args)
