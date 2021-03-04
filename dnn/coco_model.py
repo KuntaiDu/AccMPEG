@@ -342,11 +342,17 @@ class COCO_Model(DNN):
                     pdb.set_trace()
                     print("shouldnt happen")
 
-                kpt_thresh = 3
+                gt_boxes = gt["pred_boxes"][video_ind_gt].tensor
+                kpt_thresh = float(args.dist_thresh)
 
                 acc = acc[0]
                 acc = torch.sqrt(acc[:, 0] ** 2 + acc[:, 1] ** 2)
-                acc[acc < kpt_thresh * kpt_thresh] = 0
+                #acc[acc < kpt_thresh * kpt_thresh] = 0
+                for i in range(len(acc)):
+                    max_dim = max((gt_boxes[i//17][2] - gt_boxes[i//17][0]), (gt_boxes[i//17][3] - gt_boxes[i//17][1]))
+                    if acc[i] < (max_dim*kpt_thresh)**2:
+                        acc[i] = 0
+
                 accuracy = 1 - (len(acc.nonzero()) / acc.numel())
                 # prs.append(0.0)
                 # res.append(0.0)

@@ -35,7 +35,7 @@ def main(args):
         metrics = app.calc_accuracy(video_dict, ground_truth_dict, args)
         res = {
             "application": app.name,
-            "video_name": video_name,
+            "video_name": video_name+"_"+str(args.dist_thresh),
             "bw": bw,
             "ground_truth_name": args.ground_truth,
         }
@@ -93,6 +93,12 @@ if __name__ == "__main__":
         default=0.5,
     )
     parser.add_argument("--size_bound", type=float, default=0.05)
+    parser.add_argument(
+        "--dist_thresh",
+        type=float,
+        help="Distance thresh for accuracy calculation.",
+        default=3,
+    )
 
     args = parser.parse_args()
 
