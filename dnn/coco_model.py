@@ -391,7 +391,7 @@ class COCO_Model(DNN):
                 accuracy = 1 - (len(acc.nonzero()) / acc.numel())
                 # prs.append(0.0)
                 # res.append(0.0)
-                # f1s.append(accuracy)
+                f1s.append(accuracy)
                 # tps.append(0.0)
                 # fps.append(0.0)
                 # fns.append(0.0)
