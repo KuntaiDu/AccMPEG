@@ -12,9 +12,16 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import subprocess
 import pdb
+import sys
 import os
 import time
 from tqdm import tqdm
+
+# change to use detectron
+sys.path.append("..")
+from dnn.dnn_factory import DNN_Factory
+from torch.utils.data import DataLoader, Dataset
+app = DNN_Factory().get_model("COCO-Keypoints/keypoint_rcnn_X_101_32x8d_FPN_3x.yaml")
 
 #=====================================
 #Metadata
@@ -56,6 +63,10 @@ def infer_keypoint_detection(images):
         output = model(x)
         return output[0]
 
+def infer_with_coco_model(images):
+    output = app.inference(images, detach=True)
+    return output['instances']
+
 # visualization code
 def visualize_prediction(img_path, pred, threshold=0.75, rect_th=3, text_size=3, text_th=3):
     pred_class = [COCO_INSTANCE_CATEGORY_NAMES[i] for i in list(pred['labels'].numpy())] # Get the Prediction Score
@@ -96,34 +107,55 @@ def filter_confidence(fname, pred, threshold):
         pred_score = pred_score[:pred_t+1]
     return pred_boxes, pred_score, pred_class
 
-def filter(bboxes, scores, classes):
+def filter_confidence_detectron(fname, predictions_dict, threshold):
+    pred_boxes = predictions_dict['pred_boxes'].tensor
+    pred_boxes = [[(i[0], i[1]), (i[2], i[3])] for i in list(pred_boxes.numpy())]
+    pred_class = list(predictions_dict['pred_classes'].numpy())
+    pred_score = list(predictions_dict['scores'].numpy())
+
+    # Get list of index with score greater than threshold.
+    list_large_score = [pred_score.index(x) for x in pred_score if x > threshold]
+    #import pdb;pdb.set_trace()
+    if not list_large_score:
+        return [], [], []
+    else: 
+        pred_t = list_large_score[-1] 
+        pred_boxes = pred_boxes[:pred_t+1]
+        pred_class = pred_class[:pred_t+1]
+        pred_score = pred_score[:pred_t+1]
+    return pred_boxes, pred_score, pred_class
+
+def filter(img_path, bboxes, scores, classes):
 
     def filter_number_of_humans(bboxes, scores, classes):
-        label_human = [i+1 for i in range(len(classes)) if classes[i] == 'person']
+        #pdb.set_trace()
+        label_human = [i+1 for i in range(len(classes)) if classes[i] == 0]
         if len(label_human) != 1:
-            return False
+            return False, len(label_human)
         else:
-            return True
+            return True, 1
 
     def filter_scale_of_human(bboxes, scores, classes, 
                               scale_upper_bound=args.upper_bound, 
                               scale_lower_bound=args.lower_bound):
-        human_box = bboxes[classes.index('person')]
+        human_box = bboxes[classes.index(0)]
         human_box_area = abs(human_box[0][0]-human_box[1][0])*abs(human_box[0][1]-human_box[1][1])
-        full_area = float(image_array.shape[0])*float(image_array.shape[1])
+        full_area = 720*1280
         ratio = human_box_area / full_area
         #pdb.set_trace()
         #if ratio <= scale_upper_bound and ratio >= scale_lower_bound:
         ratio = float(ratio)
+        if ratio > 1:
+            print("Ratio larger than 1; shouldn't happen")
         if ratio <= float(scale_upper_bound) and ratio >= float(scale_lower_bound):
-            return True
+            return True, ratio
         else:
-            return False
+            return False, ratio
 
     def filter_position_of_human(bboxes, scores, classes, margin_threshold=50):
-        human_box = bboxes[classes.index('person')]
-        image_height = image_array.shape[0]
-        image_width = image_array.shape[1]
+        human_box = bboxes[classes.index(0)]
+        image_height = 720
+        image_width = 1280
         # check left and upper boundary
         if human_box[0][0] < margin_threshold or human_box[0][1] < margin_threshold:
             return False
@@ -133,21 +165,21 @@ def filter(bboxes, scores, classes):
         return True
 
     # discard if there's no human or more than one human
-    f1 = filter_number_of_humans(bboxes, scores, classes)
+    f1, num_human = filter_number_of_humans(bboxes, scores, classes)
     if not f1:
-        return False, "1"
+        return False, "1", num_human
     
     # discard if human bounding box is too large or too small
-    f2 = filter_scale_of_human(bboxes, scores, classes)
+    f2, ratio = filter_scale_of_human(bboxes, scores, classes)
     if not f2:
-        return False, "2"
+        return False, "2", ratio
 
     # discard if human bounding box is too close to the boundary
     f3 = filter_position_of_human(bboxes, scores, classes)
     if not f3:
-        return False, "3"
+        return False, "3", None
 
-    return True, "0"
+    return True, "0", None
 
 #===================================== Hajime!
 parser = argparse.ArgumentParser()
@@ -177,23 +209,38 @@ print(f"UB: {args.upper_bound}, LB: {args.lower_bound}")
 counter,keep,discard = 0,0,0
 e1,e2,e3 = 0,0,0
 
+#transform = T.Compose([T.ToTensor(),
+#                       T.Normalize(mean = [0.485, 0.456, 0.406],
+#                                   std = [0.229, 0.224, 0.225])])
+transform = T.Compose([T.ToTensor()])
+
 for frame_idx in tqdm(range(len(img_names))): 
     frame = img_names[frame_idx]
     counter = counter + 1
     img_path = os.path.join(video_path, frame)
     #filtered_img_path = os.path.join(result_path, frame)
     
-    # inference
-    image = Image.open(img_path)
-    image = image.convert('RGB')
-    image_array = np.array(image)
-    obj_predictions = infer_keypoint_detection([image_array])
+    # inference (old version)
+    #image = Image.open(img_path)
+    #image = image.convert('RGB')
+    #image_array = np.array(image)
+    #obj_predictions = infer_keypoint_detection([image_array])
+    
+    # MODIFIED    
+    # load image as tensor first
+    img = Image.open(img_path)
+    img = img.convert('RGB')
+    img = transform(img)
+    img = img.unsqueeze(0)
+    predictions = infer_with_coco_model(img) 
+    predictions_dict = predictions.get_fields()
 
     # we only keep bboxes with confidence score higher than the threshold
-    pred_boxes, pred_score, pred_class = filter_confidence(frame, obj_predictions, threshold=float(args.confidence_threshold))
+    #pred_boxes, pred_score, pred_class = filter_confidence(frame, obj_predictions, threshold=float(args.confidence_threshold))
+    pred_boxes, pred_score, pred_class = filter_confidence_detectron(frame, predictions_dict, threshold=float(args.confidence_threshold))
 
     # filtering based on standards above
-    filter_flag, error_type = filter(pred_boxes, pred_score, pred_class)
+    filter_flag, error_type, info = filter(img_path, pred_boxes, pred_score, pred_class)
 
     #print(f'Frame: {counter}/{num_frames}: {filter_flag}')
 
@@ -207,10 +254,13 @@ for frame_idx in tqdm(range(len(img_names))):
         keep += 1
     elif 'False' in str(filter_flag):
         if error_type == "1": 
+            #print(f"1 {info} {img_path}")
             e1 = e1 + 1
         elif error_type == "2": 
+            #print(f"2 {info} {img_path}")
             e2 = e2 + 1
         else:
+            #print("3")
             e3 = e3 + 1
         discard += 1
     #if counter % 500 == 0:   
