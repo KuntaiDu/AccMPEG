@@ -324,6 +324,10 @@ class COCO_Model(DNN):
             fps.append(fp)
             fns.append(fn)
 
+        sum_tp = sum(tps)
+        sum_fp = sum(fps)
+        sum_fn = sum(fns)
+
         return {
             "f1": torch.tensor(f1s).mean().item(),
             "pr": torch.tensor(prs).mean().item(),
@@ -331,6 +335,7 @@ class COCO_Model(DNN):
             "tp": torch.tensor(tps).sum().item(),
             "fp": torch.tensor(fps).sum().item(),
             "fn": torch.tensor(fns).sum().item(),
+            "sum_f1": (2 * sum_tp / (2 * sum_tp + sum_fp + sum_fn))
             # "f1s": f1s,
             # "prs": prs,
             # "res": res,
@@ -382,10 +387,13 @@ class COCO_Model(DNN):
 
                 acc = acc[0]
                 acc = torch.sqrt(acc[:, 0] ** 2 + acc[:, 1] ** 2)
-                #acc[acc < kpt_thresh * kpt_thresh] = 0
+                # acc[acc < kpt_thresh * kpt_thresh] = 0
                 for i in range(len(acc)):
-                    max_dim = max((gt_boxes[i//17][2] - gt_boxes[i//17][0]), (gt_boxes[i//17][3] - gt_boxes[i//17][1]))
-                    if acc[i] < (max_dim*kpt_thresh)**2:
+                    max_dim = max(
+                        (gt_boxes[i // 17][2] - gt_boxes[i // 17][0]),
+                        (gt_boxes[i // 17][3] - gt_boxes[i // 17][1]),
+                    )
+                    if acc[i] < (max_dim * kpt_thresh) ** 2:
                         acc[i] = 0
 
                 accuracy = 1 - (len(acc.nonzero()) / acc.numel())

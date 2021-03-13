@@ -37,8 +37,8 @@ def main(args):
     gc.enable()
 
     # initialize
-    logger = logging.getLogger("blackgen")
-    logger.addHandler(logging.FileHandler("blackgen.log"))
+    logger = logging.getLogger("object_seg")
+    # logger.addHandler(logging.FileHandler("blackgen.log"))
     torch.set_default_tensor_type(torch.FloatTensor)
 
     # read the video frames (will use the largest video as ground truth)
@@ -67,12 +67,6 @@ def main(args):
 
     writer = SummaryWriter(f"runs/{args.app}/{args.output}")
 
-    regions = [
-        center_size(
-            app.filter_result(i, args, gt=True)["instances"].pred_boxes.tensor
-        )
-        for i in ground_truth_dict.values()
-    ]
     # logger.info('Reading ground truth mask')
     # with open(args.mask + '.mask', 'rb') as f:
     #     ground_truth_mask = pickle.load(f)
@@ -99,9 +93,15 @@ def main(args):
         progress_bar.update()
         # lq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_34/%05d.png' % (fid+offset2)))[None, :, :, :]
 
-        mask[fid : fid + 1, :, :, :] = generate_mask_from_regions(
-            mask[fid : fid + 1, :, :, :], regions[fid], 0, args.tile_size
+        gt = (ground_truth_dict[fid] > 0).float()[:, None, :, :]
+        gt = F.conv2d(
+            gt,
+            torch.ones(1, 1, args.tile_size, args.tile_size),
+            stride=args.tile_size,
         )
+        gt = (gt > 0.5).float()
+
+        mask[fid : fid + 1, :, :, :] = gt
 
         if fid % args.visualize_step_size == 0:
 
@@ -117,6 +117,8 @@ def main(args):
                 fid,
                 args,
             )
+
+    mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
 
     write_black_bkgd_video_smoothed_continuous(
         mask, args, args.qp, logger, writer=writer, tag="hq"
@@ -162,6 +164,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--visualize_step_size", type=int, help="Visualization", default=100,
+    )
+    parser.add_argument(
+        "--conv_size", type=int, help="Visualization", required=True,
     )
     parser.add_argument(
         "--confidence_threshold",

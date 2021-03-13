@@ -39,7 +39,9 @@ def main(args):
             [args.input], logger, normalize=False, from_source=args.from_source
         )
     else:
+        # set_trace()
         ext = args.input.split(".")[-1]
+        # set_trace()
         assert len(glob.glob(args.input + f"*.{ext}")) == 2
 
         videos, _, _ = read_videos(
@@ -83,7 +85,7 @@ def main(args):
         # with Timer("inference", logger):
         inference_results[fid] = app.inference(video_slice, detach=True)
 
-        if fid % 100 == 0:
+        if fid % args.visualize_step_size == 0:
             image = T.ToPILImage()(
                 F.interpolate(video_slice, (720, 1280))[0].cpu()
             )
@@ -121,6 +123,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--app", type=str, help="The name of the model.", required=True,
+    )
+    parser.add_argument(
+        "--visualize_step_size",
+        type=int,
+        help="The name of the model.",
+        default=100,
     )
     parser.add_argument(
         "--confidence_threshold",

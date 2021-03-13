@@ -52,46 +52,46 @@ for ext, v, attr, (base, high) in product(
     output = f"{v}_blackgen_dual_dds2_qp_{base}_{high}_{attr}_conf_0.8_tile_{tile}.{ext}"
     app = f"COCO-Detection/faster_rcnn_R_101_{attr}_3x.yaml"
 
-    if True:
-        # if True:
+    # if True:
+    #     # if True:
 
-        subprocess.run(["rm", "-r", output + "*"])
+    #     subprocess.run(["rm", "-r", output + "*"])
 
-        subprocess.run(
-            [
-                "python",
-                "compress_dds.py",
-                "-i",
-                f"{v}_qp_{base}.{ext}",
-                f"{v}_qp_{high}.{ext}",
-                "-s",
-                f"{v}",
-                "-o",
-                f"{output}.qp{high}.{ext}",
-                "--tile_size",
-                f"{tile}",
-                # "-g",
-                # f"{v}_qp_{high}_ground_truth.mp4",
-                "--qp",
-                f"{high}",
-                "--app",
-                app,
-            ]
-        )
+    #     subprocess.run(
+    #         [
+    #             "python",
+    #             "compress_dds.py",
+    #             "-i",
+    #             f"{v}_qp_{base}.{ext}",
+    #             f"{v}_qp_{high}.{ext}",
+    #             "-s",
+    #             f"{v}",
+    #             "-o",
+    #             f"{output}.qp{high}.{ext}",
+    #             "--tile_size",
+    #             f"{tile}",
+    #             # "-g",
+    #             # f"{v}_qp_{high}_ground_truth.mp4",
+    #             "--qp",
+    #             f"{high}",
+    #             "--app",
+    #             app,
+    #         ]
+    #     )
 
-        os.system(f"cp {v}_qp_{base}.{ext} {output}.base.{ext}")
+    #     os.system(f"cp {v}_qp_{base}.{ext} {output}.base.{ext}")
 
-    os.system(f"python inference.py -i {output} --app {app}")
+    # os.system(f"python inference.py -i {output} --app {app}")
 
-    os.system(
-        f"python examine.py -i {output} -g {v}_qp_{gt}.{ext} --gt_confidence_threshold 0.7 --confidence_threshold 0.7 --app {app} --stats stats_FPN_measurement"
-    )
+    # os.system(
+    #     f"python examine.py -i {output} -g {v}_qp_{gt}.{ext} --gt_confidence_threshold 0.7 --confidence_threshold 0.7 --app {app} --stats stats_FPN_measurement"
+    # )
 
     seg_app = "Segmentation/fcn_resnet50"
 
     os.system(f"python inference.py -i {output} --app {seg_app}")
     os.system(
-        f"python examine.py -i {output} -g {v}_qp_{gt}.mp4  --stats stats_fcn50_measurement --app {seg_app}"
+        f"python examine.py -i {output} -g {v}_qp_{gt}.mp4  --stats stats_fcn50_measurement_new --app {seg_app}"
     )
 
     # if not os.path.exists(f"diff/{output}.gtdiff.mp4"):

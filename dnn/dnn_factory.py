@@ -4,6 +4,7 @@
 
 from .coco_model import COCO_Model
 from .fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from .fcn_resnet50 import FCN_ResNet50
 from .segmentation import Segmentation
 
 
@@ -20,6 +21,8 @@ class DNN_Factory:
             return self.name2model[name]()
         elif "Segmentation" in name:
             return Segmentation(name)
+        elif name == "fcn_resnet50":
+            return fcn_resnet50()
         else:
             assert "yaml" in name
             return COCO_Model(name)

@@ -111,6 +111,7 @@ def main(args):
                 hq_image = hq_image.cuda()
                 # mask_generator = mask_generator.cpu()
                 # with Timer("maskgen", logger):
+                # set_trace()
                 mask_gen = mask_generator(hq_image)
                 # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
                 mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
@@ -123,6 +124,8 @@ def main(args):
             if fid % args.visualize_step_size == 0:
 
                 image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+
+                writer.add_image("raw_frame", video_slices[-1][0, :, :, :], fid)
 
                 visualize_heat_by_summarywriter(
                     image,
@@ -140,8 +143,11 @@ def main(args):
 
     mask.requires_grad = False
 
-    for mask_slice in mask.split(args.smooth_frames):
-        mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
+    # for mask_slice in mask.split(args.smooth_frames):
+    #     mask_slice[:, :, :, :] = (
+    #         mask_slice[0:1, :, :, :] + mask_slice[-1:, :, :, :]
+    #     ) / 2
+    #     # mask_slice.mean(dim=0, keepdim=True)
 
     if args.bound is not None:
         mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
@@ -149,6 +155,36 @@ def main(args):
         assert args.perc is not None
         mask = (mask > percentile(mask, args.perc)).float()
         mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
+
+    for fid, (video_slices, mask_slice) in enumerate(
+        zip(zip(*videos), mask.split(1))
+    ):
+
+        if fid % args.visualize_step_size == 0:
+
+            image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+            visualize_heat_by_summarywriter(
+                image,
+                mask_slice.cpu().detach().float(),
+                "quality_assignment",
+                writer,
+                fid,
+                args,
+            )
+
+    # for i in range(len(mask)):
+
+    #     for j in range(1, 31):
+
+    #         if i + j >= len(mask):
+    #             continue
+
+    #         maski = mask[i : i + 1, :, :, :]
+    #         maskj = mask[i + j : i + j + 1, :, :, :]
+    #         iou = ((maski == 1) & (maskj == 1)).sum() / (
+    #             (maski == 1) | (maskj == 1)
+    #         ).sum()
+    #         logger.info("Dist: %d, IoU: %.3f", j, iou.item())
 
     if args.bound is not None:
         write_black_bkgd_video_smoothed_continuous(

@@ -102,6 +102,8 @@ class Segmentation(DNN):
         handler = logging.NullHandler()
         self.logger.addHandler(handler)
 
+        self.class_ids = [0, 2, 6, 7, 14, 15]
+
         self.transform = T.Compose(
             [T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])]
         )
@@ -150,6 +152,10 @@ class Segmentation(DNN):
             results = self.model(video)
 
         results = results["out"]
+
+        """ newly added here"""
+        results = results[:, self.class_ids, :, :]
+
         results = results.argmax(1).byte()
 
         if detach:

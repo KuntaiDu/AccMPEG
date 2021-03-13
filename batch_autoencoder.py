@@ -20,7 +20,8 @@ import yaml
 v_list = [
     # "large_object/large_%d" % i
     # for i in range(3, 5)
-    "visdrone/videos/vis_172",
+    # "visdrone/videos/vis_169",
+    'visdrone/videos/vis_%d' % i for i in [170, 172, 173]
     # "visdrone/videos/vis_171",
     # "visdrone/videos/vis_170",
     # "visdrone/videos/vis_173",
@@ -37,34 +38,20 @@ tile = 16
 model_name = f"COCO_full_normalizedsaliency_R_101_FPN_crossthresh"
 conv_list = [9]
 bound_list = [0.5]
-stats = "stats_FPN_newsmoothing"
+stats = "stats_FPN"
 
 # app_name = "Segmentation/fcn_resnet50"
 app_name = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
 
-for v, conv, bound in product(v_list, conv_list, bound_list):
+for v in v_list:
 
-    # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = (
-        f"{v}_blackgenvisual_bound_{bound}_qp_{high}_conv_{conv}_app_FPN.mp4"
+    os.system(
+        f"python inference.py -i {v}_autoencoder.mp4 --app {app_name} --confidence_threshold 0.7"
     )
 
-    if True or not os.path.exists(output):
-        # if True:
-        os.system(
-            f"python compress_blackgen.py -i {v}_qp_{base}.mp4 "
-            f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
-            f" --conv_size {conv} "
-            f" -g {v}_qp_{high}.mp4 --bound {bound} --qp {high} --smooth_frames 30 --app {app_name}"
-        )
-        #     os.system(f"cp {v}_qp_{base}.mp4 {output}.base.mp4")
-        os.system(
-            f"python inference.py -i {output} --app {app_name} --confidence_threshold 0.7"
-        )
-
-    # os.system(
-    #     f"python examine.py -i {output} -g {v}_qp_{high}.mp4 --confidence_threshold 0.7 --gt_confidence_threshold 0.7 --app {app_name} --stats {stats}"
-    # )
+    os.system(
+        f"python examine.py -i {v}_autoencoder.mp4 -g {v}_qp_{high}.mp4 --confidence_threshold 0.7 --gt_confidence_threshold 0.7 --app {app_name} --stats {stats}"
+    )
 
     # if not os.path.exists(f"diff/{output}.gtdiff.mp4"):
     #     gt_output = f"{v}_compressed_blackgen_gt_bbox_conv_{conv}.mp4"

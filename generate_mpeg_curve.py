@@ -8,14 +8,15 @@ from munch import Munch
 
 from utils.results_utils import read_results
 
-# gt_qp = 30
+gt_qp = 30
 # qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
+qp_list = [32]
 
-# gt_qp = 30
-# qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
+# gt_qp = 20
+# qp_list = [20, 21, 22, 24, 26, 30, 34, 40]
 
-gt_qp = 50
-qp_list = [50, 51, 52, 53, 54, 56, 58, 60, 62]
+# gt_qp = 50
+# qp_list = [50, 51, 52, 53, 54, 56, 58, 60, 62]
 # qp_list = [32, 42]
 # quality_list = [
 #     "veryfast",
@@ -27,7 +28,7 @@ qp_list = [50, 51, 52, 53, 54, 56, 58, 60, 62]
 #     "veryslow",
 # ]
 
-attr = "webm"
+attr = "mp4"
 
 
 def main(args):
@@ -167,6 +168,8 @@ def main(args):
                         output_name,
                         "--app",
                         args.app,
+                        "--visualize_step_size",
+                        "100"
                         # "--confidence_threshold",
                         # "0.95",
                     ]
@@ -242,15 +245,16 @@ if __name__ == "__main__":
     # ]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in range(5, 11)]
     # args.inputs = ["adapt/drive_%d" % i for i in range(60)]
-    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)]
+    args.inputs = ["visdrone/videos/vis_%d" % i for i in [169]]
+    # args.inputs = ["large_object/large_%d" % i for i in range(1, 5)]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in range(4, 11)]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
     # args.inputs = ["visdrone/videos/vis_171"]
     args.force = True
-    args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
-    # args.app = "Segmentation/fcn_resnet50"
-    assert attr == "webm"
-    args.stats = f"stats_FPN_{attr}_new"
+    # args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+    args.app = "Segmentation/fcn_resnet50"
+    # assert attr == "webm"
+    args.stats = f"stats_fcn50_measurement_new"
 
     # args = parser.parse_args()
     main(args)

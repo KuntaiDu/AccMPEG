@@ -99,7 +99,7 @@ def main(args):
             # construct hybrid image, lq: normalized color, hq: hq image
             lq_image, hq_image = video_slices[0], video_slices[1]
             mean = torch.tensor([0.485, 0.456, 0.406])
-            # lq_image[:, :, :, :] = mean[None, :, None, None]
+            lq_image[:, :, :, :] = mean[None, :, None, None]
             mask_tile = tile_mask(mask_slice, args.tile_size)
             mix_image = lq_image * (1 - mask_tile) + hq_image * mask_tile
 
@@ -122,6 +122,9 @@ def main(args):
                 )["f1"]
             ]
 
+            # if tps[-1] < 0.9:
+            #     regions[fid][:, 2:] += args.delta
+
             # logger.info("f1: %.3f", tps[-1])
             # logger.info(
             #     "Perc: %.3f", (mask_slice == 1).sum() / (mask_slice >= 0).sum()
@@ -130,6 +133,24 @@ def main(args):
             mask[fid : fid + 1, :, :, :] = generate_mask_from_regions(
                 mask[fid : fid + 1, :, :, :], regions[fid], 0, args.tile_size
             )
+
+            if (
+                iteration == args.num_iterations
+                and fid % args.visualize_step_size == 0
+            ):
+
+                image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+
+                writer.add_image("raw_frame", video_slices[-1][0, :, :, :], fid)
+
+                visualize_heat_by_summarywriter(
+                    image,
+                    mask_slice.cpu().detach().float(),
+                    "inferred_saliency",
+                    writer,
+                    fid,
+                    args,
+                )
 
         logger.info("Average TP: %.3f", torch.tensor(tps).mean().item())
 
@@ -303,7 +324,7 @@ if __name__ == "__main__":
         "--num_iterations",
         type=int,
         help="Number of iterations needed",
-        default=3,
+        default=5,
     )
     parser.add_argument(
         "--iou_threshold",

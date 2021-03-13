@@ -32,13 +32,29 @@ from utils.visualize_utils import visualize_heat_by_summarywriter
 sns.set()
 
 
+def error_tile(mask):
+
+    maxval = mask.max().item()
+
+    ret = torch.zeros_like(mask)
+
+    for i in range(1, maxval + 1):
+        val = (mask == i).int()
+        val = F.conv2d(
+            val, torch.ones([1, 1, i * 2 + 1, i * 2 + 1]).int(), padding=i
+        )
+        ret = ret + val
+
+    return (ret > 0.5).int()
+
+
 def main(args):
 
     gc.enable()
 
     # initialize
-    logger = logging.getLogger("blackgen")
-    logger.addHandler(logging.FileHandler("blackgen.log"))
+    logger = logging.getLogger("meas")
+    # logger.addHandler(logging.FileHandler("blackgen.log"))
     torch.set_default_tensor_type(torch.FloatTensor)
 
     # read the video frames (will use the largest video as ground truth)
@@ -61,62 +77,69 @@ def main(args):
         720 // args.tile_size,
         1280 // args.tile_size,
     ]
-    mask = torch.ones(mask_shape).float()
+    error = torch.zeros(mask_shape).int()
 
     ground_truth_dict = read_results(args.ground_truth, app.name, logger)
+    # low_quality_dict = read_results(args.base, app.name, logger)
 
     writer = SummaryWriter(f"runs/{args.app}/{args.output}")
-
-    regions = [
-        center_size(
-            app.filter_result(i, args, gt=True)["instances"].pred_boxes.tensor
-        )
-        for i in ground_truth_dict.values()
-    ]
-    # logger.info('Reading ground truth mask')
-    # with open(args.mask + '.mask', 'rb') as f:
-    #     ground_truth_mask = pickle.load(f)
-    # ground_truth_mask = ground_truth_mask[sorted(ground_truth_mask.keys())[1]]
-    # ground_truth_mask = ground_truth_mask.split(1)
-
-    plt.clf()
-    plt.figure(figsize=(16, 10))
-
-    # binarized_mask = mask.clone().detach()
-    # binarize_mask(binarized_mask, bws)
-    # if iteration > 3 * (args.num_iterations // 4):
-    #     (args.binarize_weight * torch.tensor(iteration*1.0) * (binarized_mask - mask).abs().pow(2).mean()).backward()
 
     logger.info(f"Processing application {app.name}")
     progress_bar = enlighten.get_manager().counter(
         total=len(videos[-1]), desc=f"{app.name}", unit="frames"
     )
 
-    for fid, (video_slices, mask_slice) in enumerate(
-        zip(zip(*videos), mask.split(1))
-    ):
+    for iteration in range(args.num_iterations + 1):
 
-        progress_bar.update()
-        # lq_image = T.ToTensor()(Image.open('youtube_videos/train_pngs_qp_34/%05d.png' % (fid+offset2)))[None, :, :, :]
+        tps = []
 
-        mask[fid : fid + 1, :, :, :] = generate_mask_from_regions(
-            mask[fid : fid + 1, :, :, :], regions[fid], 0, args.tile_size
+        logger.info(f"Processing application {app.name}")
+        progress_bar = enlighten.get_manager().counter(
+            total=len(videos[-1]), desc=f"{app.name}", unit="frames"
         )
 
-        if fid % args.visualize_step_size == 0:
+        for fid, (video_slices, error_slice) in enumerate(
+            zip(zip(*videos), error.split(1))
+        ):
 
-            image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+            progress_bar.update()
 
-            writer.add_image("raw_frame", video_slices[-1][0, :, :, :], fid)
+            # construct hybrid image, lq: normalized color, hq: hq image
+            lq_image, hq_image = video_slices[0], video_slices[1]
+            mask_slice = error_tile(error_slice).float()
+            mask_tile = tile_mask(mask_slice, args.tile_size)
+            # set_trace()
+            mix_image = lq_image * (1 - mask_tile) + hq_image * mask_tile
 
-            visualize_heat_by_summarywriter(
-                image,
-                mask_slice.cpu().detach().float(),
-                "inferred_saliency",
-                writer,
-                fid,
-                args,
+            # get result
+            result = app.inference(mix_image.cuda(), detach=True)
+
+            delta = (result != ground_truth_dict[fid]).int()[:, None, :, :]
+            delta = F.conv2d(
+                delta,
+                torch.ones([1, 1, args.tile_size, args.tile_size]).int(),
+                stride=args.tile_size,
             )
+            delta = (delta > 0.5).int()
+            error_slice[:, :, :, :] = error_slice + delta
+
+            tps += [
+                app.calc_accuracy(
+                    {fid: result}, {fid: ground_truth_dict[fid]}, args
+                )["acc"]
+            ]
+
+            # logger.info("f1: %.3f", tps[-1])
+            # logger.info(
+            #     "Perc: %.3f", (mask_slice == 1).sum() / (mask_slice >= 0).sum()
+            # )
+
+        logger.info("Average TP: %.3f", torch.tensor(tps).mean().item())
+        logger.info(
+            "Average mask: %.3f", error_tile(error).float().mean().item()
+        )
+
+    mask = error_tile(error).float()
 
     write_black_bkgd_video_smoothed_continuous(
         mask, args, args.qp, logger, writer=writer, tag="hq"
@@ -150,11 +173,24 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
+        "-b",
+        "--base",
+        help="The video file names. The largest video file will be the ground truth.",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
         "-s",
         "--source",
         type=str,
         help="The original video source.",
         required=True,
+    )
+    parser.add_argument(
+        "--num_iterations",
+        type=int,
+        help="Number of iterations needed",
+        default=1,
     )
     # parser.add_argument('-g', '--ground_truth', type=str, help='The ground truth results.', required=True)
     parser.add_argument(
@@ -184,6 +220,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tile_size", type=int, help="The tile size of the mask.", default=16
     )
+    # parser.add_argument(
+    #     "--conv_size", type=int, help="The tile size of the mask.", default=0
+    # )
     parser.add_argument(
         "--visualize",
         type=bool,

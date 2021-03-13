@@ -35,7 +35,7 @@ def main(args):
         metrics = app.calc_accuracy(video_dict, ground_truth_dict, args)
         res = {
             "application": app.name,
-            "video_name": video_name+"_"+str(args.dist_thresh),
+            "video_name": video_name,
             "bw": bw,
             "ground_truth_name": args.ground_truth,
         }

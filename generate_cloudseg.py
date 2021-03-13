@@ -52,12 +52,8 @@ def main(args):
         #     + ["-o", f"{video_name}_qp_{gt_qp}_ground_truth.mp4"]
         # )
 
-        apps = [
-            "COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml",
-            "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml",
-            "COCO-Detection/faster_rcnn_R_101_C4_3x.yaml",
-        ]
-        stats = ["stats_DC5", "stats_FPN", "stats_C4"]
+        apps = ["Segmentation/fcn_resnet50"]
+        stats = ["stats_segmentation_final"]
 
         # generate mpeg curve
         for qp in qp_list:
@@ -152,9 +148,7 @@ if __name__ == "__main__":
     # )
 
     args = Munch()
-    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)] + [
-        "dashcam/dashcam_%d" % i for i in range(1, 11)
-    ]
+    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
     # args.inputs = ["visdrone/videos/vis_171"]
     args.force = True
