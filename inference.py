@@ -15,12 +15,13 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
 
 #from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from dnn.keypointrcnn_resnet50 import KeypointRCNN_ResNet50_FPN
+from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from dnn.CARN.interface import CARN
 from dnn.dnn_factory import DNN_Factory
 from utils.mask_utils import merge_black_bkgd_images
 from utils.results_utils import write_results
 from utils.video_utils import read_videos
+from utils.video_utils import read_videos_pyav
 
 # a video is by default a 4-D Tensor [Time, Height, Width, Channel]
 
@@ -30,20 +31,7 @@ def main(args):
     logger = logging.getLogger("inference")
     handler = logging.NullHandler()
     logger.addHandler(handler)
-
-    if "dual" not in args.input:
-        videos, _, _ = read_videos(
-            [args.input], logger, normalize=False, from_source=False
-        )
-    else:
-        assert len(glob.glob(args.input + "*.mp4")) == 2
-
-        videos, _, _ = read_videos(
-            sorted(glob.glob(args.input + "*.mp4")),
-            logger,
-            normalize=False,
-            from_source=False,
-        )
+    video = read_videos_pyav([args.input], logger)[0][0]
 
     # Construct image writer for visualization purpose
     writer = SummaryWriter(
@@ -56,45 +44,20 @@ def main(args):
 
     logger.info(f"Run %s on %s", app.name, args.input)
     progress_bar = enlighten.get_manager().counter(
-        total=len(videos[0]), desc=f"{app.name}: {args.input}", unit="frames",
+        total=video.streams.video[0].frames, desc=f"{app.name}: {args.input}", unit="frames",
     )
     inference_results = {}
-
-    for fid, video_slice in enumerate(zip(*videos)):
-
-        if "dual" in args.input:
-            video_slice = merge_black_bkgd_images(video_slice)
-        else:
-            video_slice = video_slice[0]
+    for fid, frame in enumerate(video.decode(video=0)):
+        video_slice = T.ToTensor()(frame.to_image()).unsqueeze(0)
         progress_bar.update()
 
-        # video_slice = video_slice.cuda()
-
-        if args.enable_cloudseg:
-            assert (
-                "dual" not in args.input
-            ), "Dual does not work well with cloudseg."
-            video_slice = super_resoluter(video_slice)
-
-        # video_slice = transforms(video_slice[0])[None, :, :, :]
-        # video_slice = video_slice + torch.randn_like(video_slice) * 0.05
         inference_results[fid] = app.inference(video_slice, detach=True)
 
         if fid % 100 == 0:
             image = T.ToPILImage()(
                 F.interpolate(video_slice, (720, 1280))[0].cpu()
             )
-            from PIL import Image
-
-            # image2 = Image.open(
-            #     "DAVIS/videos/DAVIS_1_qp_30.mp4.pngs/%010d.png" % fid
-            # )
             writer.add_image("decoded_image", T.ToTensor()(image), fid)
-            # writer.add_image(
-            #     "diff", (T.ToTensor()(image) - T.ToTensor()(image2)) + 0.3, fid
-            # )
-            image = app.visualize(image, inference_results[fid], args)
-            writer.add_image("inference_result", T.ToTensor()(image), fid)
 
     write_results(args.input, app.name, inference_results, logger)
 
