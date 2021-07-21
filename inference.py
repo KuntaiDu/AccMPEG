@@ -22,6 +22,7 @@ from utils.mask_utils import merge_black_bkgd_images
 from utils.results_utils import write_results
 from utils.video_utils import read_videos
 from utils.video_utils import read_videos_pyav
+from tqdm import tqdm
 
 # a video is by default a 4-D Tensor [Time, Height, Width, Channel]
 
@@ -43,13 +44,9 @@ def main(args):
         super_resoluter = CARN()
 
     logger.info(f"Run %s on %s", app.name, args.input)
-    progress_bar = enlighten.get_manager().counter(
-        total=video.streams.video[0].frames, desc=f"{app.name}: {args.input}", unit="frames",
-    )
     inference_results = {}
-    for fid, frame in enumerate(video.decode(video=0)):
+    for fid, frame in enumerate(tqdm(video.decode(video=0), total=video.streams.video[0].frames)):
         video_slice = T.ToTensor()(frame.to_image()).unsqueeze(0)
-        progress_bar.update()
 
         inference_results[fid] = app.inference(video_slice, detach=True)
 
