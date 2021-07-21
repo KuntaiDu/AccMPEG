@@ -34,12 +34,31 @@ def black_background_compressor(mask, args, logger, writer):
     mean = torch.Tensor([0.0, 0.0, 0.0])
     background = None
 
-    # generate pngs
+    # generate source pngs
+    subprocess.run(["rm", "-r", f"{args.source}.pngs"])
+    Path(f"{args.source}.pngs").mkdir()
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel", "warning",
+            "-stats",
+            "-y",
+            "-i",
+            args.source,
+            "-start_number",
+            "0",
+            f"{args.source}.pngs/%010d.png",
+        ]
+    )
+    
+
+    # construct black-background pngs based on mask and source pngs
     logger.info(f"Generate source pngs for {args.output}")
     with ThreadPoolExecutor(max_workers=4) as executor:
         for fid, mask_slice in enumerate(tqdm(mask.split(1))):
             # set filename
-            input_filename = args.source + "/%010d.png" % fid
+            input_filename = args.source + ".pngs/%010d.png" % fid
             output_filename = args.output + ".source.pngs/%010d.png" % fid
 
             # read image

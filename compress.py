@@ -18,17 +18,13 @@ def main(args):
     # define logger
     logger = logging.getLogger("compress")
 
-    
-    with open(f"{args.input}.mask", "rb") as f:
+    # load the raw mask
+    with open(f"{args.output}.rawmask", "rb") as f:
         mask = pickle.load(f)
-        
-    splitted_mask = mask.split(args.smooth_frames)
-
-    # for mask_slice in mask.split(args.smooth_frames):
-    #     mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
     
     # smooth the mask first. 
-    # we only sample the mask from the first image of every video segment.
+    # we only sample the mask every args.smooth_frames images.
+    splitted_mask = mask.split(args.smooth_frames)
     for i in range(len(splitted_mask)):
         cur_slice = splitted_mask[i]
         if i < len(splitted_mask) - 1:
@@ -61,13 +57,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     parser.add_argument(
-        '-i',
-        '--input',
-        help='The input video file name. Must attach a corresponding mask file for compression purpose.',
-        type=str,
-        required=True
-    )
-    parser.add_argument(
         '-o',
         '--output',
         help='The output mp4 file name. Will attach a args file that contain args for decoding purpose.',
@@ -92,7 +81,7 @@ if __name__ == "__main__":
         "-s",
         "--source",
         type=str,
-        help="The original video source.",
+        help="The source to encode the video.",
         required=True,
     )
     parser.add_argument(
@@ -127,3 +116,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     main(args)
+    

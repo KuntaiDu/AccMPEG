@@ -37,19 +37,16 @@ app_name = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
 for v, conv, bound in product(v_list, conv_list, bound_list):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = f"{v}_blackgen_bound_{bound}_qp_{high}_conv_{conv}.mp4"
 
     if True:
         # if True:
         os.system(
-            f"python compress_blackgen_summer.py -i {v}_qp_{base}.mp4 "
-            f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
-            f" --conv_size {conv} "
-            f" -g {v}_qp_{high}.mp4 --bound {bound} --qp {high} --smooth_frames 30 --app {app_name}"
+            f"python generate_mask.py -i {v}_qp_{high}.mp4 -o {v}_compressed.mp4"
+            f" --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
         )
 
         os.system(
-            f"python compress.py -i {v}_qp_{high}.mp4 -o {v}_compressed.mp4 -c black_background_compressor -p {conv} --bound {bound} --smooth_frames 30 -s large_dashcam/large_1 --qp {high}"
+            f"python compress.py -o {v}_compressed.mp4 -c black_background_compressor -p {conv} --bound {bound} --smooth_frames 30 -s large_dashcam/large_1.mp4 --qp {high}"
         )
     
 
