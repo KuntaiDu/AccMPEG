@@ -11,7 +11,7 @@ import yaml
 # ]
 
 # v_list = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
-v_list = ["large_dashcam/large_dashcam_1"]
+v_list = ["large_dashcam/large_1"]
 # v_list = ["dashcam/dashcam_%d" % i for i in [7]]
 
 # v_list = [
@@ -30,7 +30,8 @@ high = 30
 tile = 16
 model_name = "COCO_full_normalizedsaliency_vgg11_crossthresh"
 conv_list = [5]
-bound_list = [0.3]
+bound_list = [0.1]
+app_name = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
 
 
 for v, conv, bound in product(v_list, conv_list, bound_list):
@@ -38,31 +39,17 @@ for v, conv, bound in product(v_list, conv_list, bound_list):
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
     output = f"{v}_blackgen_bound_{bound}_qp_{high}_conv_{conv}.mp4"
 
-    if not os.path.exists(output):
+    if True:
         # if True:
         os.system(
-            f"python compress_blackgen.py -i {v}_qp_{base}.mp4 "
+            f"python compress_blackgen_summer.py -i {v}_qp_{base}.mp4 "
             f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
-            f" --conv_size {conv} --visualize True"
-            f" -g {v}_qp_{high}.mp4 --bound {bound} --force_qp {high} --smooth_frames 30"
+            f" --conv_size {conv} "
+            f" -g {v}_qp_{high}.mp4 --bound {bound} --qp {high} --smooth_frames 30 --app {app_name}"
         )
-    #     os.system(f"python inference.py -i {output}")
 
-    # os.system(
-    #     f"python examine.py -i {output} -g {v}_qp_{high}.mp4 --gt_confidence_threshold 0.7 --confidence_threshold 0.7"
-    # )
-
-    # if not os.path.exists(f"diff/{output}.gtdiff.mp4"):
-    #     gt_output = f"{v}_compressed_blackgen_gt_bbox_conv_{conv}.mp4"
-    #     subprocess.run(
-    #         [
-    #             "python",
-    #             "diff.py",
-    #             "-i",
-    #             output,
-    #             gt_output,
-    #             "-o",
-    #             f"diff/{output}.gtdiff.mp4",
-    #         ]
-    #     )
+        os.system(
+            f"python compress.py -i {v}_qp_{high}.mp4 -o {v}_compressed.mp4 -c black_background_compressor -p {conv} --bound {bound} --smooth_frames 30 -s large_dashcam/large_1 --qp {high}"
+        )
+    
 

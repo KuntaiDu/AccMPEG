@@ -5,13 +5,19 @@ from pdb import set_trace
 from tqdm import tqdm
 from pathlib import Path
 from shutil import rmtree, copytree
-from compressor import *
+from utils.compressor import *
+import pickle
+import torch
+import torchvision.transforms as T
+from PIL import Image
+from utils.mask_utils import tile_mask
 
-def black_background_compressor(mask, args, logger):
+def black_background_compressor(mask, args, logger, writer):
 
     # cleanup previous results
     subprocess.run(["rm", "-r", args.output + "*"])
-    rmtree(f"{args.output}.source.pngs")
+    if Path(f"{args.output}.source.pngs").exists():
+        rmtree(f"{args.output}.source.pngs")
     Path(f"{args.output}.source.pngs").mkdir()
 
     # dump args for decoding purpose.
@@ -26,7 +32,7 @@ def black_background_compressor(mask, args, logger):
 
     # uniform color background
     mean = torch.Tensor([0.0, 0.0, 0.0])
-    background = torch.ones_like(image) * mean[None, :, None, None]
+    background = None
 
     # generate pngs
     logger.info(f"Generate source pngs for {args.output}")
@@ -41,12 +47,15 @@ def black_background_compressor(mask, args, logger):
             
             # extract mask
             mask_slice = tile_mask(mask_slice, args.tile_size)
-            
+
+            # construct uniform color background
+            if background is None:
+                background = torch.ones_like(image) * mean[None, :, None, None]
+                
             # construct and write image
             image = torch.where(mask_slice == 1, image, background)
             if writer is not None and fid % args.visualize_step_size == 0:
-                assert tag is not None, "Please assign a tag for the writer"
-                writer.add_image(tag, image[0], fid)
+                writer.add_image("before_encode", image[0], fid)
             image = T.ToPILImage()(image[0])
             executor.submit(image.save, output_filename)
 
@@ -64,7 +73,7 @@ def black_background_compressor(mask, args, logger):
             "-start_number",
             "0",
             "-qp",
-            f"{qp}",
+            f"{args.qp}",
             args.output,
         ]
     )

@@ -28,6 +28,7 @@ from utils.results_utils import read_ground_truth, read_results
 from utils.timer import Timer
 from utils.video_utils import get_qp_from_name, read_videos, read_videos_pyav, write_video
 from utils.visualize_utils import visualize_heat_by_summarywriter
+from tqdm import tqdm
 
 # added this summer
 import av
@@ -58,7 +59,6 @@ def main(args):
     mask_generator.load(args.path)
     mask_generator.eval().cuda()
 
-    import pdb; pdb.set_trace()
     # num_frames = len([f for f in videos[0].decode()])
     num_frames = videos[0].streams.video[0].frames
     # construct the mask
@@ -77,27 +77,16 @@ def main(args):
     for temp in range(1):
 
         logger.info(f"Processing application")
-        progress_bar = enlighten.get_manager().counter(
-            total=num_frames, desc=f"{app.name}", unit="frames"
-        )
-
         # application.cuda()
 
         losses = []
         f1s = []
 
         for fid, ((lq_frame, hq_frame), mask_slice) in enumerate(
-            zip(zip(videos[0].decode(video=0), videos[1].decode(video=0)), mask.split(1))
+            tqdm(zip(zip(videos[0].decode(video=0), videos[1].decode(video=0)), mask.split(1)), total=num_frames)
         ):
             lq_image = T.ToTensor()(lq_frame.to_image()).unsqueeze(0)
             hq_image = T.ToTensor()(hq_frame.to_image()).unsqueeze(0)
-            # import pdb; pdb.set_trace()
-
-        # for fid, (video_slices, mask_slice) in enumerate(
-        #     zip(zip(*videos), mask.split(1))
-        # ):
-
-            progress_bar.update()
 
             # qizheng: original command of getting image tensor is here
             # lq_image, hq_image = video_slices[0], video_slices[1]
@@ -157,15 +146,15 @@ def main(args):
     mask.requires_grad = False
 
     # qizheng: note that we will isolate this part as another file, 7/14
-    for mask_slice in mask.split(args.smooth_frames):
-        mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
+    # for mask_slice in mask.split(args.smooth_frames):
+    #     mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
 
-    if args.bound is not None:
-        mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
-    else:
-        assert args.perc is not None
-        mask = (mask > percentile(mask, args.perc)).float()
-        mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
+    # if args.bound is not None:
+    #     mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
+    # else:
+    #     assert args.perc is not None
+    #     mask = (mask > percentile(mask, args.perc)).float()
+    #     mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
 
     # if args.bound is not None:
     #     write_black_bkgd_video_smoothed_continuous(
@@ -177,8 +166,9 @@ def main(args):
     #         mask, args, perc_to_crf[args.perc], logger, writer=writer, tag="hq"
     #     )
 
+
     # qizheng: instead, store the mask information in a separate file
-    with open(f"{args.source}.mask", "wb") as f:
+    with open(f"{args.inputs[1]}.mask", "wb") as f:
         pickle.dump(mask, f)
 
 if __name__ == "__main__":
