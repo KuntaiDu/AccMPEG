@@ -103,12 +103,12 @@ COCO_INSTANCE_CATEGORY_NAMES = [
 ]
 
 
-class Detr_ResNet50(DNN):
+class Detr_ResNet101(DNN):
     def __init__(self):
 
-        self.name = "detr_resnet50"
+        self.name = "detr_resnet101"
         self.source = "facebookresearch/detr"
-        self.model = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True)
+        self.model = torch.hub.load('facebookresearch/detr', 'detr_resnet101', pretrained=True)
         self.model.eval()
 
 
