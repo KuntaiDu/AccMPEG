@@ -8,8 +8,8 @@ from munch import Munch
 
 from utils.results_utils import read_results
 
-gt_qp = 24
-qp_list = [24, 26, 28, 32, 36, 42, 48]
+gt_qp = 30
+qp_list = [30, 50]
 attr = "mp4"
 
 
@@ -31,6 +31,9 @@ def main(args):
                     subprocess.run(
                         [
                             "ffmpeg",
+                            "-hide_banner",
+                            "-loglevel", "warning",
+                            "-stats",
                             "-y",
                             "-i",
                             video_name+f".{attr}",
@@ -50,8 +53,6 @@ def main(args):
                     output_name,
                     "--app",
                     args.app,
-                    # "--confidence_threshold",
-                    # "0.95",
                 ]
             )
 
@@ -80,9 +81,9 @@ if __name__ == "__main__":
 
 
     args = Munch()
-    args.inputs = ["refactortesting/croppedsurf"]
+    args.inputs = ["large_dashcam/large_1"]
     args.force = True
     args.app = "Detr_ResNet50"
-    args.stats = f"stats_refactor"
+    args.stats = f"stats"
 
     main(args)
