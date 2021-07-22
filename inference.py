@@ -46,7 +46,7 @@ def main(args):
     logger.info(f"Run %s on %s", app.name, args.input)
     inference_results = {}
     for fid, frame in enumerate(tqdm(video.decode(video=0), total=video.streams.video[0].frames)):
-        video_slice = T.ToTensor()(frame.to_image()).unsqueeze(0)
+        video_slice = T.ToTensor()(frame.to_image()).unsqueeze(0).cuda()
 
         inference_results[fid] = app.inference(video_slice, detach=True)
 

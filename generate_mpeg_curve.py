@@ -83,7 +83,7 @@ if __name__ == "__main__":
     args = Munch()
     args.inputs = ["large_dashcam/large_1"]
     args.force = True
-    args.app = "Detr_ResNet50"
+    args.app = "Detr_ResNet101"
     args.stats = f"stats"
 
     main(args)

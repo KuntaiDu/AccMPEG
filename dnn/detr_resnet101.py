@@ -119,6 +119,10 @@ class Detr_ResNet101(DNN):
 
         self.is_cuda = False
 
+        self.transform = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+
+        self.model.cuda()
+
     def cpu(self):
 
         self.model.cpu()
@@ -145,6 +149,9 @@ class Detr_ResNet101(DNN):
 
         video = [v for v in video]
         video = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in video]
+
+        # perform COCO normalization
+        video = [self.transform(v) for v in video]
 
         if nograd:
             with torch.no_grad():
