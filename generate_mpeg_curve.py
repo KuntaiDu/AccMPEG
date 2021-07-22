@@ -82,7 +82,7 @@ if __name__ == "__main__":
     args = Munch()
     args.inputs = ["refactortesting/croppedsurf"]
     args.force = True
-    args.app = "FasterRCNN_ResNet50_FPN"
+    args.app = "Detr_ResNet50"
     args.stats = f"stats_refactor"
 
     main(args)

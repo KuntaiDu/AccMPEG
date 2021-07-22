@@ -4,6 +4,7 @@
 
 from .coco_model import COCO_Model
 from .fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
+from .detr_resnet50 import Detr_ResNet50
 from .segmentation import Segmentation
 
 
@@ -11,6 +12,7 @@ class DNN_Factory:
     def __init__(self):
         self.name2model = {
             "FasterRCNN_ResNet50_FPN": FasterRCNN_ResNet50_FPN,
+            "Detr_ResNet50": Detr_ResNet50,
         }
         pass
 
