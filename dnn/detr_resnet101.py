@@ -316,8 +316,9 @@ class Detr_ResNet101(DNN):
         """
             Inference and calculate the loss between video and gt using thresholds from args
         """
+        rps = self.region_proposal(videos)
 
-        if self.is_cuda()
+        if self.is_cuda():
             videos = [v.cuda() for v in videos]
         else:
             videos = [v for v in videos]
@@ -357,3 +358,19 @@ class Detr_ResNet101(DNN):
             loss_vals.update(lossval)
 
         return sum(loss_vals.values())
+
+    def region_proposal(self, video):
+        self.model.eval()
+
+        video = [v for v in video]
+        video = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in video]
+
+        images, targets = self.model.transform(video, None)
+        features = self.model.backbone(images.tensors)
+        if isinstance(features, torch.Tensor):
+            from collections import OrderedDict
+
+            features = OrderedDict([("0", features)])
+        proposals, _ = self.model.rpn(images, features, targets)
+
+        return proposals
