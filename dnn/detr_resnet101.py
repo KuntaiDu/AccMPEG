@@ -316,7 +316,6 @@ class Detr_ResNet101(DNN):
         """
             Inference and calculate the loss between video and gt using thresholds from args
         """
-        rps = self.region_proposal(videos)
 
         if self.is_cuda():
             videos = [v.cuda() for v in videos]
