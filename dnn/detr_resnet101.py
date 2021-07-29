@@ -5,6 +5,8 @@ import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
 from utils.bbox_utils import *
+from detr.models.matcher import HungarianMatcher
+from detr.models.detr import SetCriterion
 
 from .dnn import DNN
 
@@ -173,25 +175,23 @@ class Detr_ResNet101(DNN):
         self, video_results, confidence_threshold, cuda=False, train=False
     ):
 
-        video_results=video_results[0]
+        if not isinstance(video_results, dict):
+            video_results=video_results[0]
         video_scores, labels = torch.max(torch.nn.functional.softmax(video_results['pred_logits']), dim=2)
         video_scores = video_scores[0]
         labels = labels[0]
         boxes = video_results["pred_boxes"].squeeze(0)
 
-        #video_scores = video_results["scores"]
         video_ind = video_scores > confidence_threshold
         if not train:
             video_ind = torch.logical_and(
-                video_ind, self.get_relevant_ind(labels)#video_results["labels"])
+                video_ind, self.get_relevant_ind(labels)
             )
             video_ind = torch.logical_and(
                 video_ind, self.filter_large_bbox(boxes)
             )
         video_scores = video_scores[video_ind]
-        #video_bboxes = video_results["boxes"][video_ind, :]
         video_bboxes = boxes[video_ind, :]
-        #video_labels = video_results["labels"][video_ind]
         video_labels = labels[video_ind]
         video_ind = video_ind[video_ind]
         if cuda:
@@ -311,3 +311,49 @@ class Detr_ResNet101(DNN):
             (bboxes[:, 2] - bboxes[:, 0]) / 1280 * (bboxes[:, 3] - bboxes[:, 1]) / 720
         )
         return size < 0.08
+
+    def calc_loss(self, videos, gt_results, args, train=False):
+        """
+            Inference and calculate the loss between video and gt using thresholds from args
+        """
+
+        if self.is_cuda()
+            videos = [v.cuda() for v in videos]
+        else:
+            videos = [v for v in videos]
+        videos = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in videos]
+
+        def transform_result(gt_result):
+            # calculate the ground truth
+            gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
+                gt_result, args.confidence_threshold, cuda=True, train=train
+            )
+            # construct targets
+            target = {"boxes": gt_bboxes, "labels": gt_labels}
+            return target
+
+        targets = [transform_result(gt_result) for gt_result in gt_results]
+
+        # we use model in eval mode because loss claculation is handled by a separate criterion module
+        self.model.eval()
+        #assert self.is_cuda, "Model must be placed on GPU"
+        with torch.no_grad():
+            model_output = self.model(videos)
+
+        matcher = HungarianMatcher(cost_class=1, cost_bbox=5, cost_giou=2)
+        num_classes = 91
+        eos_coef = 0.1
+        bbox_loss_coef = 5
+        losses = ['boxes','cardinality']
+        weight_dict = {'loss_ce': 1, 'loss_bbox': 5}
+        weight_dict['loss_giou'] = 2
+        criterion = SetCriterion(num_classes, matcher=matcher, weight_dict=weight_dict,
+                                 eos_coef=eos_coef, losses=losses)
+        num_boxes = sum(len(t["labels"]) for t in targets)
+        indices = matcher(model_output, targets)
+        loss_vals = {}
+        for loss in losses:
+            lossval = criterion.get_loss(loss, model_output, targets, indices, num_boxes)
+            loss_vals.update(lossval)
+
+        return sum(loss_vals.values())
