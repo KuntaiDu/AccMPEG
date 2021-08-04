@@ -13,6 +13,9 @@ import webcolors
 from torch import nn
 from torch.nn.init import _calculate_fan_in_and_fan_out, _no_grad_normal_
 from torchvision.ops.boxes import batched_nms
+import torch.nn.functional as F
+
+from pdb import set_trace
 
 from dnn.efficient_det.utils.sync_batchnorm import SynchronizedBatchNorm2d
 
@@ -33,7 +36,10 @@ def invert_affine(metas: Union[float, list, tuple], preds):
 
 
 def aspectaware_resize_padding(image, width, height, interpolation=None, means=None):
-    old_h, old_w, c = image.shape
+    
+    # 720, 1280, 3
+    c, old_h, old_w = image.shape
+    
     if old_w > old_h:
         new_w = width
         new_h = int(width / old_w * old_h)
@@ -41,56 +47,33 @@ def aspectaware_resize_padding(image, width, height, interpolation=None, means=N
         new_w = int(height / old_h * old_w)
         new_h = height
 
-    canvas = np.zeros((height, height, c), np.float32)
-    if means is not None:
-        canvas[...] = means
-
-    if new_w != old_w or new_h != old_h:
-        if interpolation is None:
-            image = cv2.resize(image, (new_w, new_h))
-        else:
-            image = cv2.resize(image, (new_w, new_h), interpolation=interpolation)
-
     padding_h = height - new_h
     padding_w = width - new_w
 
-    if c > 1:
-        canvas[:new_h, :new_w] = image
-    else:
-        if len(image.shape) == 2:
-            canvas[:new_h, :new_w, 0] = image
-        else:
-            canvas[:new_h, :new_w] = image
+    # pad original image
+    image = F.pad(image, (0, padding_w, 0, padding_h))
 
-    return canvas, new_w, new_h, old_w, old_h, padding_w, padding_h,
+    return image, new_w, new_h, old_w, old_h, padding_w, padding_h,
 
 
-def preprocess(*image_path, max_size=512, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
-    ori_imgs = [cv2.imread(img_path) for img_path in image_path]
-    import pdb; pdb.set_trace()
-    normalized_imgs = [(img[..., ::-1] / 255 - (0.485, 0.456, 0.406)) / (0.229, 0.224, 0.225) for img in ori_imgs]
-    imgs_meta = [aspectaware_resize_padding(img, 1280, 1280, means=None) for img in normalized_imgs]
-    framed_imgs = [img_meta[0] for img_meta in imgs_meta]
-    framed_metas = [img_meta[1:] for img_meta in imgs_meta]
 
-    return ori_imgs, framed_imgs, framed_metas
 
-def preprocess_accmpeg(image, max_size=1280, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+def preprocess_accmpeg(images, max_size=1280):
     # ori_imgs = [cv2.imread(img_path) for img_path in image_path]
-    image = image.cpu().squeeze(0).permute(1,2,0).numpy()
-    image = (image * 255)[:,:,[2,1,0]]
-    image = image.astype(np.uint8)
-    # import pdb; pdb.set_trace()
-    ori_imgs = [image]
-    # import pdb; pdb.set_trace()
-    normalized_imgs = [(img[..., ::-1] / 255 - (0.485, 0.456, 0.406)) / (0.229, 0.224, 0.225) for img in ori_imgs]
-    # import pdb; pdb.set_trace()
-    imgs_meta = [aspectaware_resize_padding(img, 1280, 1280, means=None) for img in normalized_imgs]
+    # image = image.cpu().squeeze(0).permute(1,2,0).numpy()
+    # image = (image * 255)[:,:,[2,1,0]]
+    # image = image.astype(np.uint8)
+    # # import pdb; pdb.set_trace()
+    # ori_imgs = [image]
+    # # import pdb; pdb.set_trace()
+    # normalized_imgs = [(img[..., ::-1] / 255 - (0.485, 0.456, 0.406)) / (0.229, 0.224, 0.225) for img in ori_imgs]
+    # # import pdb; pdb.set_trace()
+    imgs_meta = [aspectaware_resize_padding(image, 1280, 1280, means=None) for image in images]
     # import pdb; pdb.set_trace()
     framed_imgs = [img_meta[0] for img_meta in imgs_meta]
     framed_metas = [img_meta[1:] for img_meta in imgs_meta]
     # import pdb; pdb.set_trace()
-    return ori_imgs, framed_imgs, framed_metas
+    return images, framed_imgs, framed_metas
 
 def preprocess_video(*frame_from_video, max_size=512, mean=(0.406, 0.456, 0.485), std=(0.225, 0.224, 0.229)):
     ori_imgs = frame_from_video
@@ -130,9 +113,9 @@ def postprocess(x, anchors, regression, classification, regressBoxes, clipBoxes,
             boxes_ = transformed_anchors_per[anchors_nms_idx, :]
 
             out.append({
-                'rois': boxes_.cpu().numpy(),
-                'class_ids': classes_.cpu().numpy(),
-                'scores': scores_.cpu().numpy(),
+                'rois': boxes_,
+                'class_ids': classes_,
+                'scores': scores_,
             })
         else:
             out.append({

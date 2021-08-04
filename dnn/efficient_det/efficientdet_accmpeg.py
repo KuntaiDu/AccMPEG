@@ -1,3 +1,9 @@
+'''
+    Implemented based on https://github.com/zylo117/Yet-Another-EfficientDet-Pytorch
+'''
+
+
+
 import logging
 from pdb import set_trace
 import os
@@ -6,15 +12,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
-from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from utils.bbox_utils import *
 
 from torch.backends import cudnn
 from dnn.efficient_det.backbone import EfficientDetBackbone
 from dnn.efficient_det.efficientdet.utils import BBoxTransform, ClipBoxes
-from dnn.efficient_det.utils.utils import preprocess, preprocess_accmpeg, invert_affine, postprocess
+
+from detectron2.structures.instances import Instances
+from detectron2.structures.boxes import Boxes
+from torchvision.ops.boxes import batched_nms
 
 from dnn.dnn import DNN
+from typing import Union
 
 obj_list = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light',
             'fire hydrant', '', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep',
@@ -30,8 +39,7 @@ obj_list = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train'
 compound_coef = 0
 use_cuda = True
 use_float16 = False
-threshold = 0.2
-iou_threshold = 0.2
+
 
 class EfficientDet(DNN):
     def __init__(self):
@@ -40,9 +48,7 @@ class EfficientDet(DNN):
         self.model.load_state_dict(torch.load(f'dnn/efficient_det/weights/efficientdet-d{compound_coef}.pth'))
         self.model.requires_grad_(False)   
         self.model.eval()
-        if use_cuda:  
-            self.model = self.model.cuda()
-
+        self.model.cuda()
         self.name = "EfficientDet"
 
         self.logger = logging.getLogger(self.name)
@@ -51,27 +57,27 @@ class EfficientDet(DNN):
 
         self.class_ids = [0, 1, 2, 3, 4, 6, 7]
 
-        self.is_cuda = False
+        self.coco_normalize = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+
 
     def inference(self, image, detach=False):
 
         regressBoxes = BBoxTransform()
         clipBoxes = ClipBoxes()
 
-        # image_path = "videos/dance_1_first_100_qp_24.mp4.pngs/0000000000.png"
-        ori_imgs, framed_imgs, framed_metas = preprocess_accmpeg(image, max_size=1280)
+        _, _, h, w = image.shape
 
-        if use_cuda:
-            x = torch.stack([torch.from_numpy(fi).cuda() for fi in framed_imgs], 0)
-        else:
-            x = torch.stack([torch.from_numpy(fi) for fi in framed_imgs], 0)
+        image = [self.coco_normalize(img) for img in image]
 
-        x = x.to(torch.float32 if not use_float16 else torch.float16).permute(0, 3, 1, 2)
+        ori_imgs, x, framed_metas = preprocess_accmpeg(image, max_size=1280)
+        x = torch.stack(x)
 
         # model predict
-        with torch.no_grad():
-            features, regression, classification, anchors = self.model(x)
+        features, regression, classification, anchors = self.model(x)
 
+        # postprocessing
+        threshold = 0.2
+        iou_threshold = 0.2
         out = postprocess(x,
                         anchors, regression, classification,
                         regressBoxes, clipBoxes,
@@ -79,14 +85,19 @@ class EfficientDet(DNN):
 
         # result
         out = invert_affine(framed_metas, out)
-        # ret = out[0]
 
-        # import pdb; pdb.set_trace()
-        # if detach:
-        #     for key in ret:
-        #         # this will also store the region proposal info
-        #         ret[key] = ret[key].to("cpu")
-        return out
+        # construct COCO-style result
+        ret = Instances(
+            image_size=(h, w),
+            pred_boxes=Boxes(out[0]['rois']),
+            scores=out[0]['scores'],
+            pred_classes=out[0]['class_ids']
+        )
+
+        if detach:
+            ret = ret.to("cpu")
+
+        return {"instances": ret}
 
     def get_relevant_ind(self, labels):
 
@@ -107,85 +118,50 @@ class EfficientDet(DNN):
             tensor > 0, torch.ones_like(tensor), torch.zeros_like(tensor)
         )
 
-    def filter_results(self, video_results, confidence_threshold, cuda=False, train=False):
-        # import pdb; pdb.set_trace()
-        video_results = video_results[0]
-        video_scores = video_results["scores"]
-        video_ind = video_scores > confidence_threshold
-        if not train:
-            video_ind = np.logical_and(
-                video_ind, self.get_relevant_ind(video_results["class_ids"])
-            )
-            video_ind = np.logical_and(
-                video_ind, self.filter_large_bbox(video_results["rois"])
-            )
-        video_scores = video_scores[video_ind]
-        video_bboxes = video_results["rois"][video_ind, :]
-        video_labels = video_results["class_ids"][video_ind]
-        video_ind = video_ind[video_ind]
-        if cuda:
-            return (
-                video_ind.cuda(),
-                video_scores.cuda(),
-                video_bboxes.cuda(),
-                video_labels.cuda(),
-            )
+    def filter_result(self, result, args, gt=False):
+    
+        scores = result["instances"].scores
+        class_ids = result["instances"].pred_classes
+
+        inds = scores < 0
+        for i in self.class_ids:
+            inds = inds | (class_ids == i)
+        if gt:
+            inds = inds & (scores > args.gt_confidence_threshold)
         else:
-            return (
-                video_ind,
-                video_scores,
-                video_bboxes,
-                video_labels,
-            )
+            inds = inds & (scores > args.confidence_threshold)
 
-    def simple_filter(self, video_results, thres):
-        video_results = video_results[0]
-        video_scores = video_results["scores"]
-        video_ind = video_scores > thres
-        video_scores = video_scores[video_ind]
-        video_bboxes = video_results["rois"][video_ind, :]
-        video_labels = video_results["class_ids"][video_ind]
-        video_ind = video_ind[video_ind]
-        return (
-            torch.tensor(video_ind),
-            torch.tensor(video_scores),
-            torch.tensor(video_bboxes),
-            torch.tensor(video_labels),
-        ) 
+        result["instances"] = result["instances"][inds]
 
-    def calc_accuracy(self, video, gt, args):
-        """
-            Calculate the accuracy between video and gt using thresholds from args based on inference results
-        """
-        # import pdb; pdb.set_trace()
+        return result
 
-        assert video.keys() == gt.keys()
+    def calc_accuracy(self, result_dict, gt_dict, args):
+    
+        from detectron2.structures.boxes import pairwise_iou
+
+        assert (
+            result_dict.keys() == gt_dict.keys()
+        ), "Result and ground truth must contain the same number of frames."
 
         f1s = []
         prs = []
         res = []
-        tps = [torch.tensor(0)]
-        fps = [torch.tensor(0)]
-        fns = [torch.tensor(0)]
+        tps = []
+        fps = []
+        fns = []
 
-        for fid in video.keys():
+        for fid in result_dict.keys():
+            result = result_dict[fid]
+            gt = gt_dict[fid]
 
-            # video_ind, video_scores, video_bboxes, video_labels = self.filter_results(
-            #     video[fid], args.confidence_threshold
-            # )
-            # gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
-            #     gt[fid], args.gt_confidence_threshold
-            # )
+            result = self.filter_result(result, args, False)
+            gt = self.filter_result(gt, args, True)
 
-            _, video_scores, video_bboxes, video_labels = self.simple_filter(
-                video[fid], args.confidence_threshold
-            )
-            _, gt_scores, gt_bboxes, gt_labels = self.simple_filter(
-                gt[fid], args.gt_confidence_threshold
-            )
+            result = result["instances"]
+            gt = gt["instances"]
 
-            if len(video_labels) == 0 or len(gt_labels) == 0:
-                if len(video_labels) == 0 and len(gt_labels) == 0:
+            if len(result) == 0 or len(gt) == 0:
+                if len(result) == 0 and len(gt) == 0:
                     f1s.append(1.0)
                     prs.append(1.0)
                     res.append(1.0)
@@ -193,40 +169,32 @@ class EfficientDet(DNN):
                     f1s.append(0.0)
                     prs.append(0.0)
                     res.append(0.0)
-                continue
-            
-            IoU = jaccard(video_bboxes, gt_bboxes)
 
-            # let IoU = 0 if the label is wrong
-            fat_video_labels = video_labels[:, None].repeat(1, len(gt_labels))
-            fat_gt_labels = gt_labels[None, :].repeat(len(video_labels), 1)
-            IoU[fat_video_labels != fat_gt_labels] = 0
+            IoU = pairwise_iou(result.pred_boxes, gt.pred_boxes)
 
-            # calculate f1
+            for i in range(len(result)):
+                for j in range(len(gt)):
+                    if result.pred_classes[i] != gt.pred_classes[j]:
+                        IoU[i, j] = 0
+
             tp = 0
 
-            for i in range(len(gt_labels)):
-                tp = (
-                    tp
-                    + torch.min(
-                        self.step2(IoU[:, i] - args.iou_threshold),
-                        self.step2(video_scores - args.confidence_threshold),
-                    ).max()
-                )
-            tp = min(
-                [
-                    tp,
-                    len(gt_labels),
-                    len(video_labels[video_scores > args.confidence_threshold]),
-                ]
-            )
-            fn = len(gt_labels) - tp
-            fp = len(video_labels[video_scores > args.confidence_threshold]) - tp
+            for i in range(len(gt)):
+                if sum(IoU[:, i] > args.iou_threshold):
+                    tp += 1
+            fn = len(gt) - tp
+            fp = len(result) - tp
+            fp = max(fp, 0)
 
             f1 = 2 * tp / (2 * tp + fp + fn)
-            pr = tp / (tp + fp)
-            re = tp / (tp + fn)
-            # import pdb; pdb.set_trace()
+            if tp + fp == 0:
+                pr = 1.0
+            else:
+                pr = tp / (tp + fp)
+            if tp + fn == 0:
+                re = 1.0
+            else:
+                re = tp / (tp + fn)
 
             f1s.append(f1)
             prs.append(pr)
@@ -235,17 +203,100 @@ class EfficientDet(DNN):
             fps.append(fp)
             fns.append(fn)
 
-            # if fid % 10 == 9:
-            #     #pass
-            #     print('f1:', torch.tensor(f1s[-9:]).mean().item())
-            #     print('pr:', torch.tensor(prs[-9:]).mean().item())
-            #     print('re:', torch.tensor(res[-9:]).mean().item())
-
         return {
             "f1": torch.tensor(f1s).mean().item(),
             "pr": torch.tensor(prs).mean().item(),
             "re": torch.tensor(res).mean().item(),
-            "tp": sum(tps).item(),
-            "fp": sum(fps).item(),
-            "fn": sum(fns).item(),
+            "tp": torch.tensor(tps).sum().item(),
+            "fp": torch.tensor(fps).sum().item(),
+            "fn": torch.tensor(fns).sum().item(),
+            "f1s": f1s,
+            "prs": prs,
+            "res": res,
+            "tps": tps,
+            "fns": fns,
+            "fps": fps,
         }
+
+
+def aspectaware_resize_padding(image, width, height, interpolation=None, means=None):
+    
+    # 720, 1280, 3
+    c, old_h, old_w = image.shape
+    
+    if old_w > old_h:
+        new_w = width
+        new_h = int(width / old_w * old_h)
+    else:
+        new_w = int(height / old_h * old_w)
+        new_h = height
+
+    padding_h = height - new_h
+    padding_w = width - new_w
+
+    # pad original image
+    image = F.pad(image, (0, padding_w, 0, padding_h))
+
+    return image, new_w, new_h, old_w, old_h, padding_w, padding_h,
+
+
+def preprocess_accmpeg(images, max_size=1280):
+    imgs_meta = [aspectaware_resize_padding(image, 1280, 1280, means=None) for image in images]
+    framed_imgs = [img_meta[0] for img_meta in imgs_meta]
+    framed_metas = [img_meta[1:] for img_meta in imgs_meta]
+    return images, framed_imgs, framed_metas
+
+
+def postprocess(x, anchors, regression, classification, regressBoxes, clipBoxes, threshold, iou_threshold):
+    transformed_anchors = regressBoxes(anchors, regression)
+    transformed_anchors = clipBoxes(transformed_anchors, x)
+    scores = torch.max(classification, dim=2, keepdim=True)[0]
+    scores_over_thresh = (scores > threshold)[:, :, 0]
+    out = []
+    for i in range(x.shape[0]):
+        if scores_over_thresh[i].sum() == 0:
+            out.append({
+                'rois': np.array(()),
+                'class_ids': np.array(()),
+                'scores': np.array(()),
+            })
+            continue
+
+        classification_per = classification[i, scores_over_thresh[i, :], ...].permute(1, 0)
+        transformed_anchors_per = transformed_anchors[i, scores_over_thresh[i, :], ...]
+        scores_per = scores[i, scores_over_thresh[i, :], ...]
+        scores_, classes_ = classification_per.max(dim=0)
+        anchors_nms_idx = batched_nms(transformed_anchors_per, scores_per[:, 0], classes_, iou_threshold=iou_threshold)
+
+        if anchors_nms_idx.shape[0] != 0:
+            classes_ = classes_[anchors_nms_idx]
+            scores_ = scores_[anchors_nms_idx]
+            boxes_ = transformed_anchors_per[anchors_nms_idx, :]
+
+            out.append({
+                'rois': boxes_,
+                'class_ids': classes_,
+                'scores': scores_,
+            })
+        else:
+            out.append({
+                'rois': np.array(()),
+                'class_ids': np.array(()),
+                'scores': np.array(()),
+            })
+
+    return out
+
+def invert_affine(metas: Union[float, list, tuple], preds):
+    for i in range(len(preds)):
+        if len(preds[i]['rois']) == 0:
+            continue
+        else:
+            if metas is float:
+                preds[i]['rois'][:, [0, 2]] = preds[i]['rois'][:, [0, 2]] / metas
+                preds[i]['rois'][:, [1, 3]] = preds[i]['rois'][:, [1, 3]] / metas
+            else:
+                new_w, new_h, old_w, old_h, padding_w, padding_h = metas[i]
+                preds[i]['rois'][:, [0, 2]] = preds[i]['rois'][:, [0, 2]] / (new_w / old_w)
+                preds[i]['rois'][:, [1, 3]] = preds[i]['rois'][:, [1, 3]] / (new_h / old_h)
+    return preds
