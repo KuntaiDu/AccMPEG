@@ -140,11 +140,8 @@ class Segmentation(DNN):
         if not video.is_cuda:
             video = video.cuda()
 
-        # video = [v for v in video]
-        # video = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in video]
         video = F.interpolate(video, size=(720, 1280))
         video = torch.cat([self.transform(v) for v in video.split(1)])
-        # set_trace()
 
         with torch.no_grad():
             results = self.model(video)

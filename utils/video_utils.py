@@ -142,7 +142,7 @@ def read_videos_pyav(
     )
 
 
-def read_video_pyav(video_name, logger, dataloader, from_source):
+def read_video_pyav(video_name, logger, dataloader=None, from_source=None):
     logger.info(f"Reading {video_name} (with PyAv)")
     postprocess = lambda x, fid: x
     if "black" in video_name and "base" not in video_name:

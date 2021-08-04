@@ -4,16 +4,16 @@
 
 from .coco_model import COCO_Model
 from .fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from .detr_resnet101 import Detr_ResNet101
+# from .detr_resnet101 import Detr_ResNet101
 from .segmentation import Segmentation
-from dnn.efficient_det.efficientdet_accmpeg import EfficientDet
+from dnn.efficient_det.efficientdet import EfficientDet
 from .yolo5 import Yolo5s
 
 class DNN_Factory:
     def __init__(self):
         self.name2model = {
             "FasterRCNN_ResNet50_FPN": FasterRCNN_ResNet50_FPN,
-            "Detr_ResNet101": Detr_ResNet101,
+            # "Detr_ResNet101": Detr_ResNet101,
             "EfficientDet": EfficientDet,
             "Yolo5s": Yolo5s
         }

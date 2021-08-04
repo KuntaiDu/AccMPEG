@@ -12,6 +12,7 @@ from detectron2.structures.keypoints import Keypoints
 from detectron2.utils.events import EventStorage
 from detectron2.utils.visualizer import Visualizer
 from PIL import Image
+from detectron2.structures.boxes import pairwise_iou
 
 from .dnn import DNN
 
@@ -136,15 +137,35 @@ class COCO_Model(DNN):
 
         image, h, w, _ = self.preprocess_image(image)
 
-        with torch.no_grad():
-            ret = self.predictor.model(
-                [{"image": image[0], "height": h, "width": w}]
-            )[0]
+        ret = self.predictor.model(
+            [{"image": image[0], "height": h, "width": w}]
+        )[0]
 
         if detach:
             for key in ret:
                 # this will also store the region proposal info
                 ret[key] = ret[key].to("cpu")
+        return ret
+
+    def region_proposal(self, image, detach=False, grad=False):
+    
+        if self.predictor is None:
+            self.predictor = DefaultPredictor(self.cfg)
+        self.predictor.model.eval()
+
+        image, h, w, _ = self.preprocess_image(image)
+
+        with torch.enable_grad() if grad else torch.no_grad():
+            model = self.predictor.model
+            x = [{"image": image[0], "height": h, "width": w}]
+            images = model.preprocess_image(x)
+            features = model.backbone(images.tensor)
+            proposals, logits = model.proposal_generator(images, features, None)
+
+        ret = proposals[0]
+
+        if detach:
+            ret = ret.to("cpu")
         return ret
 
     def filter_result(self, result, args, gt=False):
@@ -165,7 +186,6 @@ class COCO_Model(DNN):
         return result
 
     def visualize(self, image, result, args):
-        # set_trace()
         result = self.filter_result(result, args)
         v = Visualizer(
             image, MetadataCatalog.get(self.cfg.DATASETS.TRAIN[0]), scale=1
@@ -218,9 +238,12 @@ class COCO_Model(DNN):
         elif "keypoint" in self.name:
             return self.calc_accuracy_keypoint(result_dict, gt_dict, args)
 
-    def calc_accuracy_detection(self, result_dict, gt_dict, args):
+    def calc_distance(self, result, gt, args):
 
-        from detectron2.structures.boxes import pairwise_iou
+        result = self.filter_result(result, args, False)
+        gt = self.filter_result(gt, args, True)
+
+    def calc_accuracy_detection(self, result_dict, gt_dict, args):
 
         assert (
             result_dict.keys() == gt_dict.keys()
@@ -366,3 +389,19 @@ class COCO_Model(DNN):
             "fns": fns,
             "fps": fps,
         }
+
+    def get_undetected_ground_truth_index(self, result, gt, args):
+    
+        gt = self.filter_result(gt, args, True)
+        result = self.filter_result(result, args, False)
+
+        result = result["instances"]
+        gt = gt["instances"]
+
+        IoU = pairwise_iou(result.pred_boxes, gt.pred_boxes)
+        for i in range(len(result)):
+            for j in range(len(gt)):
+                if result.pred_classes[i] != gt.pred_classes[j]:
+                    IoU[i, j] = 0
+
+        return (IoU > args.iou_threshold).sum(dim=0) == 0
