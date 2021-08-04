@@ -110,8 +110,11 @@ class Detr_ResNet101(DNN):
 
         self.name = "detr_resnet101"
         self.source = "facebookresearch/detr"
+        self.segm_model = torch.hub.load('facebookresearch/detr', 'detr_resnet101_panoptic', pretrained=True)
         self.model = torch.hub.load('facebookresearch/detr', 'detr_resnet101', pretrained=True)
+        self.segm_thresh = 0.7
         self.model.eval()
+        self.segm_model.eval()
 
 
         self.logger = logging.getLogger(self.name)
@@ -146,7 +149,6 @@ class Detr_ResNet101(DNN):
         """
             Generate inference results. Will put results on cpu if detach=True.
         """
-
         self.model.eval()
 
         video = [v for v in video]
@@ -359,17 +361,14 @@ class Detr_ResNet101(DNN):
         return sum(loss_vals.values())
 
     def region_proposal(self, video):
-        self.model.eval()
+        self.segm_model.eval()
 
         video = [v for v in video]
         video = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in video]
 
-        images, targets = self.model.transform(video, None)
-        features = self.model.backbone(images.tensors)
-        if isinstance(features, torch.Tensor):
-            from collections import OrderedDict
+        masks = self.segm_model(video)["pred_masks"]
+        masks = F.softmax(masks)
+        binary_masks = (masks > self.segm_thresh).type(torch.uint8)
+        composite_mask = (binary_masks.sum(dim=1) > 0)
 
-            features = OrderedDict([("0", features)])
-        proposals, _ = self.model.rpn(images, features, targets)
-
-        return proposals
+        return composite_mask
