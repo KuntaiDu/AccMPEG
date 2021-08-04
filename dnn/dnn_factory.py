@@ -6,7 +6,7 @@ from .coco_model import COCO_Model
 from .fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 # from .detr_resnet101 import Detr_ResNet101
 from .segmentation import Segmentation
-from dnn.efficient_det.efficientdet_accmpeg import EfficientDet
+from dnn.efficient_det.efficientdet import EfficientDet
 from .yolo5 import Yolo5s
 
 class DNN_Factory:
