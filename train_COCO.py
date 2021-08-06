@@ -97,8 +97,8 @@ class COCO_Dataset(Dataset):
                 #     ),
                 #     fill=(123, 116, 103),
                 # ),
-                T.Resize((272, 480)),
-                T.Resize((720, 1280)),
+                T.Resize((144, 256)),
+                # T.Resize((720, 1280)),
                 T.ToTensor(),
             ]
         )
@@ -353,8 +353,8 @@ def main(args):
             target = torch.cat(
                 [saliency[fid] for vname, fid in zip(names, fids)]
             ).cuda(non_blocking=True)
-            hq_image = data["image"].cuda(non_blocking=True)
-            mask_slice = mask_generator(hq_image)
+            lq_image = data["lq"].cuda(non_blocking=True)
+            mask_slice = mask_generator(lq_image)
 
             # calculate loss
             loss = get_loss(mask_slice, target, thresh_list)
@@ -408,84 +408,6 @@ def main(args):
                         f"train/{args.path}/{fid}_saliency.png",
                         args,
                     )
-                    # application.plot_results_on(
-                    #     gt_result, image, "Azure", args, train=True
-                    # )
-                    # fid = fids[0]
-
-                    # plot the ground truth
-                    # if not Path(f"train/{args.path}/{fid}_train.png").exists():
-                    #     fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
-                    #     sum_mask = tile_mask(
-                    #         sum(saliency[thresh][fid].float() for thresh in thresholds),
-                    #         args.tile_size,
-                    #     )[0, 0, :, :]
-                    #     ax = sns.heatmap(
-                    #         sum_mask.cpu().detach().numpy(),
-                    #         zorder=3,
-                    #         alpha=0.5,
-                    #         ax=ax,
-                    #         xticklabels=False,
-                    #         yticklabels=False,
-                    #     )
-                    #     ax.imshow(image, zorder=3, alpha=0.5)
-                    #     ax.tick_params(left=False, bottom=False)
-                    #     Path(f"train/{args.path}/").mkdir(parents=True, exist_ok=True)
-                    #     fig.savefig(
-                    #         f"train/{args.path}/{fid}_train.png", bbox_inches="tight"
-                    #     )
-                    #     plt.close(fig)
-
-                    # visualize the test mask
-                    # fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
-                    # sum_mask = tile_mask(mask_slice_temp, args.tile_size,)[0, 0, :, :]
-                    # ax = sns.heatmap(
-                    #     sum_mask.cpu().detach().numpy(),
-                    #     zorder=3,
-                    #     alpha=0.5,
-                    #     ax=ax,
-                    #     xticklabels=False,
-                    #     yticklabels=False,
-                    # )
-                    # ax.imshow(image, zorder=3, alpha=0.5)
-                    # ax.tick_params(left=False, bottom=False)
-                    # Path(f"train/{args.path}/").mkdir(parents=True, exist_ok=True)
-                    # fig.savefig(
-                    #     f"train/{args.path}/{fid}_test.png", bbox_inches="tight"
-                    # )
-                    # plt.close(fig)
-
-                    # mask_grad = hq_image.grad.norm(dim=1, p=2, keepdim=True)
-                    # mask_grad = F.conv2d(
-                    #     mask_grad,
-                    #     torch.ones([1, 1, args.tile_size, args.tile_size]).cuda(),
-                    #     stride=args.tile_size,
-                    # )
-                    # mask_grad = tile_mask(mask_grad, args.tile_size)
-                    # fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
-                    # sum_mask = mask_grad[0, 0, :, :].log().cpu().detach()
-                    # ax = sns.heatmap(
-                    #     sum_mask.numpy(),
-                    #     zorder=3,
-                    #     alpha=0.5,
-                    #     ax=ax,
-                    #     xticklabels=False,
-                    #     yticklabels=False,
-                    # )
-                    # ax.imshow(image, zorder=3, alpha=0.5)
-                    # ax.tick_params(left=False, bottom=False)
-                    # Path(f"train/{args.path}/").mkdir(parents=True, exist_ok=True)
-                    # fig.savefig(
-                    #     f"train/{args.path}/{fid}_saliency.png", bbox_inches="tight"
-                    # )
-                    # plt.close(fig)
-
-                    # fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
-                    # sns.distplot(sum_mask.flatten().detach().numpy())
-                    # fig.savefig(
-                    #     f"train/{args.path}/{fid}_logdist.png", bbox_inches="tight"
-                    # )
-                    # plt.close(fig)
 
         mean_training_loss = torch.tensor(training_losses).mean()
         logger.info("Average training loss: %.3f", mean_training_loss.item())
@@ -533,11 +455,11 @@ def main(args):
             ).cuda(non_blocking=True)
             # if len(target) != len(fids):
             #     set_trace()
-            hq_image = data["image"].cuda(non_blocking=True)
+            lq_image = data["lq"].cuda(non_blocking=True)
 
             # inference
             with torch.no_grad():
-                mask_slice = mask_generator(hq_image)
+                mask_slice = mask_generator(lq_image)
 
                 # loss = 0
                 # for idx, thresh in enumerate(thresholds):

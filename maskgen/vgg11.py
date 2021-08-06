@@ -26,8 +26,8 @@ class FCN(nn.Module):
         )
         self.t = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-        for param in self.model.features[:22].parameters():
-            param.requires_grad = False
+        # for param in self.model.features[:22].parameters():
+        #     param.requires_grad = False
 
     # def clip(self, x):
     #     x = torch.where(x<0, torch.zeros_like(x), x)

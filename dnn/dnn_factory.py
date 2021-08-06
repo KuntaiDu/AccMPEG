@@ -6,14 +6,15 @@ from .coco_model import COCO_Model
 from .fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from .fcn_resnet50 import FCN_ResNet50
 from .segmentation import Segmentation
+from .efficient_det.interface import EfficientDet
 
 
 class DNN_Factory:
     def __init__(self):
         self.name2model = {
             "FasterRCNN_ResNet50_FPN": FasterRCNN_ResNet50_FPN,
+            "EfficientDet": EfficientDet,
         }
-        pass
 
     def get_model(self, name):
 
