@@ -29,6 +29,12 @@ class FCN(nn.Module):
         for param in self.model.features[:22].parameters():
             param.requires_grad = False
 
+        # change maxpool size to result in 5*2*2*2*2
+        self.model.features[3] = nn.MaxPool2d(kernel_size=5, stride=5, padding=0, dilation=1, ceil_mode=False)
+        # add deconvolution to scale up the network output
+        self.upsample = nn.ConvTranspose2d(2, 2, 13, stride=2, padding=1)
+
+
     # def clip(self, x):
     #     x = torch.where(x<0, torch.zeros_like(x), x)
     #     x = torch.where(x>1, torch.ones_like(x), x)
@@ -36,7 +42,8 @@ class FCN(nn.Module):
 
     def forward(self, x):
         x = torch.cat([self.t(_[0, :, :, :])[None, :, :, :] for _ in x.split(1)])
-        return self.convs(self.model.features[:28](x))
+        out = self.convs(self.model.features[:28](x))
+        return self.upsample(out)
 
     def save(self, path):
         torch.save(self.state_dict(), path)
