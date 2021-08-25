@@ -328,6 +328,11 @@ class COCO_Model(DNN):
         sum_fp = sum(fps)
         sum_fn = sum(fns)
 
+        if 2 * sum_tp + sum_fp + sum_fn == 0:
+            sum_f1 = 1.0
+        else:
+            sum_f1 = 2 * sum_tp / (2 * sum_tp + sum_fp + sum_fn)
+
         return {
             "f1": torch.tensor(f1s).mean().item(),
             "pr": torch.tensor(prs).mean().item(),
@@ -335,7 +340,7 @@ class COCO_Model(DNN):
             "tp": torch.tensor(tps).sum().item(),
             "fp": torch.tensor(fps).sum().item(),
             "fn": torch.tensor(fns).sum().item(),
-            "sum_f1": (2 * sum_tp / (2 * sum_tp + sum_fp + sum_fn))
+            "sum_f1": sum_f1
             # "f1s": f1s,
             # "prs": prs,
             # "res": res,

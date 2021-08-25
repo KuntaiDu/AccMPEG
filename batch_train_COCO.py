@@ -7,12 +7,12 @@ from itertools import product
 
 # v_list = ['train_first/trafficcam_%d_train' % (i+1) for i in range(4)] + ['train_first/dashcam_%d_train' % (i+1) for i in range(4)]
 # v_list = [v_list[4]]
-attr = "C4"
-model_name = (
-    f"COCO_full_normalizedsaliency_R_101_FPN_crossthresh_5xdownsample_allparam"
-)
+app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+# model_name = f"COCO_full_normalizedsaliency_R_101_FPN_crossthresh_5xdownsample"
+architecture = "vgg11"
+model_name = f"COCO_Detection_FPN_{architecture}_small"
 # model_name = "visdrone_R_101_FPN_crossthresh"
-filename = "vgg11"
+filename = "generalvgg"
 
 
 subprocess.run(
@@ -21,23 +21,31 @@ subprocess.run(
         "train_COCO.py",
         "-g",
         # f"visdrone_normalizedsaliency_R_101_FPN.pickle",
-        "COCO_full_normalizedsaliency_R_101_FPN_5xdownsample.pickle",
+        "COCO_full_normalizedsaliency_R_101_FPN.pickle",
         "-p",
         f"maskgen_pths/{model_name}.pth",
-        # "--init",
-        # f"maskgen_pths/{model_name}.pth.best",
+        "--init",
+        f"maskgen_pths/{model_name}.pth.best",
         "--tile_size",
-        "80",
+        "16",
         "--batch_size",
-        "2",
+        "4",
         "--log",
-        f"train_{model_name}.log",
+        f"train_{model_name}_small.log",
         "--maskgen_file",
         f"/tank/kuntai/code/video-compression/maskgen/{filename}.py",
         "--visualize",
         "True",
         "--app",
         # f"Segmentation/fcn_resnet50",
-        "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml",
+        f"{app}",
+        # "--local_rank",
+        # "1",
+        "--num_workers",
+        "10",
+        "--learning_rate",
+        "1e-3",
+        "--architecture",
+        architecture,
     ]
 )

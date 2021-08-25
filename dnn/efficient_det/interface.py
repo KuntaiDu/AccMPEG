@@ -23,6 +23,7 @@ from detectron2.structures.boxes import Boxes
 from torchvision.ops.boxes import batched_nms
 from detectron2.data import DatasetCatalog, MetadataCatalog
 from detectron2.utils.visualizer import Visualizer
+from detectron2.structures.boxes import pairwise_iou
 
 from dnn.dnn import DNN
 from typing import Union
@@ -65,9 +66,9 @@ class EfficientDet(DNN):
         self.model.requires_grad_(False)
         self.model.eval()
         self.model.cuda()
-        
 
-        self.class_ids = [0, 1, 2, 3, 4, 6, 7]
+        # class ids: all vehicles and persons except for train.
+        self.class_ids = [0, 1, 2, 3, 4, 6]
 
         self.coco_normalize = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
@@ -137,12 +138,13 @@ class EfficientDet(DNN):
     
         scores = result["instances"].scores
         class_ids = result["instances"].pred_classes
+        bboxes = result["instances"].pred_boxes
 
         inds = scores < 0
         for i in self.class_ids:
             inds = inds | (class_ids == i)
 
-        if conconfidence_filter:
+        if confidence_filter:
             if gt:
                 inds = inds & (scores > args.gt_confidence_threshold)
             else:
@@ -153,8 +155,6 @@ class EfficientDet(DNN):
         return result
 
     def calc_accuracy(self, result_dict, gt_dict, args):
-    
-        from detectron2.structures.boxes import pairwise_iou
 
         assert (
             result_dict.keys() == gt_dict.keys()
@@ -203,7 +203,10 @@ class EfficientDet(DNN):
             fp = len(result) - tp
             fp = max(fp, 0)
 
-            f1 = 2 * tp / (2 * tp + fp + fn)
+            if 2 * tp + fp + fn == 0:
+                f1 = 1.0
+            else:
+                f1 = 2 * tp / (2 * tp + fp + fn)
             if tp + fp == 0:
                 pr = 1.0
             else:
@@ -220,6 +223,10 @@ class EfficientDet(DNN):
             fps.append(fp)
             fns.append(fn)
 
+        sum_tp = sum(tps)
+        sum_fp = sum(fps)
+        sum_fn = sum(fns)
+
         return {
             "f1": torch.tensor(f1s).mean().item(),
             "pr": torch.tensor(prs).mean().item(),
@@ -227,19 +234,20 @@ class EfficientDet(DNN):
             "tp": torch.tensor(tps).sum().item(),
             "fp": torch.tensor(fps).sum().item(),
             "fn": torch.tensor(fns).sum().item(),
-            "f1s": f1s,
-            "prs": prs,
-            "res": res,
-            "tps": tps,
-            "fns": fns,
-            "fps": fps,
+            "sum_f1": (2 * sum_tp / (2 * sum_tp + sum_fp + sum_fn))
+            # "f1s": f1s,
+            # "prs": prs,
+            # "res": res,
+            # "tps": tps,
+            # "fns": fns,
+            # "fps": fps,
         }
 
     def visualize(self, image, result, args):
         # set_trace()
         result = self.filter_result(result, args, gt=False, confidence_filter=False)
         v = Visualizer(
-            image, MetadataCatalog.get('coco2017_train'), scale=1
+            image, MetadataCatalog.get('coco_2017_train'), scale=1
         )
         out = v.draw_instance_predictions(result["instances"])
         return Image.fromarray(out.get_image(), "RGB")

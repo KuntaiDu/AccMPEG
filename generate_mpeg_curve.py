@@ -8,8 +8,6 @@ from munch import Munch
 
 from utils.results_utils import read_results
 
-gt_qp = 30
-qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
 # qp_list = [32]
 
 # gt_qp = 20
@@ -32,6 +30,8 @@ attr = "mp4"
 
 
 def main(args):
+
+    gt_qp = args.gt_qp
 
     logger = logging.getLogger("mpeg_curve")
 
@@ -75,7 +75,7 @@ def main(args):
         # )
 
         # generate mpeg curve
-        for qp in qp_list:
+        for qp in args.qp_list:
             input_name = f"{video_name}/%010d.png"
             output_name = f"{video_name}_qp_{qp}.{attr}"
             print(f"Generate video for {output_name}")
@@ -160,20 +160,20 @@ def main(args):
                 #     # set_trace()
                 #     result = read_results(output_name, args.app, logger)
                 # except FileNotFoundError:
-            subprocess.run(
-                [
-                    "python",
-                    "inference.py",
-                    "-i",
-                    output_name,
-                    "--app",
-                    args.app,
-                    "--visualize_step_size",
-                    "100"
-                    # "--confidence_threshold",
-                    # "0.95",
-                ]
-            )
+                subprocess.run(
+                    [
+                        "python",
+                        "inference.py",
+                        "-i",
+                        output_name,
+                        "--app",
+                        args.app,
+                        "--visualize_step_size",
+                        "100"
+                        # "--confidence_threshold",
+                        # "0.95",
+                    ]
+                )
 
             subprocess.run(
                 [
@@ -188,7 +188,7 @@ def main(args):
                     "--confidence_threshold",
                     f"{args.confidence_threshold}",
                     "--gt_confidence_threshold",
-                    f"{args.confidence_threshold}",,
+                    f"{args.confidence_threshold}",
                     "--stats",
                     args.stats,
                 ]
@@ -251,12 +251,15 @@ if __name__ == "__main__":
     # args.inputs = ["dashcam/dashcam_%d" % i for i in range(1, 8)]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
     # args.inputs = ["visdrone/videos/vis_171"]
-    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(172, 174)]
+    args.gt_qp = 30
+    args.qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
+    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)]
     args.force = False
-    # args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
-    args.app = "EfficientDet"
+    args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+    # args.app = "EfficientDet"
     # assert attr == "webm"
-    args.stats = f"stats_efficientdet_from_FPN_videos"
+    args.stats = f"stats_gtbbox_FPN"
+    args.confidence_threshold = 0.7
 
     # args = parser.parse_args()
     main(args)

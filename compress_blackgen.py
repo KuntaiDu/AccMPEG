@@ -4,6 +4,7 @@
 
 import argparse
 import gc
+import importlib
 import logging
 import time
 from pathlib import Path
@@ -20,7 +21,6 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
 
 from dnn.dnn_factory import DNN_Factory
-from maskgen.vgg11 import FCN
 from utils.bbox_utils import center_size
 from utils.loss_utils import focal_loss as get_loss
 from utils.mask_utils import *
@@ -50,9 +50,13 @@ def main(args):
     # construct applications
     app = DNN_Factory().get_model(args.app)
 
-    mask_generator = FCN()
-    mask_generator.load(args.path)
-    mask_generator.eval().cuda()
+    maskgen_spec = importlib.util.spec_from_file_location(
+        "maskgen", args.maskgen_file
+    )
+    maskgen = importlib.util.module_from_spec(maskgen_spec)
+    maskgen_spec.loader.exec_module(maskgen)
+    mask_generator = maskgen.FCN()
+    mask_generator.cuda()
 
     # construct the mask
     mask_shape = [
@@ -111,7 +115,6 @@ def main(args):
                 hq_image = hq_image.cuda()
                 # mask_generator = mask_generator.cpu()
                 # with Timer("maskgen", logger):
-                # set_trace()
                 mask_gen = mask_generator(hq_image)
                 # losses.append(get_loss(mask_gen, ground_truth_mask[fid]))
                 mask_gen = mask_gen.softmax(dim=1)[:, 1:2, :, :]
@@ -143,11 +146,12 @@ def main(args):
 
     mask.requires_grad = False
 
-    # for mask_slice in mask.split(args.smooth_frames):
-    #     mask_slice[:, :, :, :] = (
-    #         mask_slice[0:1, :, :, :] + mask_slice[-1:, :, :, :]
-    #     ) / 2
-    #     # mask_slice.mean(dim=0, keepdim=True)
+    for mask_slice in mask.split(args.smooth_frames):
+
+        # mask_slice[:, :, :, :] = (
+        #     mask_slice[0:1, :, :, :] + mask_slice[-1:, :, :, :]
+        # ) / 2
+        mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
 
     if args.bound is not None:
         mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
@@ -253,6 +257,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--tile_size", type=int, help="The tile size of the mask.", default=8
+    )
+    parser.add_argument(
+        "--maskgen_file",
+        type=str,
+        help="The file that defines the neural network.",
+        required=True,
     )
     parser.add_argument(
         "-p",

@@ -5,8 +5,14 @@
 import argparse
 import gc
 import logging
+import os
 import subprocess
+import sys
 from pathlib import Path
+from pdb import set_trace
+
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
+
 
 import coloredlogs
 import enlighten
@@ -15,11 +21,10 @@ import seaborn as sns
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
+from dnn.dnn_factory import DNN_Factory
+from maskgen.fcn_16_single_channel import FCN
 from PIL import Image
 from torchvision import io
-
-from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
-from maskgen.fcn_16_single_channel import FCN
 from utils.bbox_utils import center_size
 from utils.loss_utils import focal_loss as get_loss
 from utils.mask_utils import *
@@ -30,6 +35,8 @@ sns.set()
 
 
 def main(args):
+
+    sys.path.append(Path(__file__).parent.parent)
 
     gc.enable()
 
@@ -48,19 +55,24 @@ def main(args):
         qps = [args.force_qp]
 
     # construct applications
-    application = FasterRCNN_ResNet50_FPN()
+    application = DNN_Factory().get_model(args.app)
 
     # mask_generator = FCN()
     # mask_generator.load(args.path)
     # mask_generator.train().cuda()
 
     # construct the mask
-    mask_shape = [len(videos[-1]), 1, 720 // args.tile_size, 1280 // args.tile_size]
+    mask_shape = [
+        len(videos[-1]),
+        1,
+        720 // args.tile_size,
+        1280 // args.tile_size,
+    ]
     mask = torch.ones(mask_shape).float()
 
-    ground_truth_results = read_results(
-        args.ground_truth, "FasterRCNN_ResNet50_FPN", logger
-    )
+    ground_truth_results = read_results(args.ground_truth, args.app, logger)
+
+    set_trace()
 
     regions = [
         center_size(application.filter_results(i, args.confidence_threshold)[2])
@@ -99,7 +111,10 @@ def main(args):
         )
 
         logger.info(
-            "F1: %.3f, Pr: %.3f, Re: %.3f", metric["f1"], metric["pr"], metric["re"]
+            "F1: %.3f, Pr: %.3f, Re: %.3f",
+            metric["f1"],
+            metric["pr"],
+            metric["re"],
         )
 
         for fid in inference_results:
@@ -144,6 +159,9 @@ if __name__ == "__main__":
         required=True,
     )
     parser.add_argument(
+        "--app", type=str, help="The name of the model.", required=True,
+    )
+    parser.add_argument(
         "-g",
         "--ground_truth",
         help="The video file names. The largest video file will be the ground truth.",
@@ -155,7 +173,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument(
-        "-s", "--source", type=str, help="The original video source.", required=True
+        "-s",
+        "--source",
+        type=str,
+        help="The original video source.",
+        required=True,
     )
     parser.add_argument("--delta", type=int, default=32)
     # parser.add_argument('-g', '--ground_truth', type=str, help='The ground truth results.', required=True)
@@ -199,7 +221,10 @@ if __name__ == "__main__":
     #     "--lower_bound", type=float, help="The lower bound for the mask", required=True,
     # )
     parser.add_argument(
-        "--visualize", type=bool, help="Visualize the mask if True", default=False,
+        "--visualize",
+        type=bool,
+        help="Visualize the mask if True",
+        default=False,
     )
     parser.add_argument("--conv_size", type=int, required=True)
     parser.add_argument("--force_qp", type=int, default=-1)
