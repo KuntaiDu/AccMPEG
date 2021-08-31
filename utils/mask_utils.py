@@ -444,8 +444,8 @@ def write_black_bkgd_video_smoothed_continuous(
             image = T.ToTensor()(image)
             image = image[None, :, :, :]
             # generate background
-            # mean = torch.Tensor([0.485, 0.456, 0.406])
-            mean = torch.Tensor([0.0, 0.0, 0.0])
+            mean = torch.Tensor([0.485, 0.456, 0.406])
+            # mean = torch.Tensor([0.0, 0.0, 0.0])
             background = torch.ones_like(image) * mean[None, :, None, None]
             # extract mask
             mask_slice = tile_mask(mask_slice, args.tile_size)
@@ -827,3 +827,24 @@ def merge_black_bkgd_images(images):
         ret = torch.where(image == mean, ret, image)
 
     return ret
+
+
+def postprocess_mask(mask, kernel_size=5):
+
+    assert ((mask == 0) | (mask == 1)).all()
+    eps = 1e-5
+    kernel = torch.ones([1, 1, kernel_size, kernel_size])
+
+    # remove small noises
+    mask = F.conv2d(mask, kernel, stride=1, padding=(kernel_size - 1) // 2,)
+    mask = ((mask - (kernel_size * kernel_size)).abs() < eps).float()
+    mask = F.conv2d(mask, kernel, stride=1, padding=(kernel_size - 1) // 2,)
+    mask = (mask > eps).float()
+
+    # fill small holes
+    mask = F.conv2d(mask, kernel, stride=1, padding=(kernel_size - 1) // 2,)
+    mask = (mask > eps).float()
+    mask = F.conv2d(mask, kernel, stride=1, padding=(kernel_size - 1) // 2,)
+    mask = ((mask - (kernel_size * kernel_size)).abs() < eps).float()
+
+    return mask

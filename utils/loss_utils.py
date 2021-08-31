@@ -2,10 +2,27 @@
     The losses here is used to train the NN-based neural network generator.
 """
 
+import math
 from pdb import set_trace
 
 import torch
 import torch.nn.functional as F
+from sklearn.mixture import GaussianMixture
+
+
+def get_mean_std(heat):
+
+    # filter out nan
+    heat = heat[heat == heat]
+    # filter out 0
+    heat = heat[heat > 0]
+    heat = heat.log()
+
+    gm = GaussianMixture(n_components=1, random_state=0).fit(
+        heat.flatten()[:, None]
+    )
+
+    return gm.means_[0, 0], math.sqrt(gm.covariances_[0, 0, 0])
 
 
 def cross_entropy(mask, target, thresh_list):
@@ -39,6 +56,20 @@ def log_cross_entropy(mask, target, weight=1):
     # Hope to reduce the diff, so all elements in diff should be classified as 0.
     pt = 1 - diff
     return (weight_tensor * (-((1 - pt)) * pt.log())).mean()
+
+
+def cross_entropy_expthresh(mask, target, thresh_list):
+
+    loss = torch.nn.CrossEntropyLoss()
+    ret = 0
+    for i in range(thresh_list.shape[1]):
+        ret = ret + loss(
+            mask,
+            (target > (thresh_list[:, i : i + 1, None, None].exp())).long()[
+                :, 0, :, :
+            ],
+        )
+    return ret
 
 
 def cross_entropy_thresh(mask, target, thresh_list):
