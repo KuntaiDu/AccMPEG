@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 from pdb import set_trace
 
 import detectron2
@@ -86,9 +87,9 @@ class COCO_Model(DNN):
         # # to make it run on cpu, just for measurement purpose.
         # self.cfg.MODEL.DEVICE='cpu'
         # filter out those regions that has confidence score < 0.5
-        self.cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
+        self.cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.3
         self.cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(name)
-        self.predictor = None
+        self.predictor = DefaultPredictor(self.cfg)
 
         self.logger = logging.getLogger(self.name)
         handler = logging.NullHandler()
@@ -135,8 +136,6 @@ class COCO_Model(DNN):
 
     def inference(self, image, detach=False, grad=False):
 
-        if self.predictor is None:
-            self.predictor = DefaultPredictor(self.cfg)
         self.predictor.model.eval()
 
         image, h, w, _ = self.preprocess_image(image)
@@ -154,8 +153,6 @@ class COCO_Model(DNN):
 
     def region_proposal(self, image, detach=False, grad=False):
 
-        if self.predictor is None:
-            self.predictor = DefaultPredictor(self.cfg)
         self.predictor.model.eval()
 
         image, h, w, _ = self.preprocess_image(image)
@@ -203,8 +200,6 @@ class COCO_Model(DNN):
 
     def calc_loss(self, image, result, args):
 
-        if self.predictor is None:
-            self.predictor = DefaultPredictor(self.cfg)
         self.predictor.model.train()
 
         result = self.filter_result(result, args)
@@ -238,6 +233,39 @@ class COCO_Model(DNN):
             )
 
         return sum(ret.values())
+
+    def calc_dist(self, x, gt, args):
+
+        if "Detection" in self.name:
+            return self.calc_dist_detection(x, gt, args)
+        else:
+            assert False
+
+    def calc_dist_detection(self, x, gt, args):
+
+        # get object of interest only
+        x = self.filter_result(x, args, gt=False, confidence_check=False)
+        gt = self.filter_result(x, args, gt=True, confidence_check=True)
+
+        x = x["instances"]
+        gt = gt["instances"]
+
+        IoU = pairwise_iou(x.pred_boxes, gt.pred_boxes)
+
+        loss_reg = torch.tensor([0.0]).cuda()
+
+        for i in range(len(x)):
+
+            val = IoU[i, :].max()
+
+            p = x[i].scores
+
+            if val < args.iou_threshold:
+                loss_reg = loss_reg - p.log()
+            else:
+                loss_reg = loss_reg - (1 - p).log()
+
+        return loss_reg
 
     def calc_accuracy(self, result_dict, gt_dict, args):
 
@@ -426,8 +454,6 @@ class COCO_Model(DNN):
 
     def calc_accuracy_loss_detection(self, result, gt, args):
 
-        from detectron2.structures.boxes import pairwise_iou
-
         gt = self.filter_result(gt, args, True)
         result = self.filter_result(result, args, False, confidence_check=False)
 
@@ -474,6 +500,9 @@ class COCO_Model(DNN):
 
     def get_undetected_ground_truth_index(self, result, gt, args):
 
+        gt = deepcopy(gt)
+        result = deepcopy(result)
+
         gt = self.filter_result(gt, args, True)
         result = self.filter_result(result, args, False)
 
@@ -486,4 +515,10 @@ class COCO_Model(DNN):
                 if result.pred_classes[i] != gt.pred_classes[j]:
                     IoU[i, j] = 0
 
-        return (IoU > args.iou_threshold).sum(dim=0) == 0
+        return (
+            (IoU > args.iou_threshold).sum(dim=0) == 0,
+            (IoU > args.iou_threshold).sum(dim=1) == 0,
+            gt,
+            result,
+        )
+

@@ -11,13 +11,14 @@ import enlighten
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
+from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
 
 from dnn.CARN.interface import CARN
 from dnn.dnn_factory import DNN_Factory
 from utils.mask_utils import merge_black_bkgd_images
-from utils.results_utils import write_results
+from utils.results_utils import read_results, write_results
 from utils.timer import Timer
 from utils.video_utils import read_videos
 
@@ -58,6 +59,12 @@ def main(args):
     if args.enable_cloudseg:
         super_resoluter = CARN()
 
+    # load ground truth for visualization purpose
+    if args.ground_truth == "":
+        ground_truth_dict = None
+    else:
+        ground_truth_dict = read_results(args.ground_truth, app.name, logger)
+
     logger.info(f"Run %s on %s", app.name, args.input)
     progress_bar = enlighten.get_manager().counter(
         total=len(videos[0]), desc=f"{app.name}: {args.input}", unit="frames",
@@ -67,9 +74,11 @@ def main(args):
     for fid, video_slice in enumerate(zip(*videos)):
 
         if "dual" in args.input:
+            hq_video_slice = video_slice[1]
             video_slice = merge_black_bkgd_images(video_slice)
         else:
             video_slice = video_slice[0]
+            hq_video_slice = video_slice
         progress_bar.update()
 
         # video_slice = video_slice.cuda()
@@ -89,7 +98,6 @@ def main(args):
             image = T.ToPILImage()(
                 F.interpolate(video_slice, (720, 1280))[0].cpu()
             )
-            from PIL import Image
 
             # image2 = Image.open(
             #     "DAVIS/videos/DAVIS_1_qp_30.mp4.pngs/%010d.png" % fid
@@ -100,6 +108,40 @@ def main(args):
             # )
             image = app.visualize(image, inference_results[fid], args)
             writer.add_image("inference_result", T.ToTensor()(image), fid)
+
+            if ground_truth_dict is not None:
+                hq_image = T.ToPILImage()(
+                    F.interpolate(hq_video_slice, (720, 1280))[0].cpu()
+                )
+                (
+                    gt_index,
+                    result_index,
+                    gt,
+                    result,
+                ) = app.get_undetected_ground_truth_index(
+                    inference_results[fid], ground_truth_dict[fid], args
+                )
+
+                # Visualize false negatives
+                writer.add_image(
+                    "FN",
+                    T.ToTensor()(
+                        app.visualize(
+                            hq_image, {"instances": gt[gt_index]}, args
+                        )
+                    ),
+                    fid,
+                )
+
+                writer.add_image(
+                    "FP",
+                    T.ToTensor()(
+                        app.visualize(
+                            hq_image, {"instances": result[result_index]}, args
+                        )
+                    ),
+                    fid,
+                )
 
     write_results(args.input, app.name, inference_results, logger)
 
@@ -137,6 +179,12 @@ if __name__ == "__main__":
         default=0.7,
     )
     parser.add_argument(
+        "--gt_confidence_threshold",
+        type=float,
+        help="The confidence score threshold for calculating accuracy.",
+        default=0.7,
+    )
+    parser.add_argument(
         "--iou_threshold",
         type=float,
         help="The IoU threshold for calculating accuracy in object detection.",
@@ -150,6 +198,13 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--from_source", type=bool, help="No reencoding?", default=False,
+    )
+    parser.add_argument(
+        "--ground_truth",
+        "-g",
+        type=str,
+        help="The ground truth (for visualization purpose)",
+        default="",
     )
 
     args = parser.parse_args()

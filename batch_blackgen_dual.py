@@ -1,4 +1,3 @@
-import glob
 import os
 import subprocess
 from itertools import product
@@ -11,125 +10,83 @@ import yaml
 #     "youtube_videos/trafficcam_%d_crop" % (i + 1) for i in range(4)
 # ]
 
-# v_list = ["youtube_videos/dashcam_%d_crop" % (i + 1) for i in range(4)]
-# v_list = ["dashcam/dashcam_2"]
-# v_list = ["visdrone/videos/vis_172"]
+# v_list = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
+# v_list = ["visdrone/videos/vis_%d" % i for i in range(169, 174)] + [
+#     "dashcam/dashcam_%d" % i for i in range(1, 11)
+# ]
+# v_list = ["adapt/drive_%d" % i for i in range(30, 60)]
+# v_list = ["dashcam/dashcam_%d" % i for i in [7]]
 
 v_list = [
-    "visdrone/videos/vis_171",
+    "visdrone/videos/vis_%d" % i
+    for i in [171, 169, 170, 172, 173]
+    # "large_object/large_%d" % i
+    # for i in range(3, 5)
+    # "visdrone/videos/vis_172",
+    # "visdrone/videos/vis_171",
     # "visdrone/videos/vis_170",
     # "visdrone/videos/vis_173",
     # "visdrone/videos/vis_169",
     # "visdrone/videos/vis_172",
     # "visdrone/videos/vis_209",
     # "visdrone/videos/vis_217",
-]
+] + ["dashcam/dashcam_%d" % i for i in range(1, 11)]
 # v_list = [v_list[2]]
-base = 42
+# v_list = ["visdrone/videos/vis_171"]
+base = 50
 high = 30
 tile = 16
-model_name = "COCO_full_normalizedsaliency_vgg11_crossthresh"
-conv_large_list = [13]
-conv_list = [7]
-bound_list = [0.3]
-# lower_bound_list = [0.3]
+# model_name = f"COCO_full_normalizedsaliency_R_101_FPN_crossthresh"
+model_name = f"COCO_detection_FPN_retrain_SSD"
 
-for v, conv, bound, conv_large in product(
-    v_list, conv_list, bound_list, conv_large_list
-):
+"""
+    For object detection, use bound 0.5, conv 9 for drone videos and dashcam videos.
+    Use
+    COCO_full_normalizedsaliency_R_101_FPN_crossthresh
+    as the model, and use
+    ["dashcam/dashcam_%d" % i for i in range(1, 8)]
+    and
+    ["visdrone/videos/vis_%d" % i for i in range(169, 174)]
+    for video id
+"""
+conv_list = [1]
+bound_list = [0.05]
+stats = "stats_FPN"
+
+
+# app_name = "Segmentation/fcn_resnet50"
+app_name = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+# app_name = "EfficientDet"
+filename = "mobilenet_v2"
+
+for v, conv, bound in product(v_list, conv_list, bound_list):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = f"{v}_final_blackgen_dualconv_bound_{bound}_conv_{conv}_{conv_large}.mp4"
+    # visdrone/videos/vis_169_blackgen_bound_0.2_qp_30_conv_5_app_FPN.mp4
+    # output = f"{v}_blackgen_bound_{bound}_qp_30_conv_{conv}_app_FPN.mp4"
 
-    if True or len(glob.glob(output + "*.mp4")) == 0:
-        # if True:
+    examine_output = f"{v}_blackgen_dual_SSD_bound_{bound}_conv_{conv}_app_FPN_base_{base}.mp4"
 
-        subprocess.run(["rm", "-r", output + "*"])
+    output = f"{examine_output}.qp30.mp4"
 
-        subprocess.run(
-            [
-                "python",
-                "compress_blackgen_dual.py",
-                "-i",
-                f"{v}_qp_{base}.mp4",
-                f"{v}_qp_{high}.mp4",
-                "-s",
-                f"{v}",
-                "-o",
-                f"{output}.qp{base}.mp4",
-                "--tile_size",
-                f"{tile}",
-                "-p",
-                f"maskgen_pths/{model_name}.pth.best",
-                "--conv_size",
-                f"{conv}",
-                "--conv_size_large",
-                f"{conv_large}",
-                "--visualize",
-                "True",
-                # "-g",
-                # f"{v}_qp_{high}_ground_truth.mp4",
-                "--bound",
-                f"{bound}",
-                "--force_qp",
-                f"{base}",
-                "--smooth_frames",
-                "30",
-            ]
-        )
+    os.system(f"rm -r {examine_output}*")
 
-        subprocess.run(
-            [
-                "python",
-                "compress_blackgen_dual.py",
-                "-i",
-                f"{v}_qp_{base}.mp4",
-                f"{v}_qp_{high}.mp4",
-                "-s",
-                f"{v}",
-                "-o",
-                f"{output}.qp{high}.mp4",
-                "--tile_size",
-                f"{tile}",
-                "-p",
-                f"maskgen_pths/{model_name}.pth.best",
-                "--conv_size",
-                f"{conv}",
-                "--conv_size_large",
-                "-1",
-                "--visualize",
-                "True",
-                # "-g",
-                # f"{v}_qp_{high}_ground_truth.mp4",
-                "--bound",
-                f"{bound}",
-                "--force_qp",
-                f"{high}",
-                "--smooth_frames",
-                "30",
-            ]
-        )
-
-        # subprocess.run(
-        #     [
-        #         "ffmpeg",
-        #         "-y",
-        #         "-i",
-        #         f"{v}/%010d.png",
-        #         "-start_number",
-        #         "0",
-        #         "-qp",
-        #         f"30",
-        #         "-vf",
-        #         "scale=480:272",
-        #         f"{output}.base.mp4",
-        #     ]
-        # )
-
-        os.system(f"python inference_dual.py -i {output}")
+    # if True:
+    os.system(
+        f"python compress_blackgen.py -i {v}_qp_{base}.mp4 "
+        f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
+        f" --conv_size {conv} "
+        f" -g {v}_qp_{high}.mp4 --bound {bound} --qp {high} --smooth_frames 30 --app {app_name} "
+        f"--maskgen_file /tank/kuntai/code/video-compression/maskgen/{filename}.py"
+    )
+    os.system(f"cp {v}_qp_{base}.mp4 {examine_output}.base.mp4")
 
     os.system(
-        f"python examine.py -i {output} -g {v}_qp_{high}.mp4 --gt_confidence_threshold 0.7 --confidence_threshold 0.7"
+        f"python inference.py -i {examine_output} --app {app_name} --confidence_threshold 0.7 --gt_confidence_threshold 0.65 -g {v}_qp_{high}.mp4"
+    )
+
+    os.system(
+        f"python examine.py -i {examine_output} -g {v}_qp_{high}.mp4 --confidence_threshold 0.7 --gt_confidence_threshold 0.65 --app {app_name} --stats {stats}"
     )
 
     # if not os.path.exists(f"diff/{output}.gtdiff.mp4"):

@@ -188,7 +188,7 @@ def main(args):
                     "--confidence_threshold",
                     f"{args.confidence_threshold}",
                     "--gt_confidence_threshold",
-                    f"{args.confidence_threshold}",
+                    f"{args.gt_confidence_threshold}",
                     "--stats",
                     args.stats,
                 ]
@@ -253,13 +253,16 @@ if __name__ == "__main__":
     # args.inputs = ["visdrone/videos/vis_171"]
     args.gt_qp = 30
     args.qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
-    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)]
+    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)] + [
+        "dashcam/dashcam_%d" % i for i in range(1, 11)
+    ]
     args.force = False
     args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
     # args.app = "EfficientDet"
     # assert attr == "webm"
-    args.stats = f"stats_gtbbox_FPN"
+    args.stats = f"stats_FPN"
     args.confidence_threshold = 0.7
+    args.gt_confidence_threshold = 0.65
 
     # args = parser.parse_args()
     main(args)

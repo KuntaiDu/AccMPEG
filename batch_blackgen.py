@@ -18,12 +18,14 @@ import yaml
 # v_list = ["dashcam/dashcam_%d" % i for i in [7]]
 
 v_list = [
-    "visdrone/videos/vis_%d" % i
-    for i in range(169, 174)
+    # "visdrone/videos/vis_%d" % i
+    # for i in range(169, 174)
+    # "dashcam/dashcam_2",
     # "large_object/large_%d" % i
     # for i in range(3, 5)
     # "visdrone/videos/vis_172",
-    # "visdrone/videos/vis_171",
+    "visdrone/videos/vis_171",
+    "dashcam/dashcam_2",
     # "visdrone/videos/vis_170",
     # "visdrone/videos/vis_173",
     # "visdrone/videos/vis_169",
@@ -31,13 +33,14 @@ v_list = [
     # "visdrone/videos/vis_209",
     # "visdrone/videos/vis_217",
 ]  # + ["dashcam/dashcam_%d" % i for i in range(1, 11)]
+# v_list = ["dashcam/dashcam_2"]
 # v_list = [v_list[2]]
 # v_list = ["visdrone/videos/vis_171"]
 base = 50
 high = 30
 tile = 16
 # model_name = f"COCO_full_normalizedsaliency_R_101_FPN_crossthresh"
-model_name = f"COCO_full_normalizedsaliency_R_101_FPN_crossthresh_5xdownsample"
+model_name = f"COCO_detection_FPN_retrain_SSD"
 
 """
     For object detection, use bound 0.5, conv 9 for drone videos and dashcam videos.
@@ -49,24 +52,32 @@ model_name = f"COCO_full_normalizedsaliency_R_101_FPN_crossthresh_5xdownsample"
     ["visdrone/videos/vis_%d" % i for i in range(169, 174)]
     for video id
 """
-conv_list = [5]
-bound_list = [0.6]
-stats = "stats_gtbbox_FPN"
+conv_list = [3]
+bound_list = [0.05]
+stats = "stats_FPN"
+
 
 # app_name = "Segmentation/fcn_resnet50"
 app_name = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
 # app_name = "EfficientDet"
-filename = "vgg11_downsample"
+filename = "mobilenet_v2"
 
 for v, conv, bound in product(v_list, conv_list, bound_list):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
     # visdrone/videos/vis_169_blackgen_bound_0.2_qp_30_conv_5_app_FPN.mp4
     # output = f"{v}_blackgen_bound_{bound}_qp_30_conv_{conv}_app_FPN.mp4"
-    output = f"{v}_blackgen_downsample_bound_{bound}_conv_{conv}_app_FPN.mp4"
 
-    if True or not os.path.exists(output):
-        # if True:
+    output = f"{v}_blackgen_SSD_bound_{bound}_conv_{conv}_app_FPN.mp4"
+    examine_output = output
+
+    # examine_output = (
+    #     f"{v}_blackgen_dual_SSD_bound_{bound}_conv_{conv}_app_FPN.mp4"
+    # )
+
+    # os.system(f"rm -r {examine_output}*")
+
+    if not os.path.exists(output):
         os.system(
             f"python compress_blackgen.py -i {v}_qp_{base}.mp4 "
             f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
@@ -74,25 +85,13 @@ for v, conv, bound in product(v_list, conv_list, bound_list):
             f" -g {v}_qp_{high}.mp4 --bound {bound} --qp {high} --smooth_frames 30 --app {app_name} "
             f"--maskgen_file /tank/kuntai/code/video-compression/maskgen/{filename}.py"
         )
-        #     os.system(f"cp {v}_qp_{base}.mp4 {output}.base.mp4")
-
-    # output = "trial/" + output
-
-    # if not os.path.exists(output):
-    #     # if True:
-    #     os.system(
-    #         f"python compress_blackgen.py -i {v}_qp_{base}.mp4 "
-    #         f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
-    #         f" --conv_size {conv} "
-    #         f" -g {v}_qp_{high}.mp4 --bound {bound} --qp {high} --smooth_frames 30 --app {app_name}"
-    #     )
 
     os.system(
-        f"python inference.py -i {output} --app {app_name} --confidence_threshold 0.3"
+        f"python inference.py -i {examine_output} --app {app_name} --confidence_threshold 0.7 --gt_confidence_threshold 0.6 -g {v}_qp_{high}.mp4"
     )
 
     os.system(
-        f"python examine.py -i {output} -g {v}_qp_{high}.mp4 --confidence_threshold 0.3 --gt_confidence_threshold 0.3 --app {app_name} --stats {stats}"
+        f"python examine.py -i {examine_output} -g {v}_qp_{high}.mp4 --confidence_threshold 0.7 --gt_confidence_threshold 0.6 --app {app_name} --stats {stats}"
     )
 
     # if not os.path.exists(f"diff/{output}.gtdiff.mp4"):

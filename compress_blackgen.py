@@ -27,7 +27,12 @@ from utils.mask_utils import *
 from utils.results_utils import read_ground_truth, read_results
 from utils.timer import Timer
 from utils.video_utils import get_qp_from_name, read_videos, write_video
-from utils.visualize_utils import visualize_heat_by_summarywriter
+from utils.visualize_utils import (
+    visualize_dist_by_summarywriter,
+    visualize_heat_by_summarywriter,
+)
+
+thresh_list = [0.05, 0.1, 0.2, 0.4, 0.8]
 
 sns.set()
 
@@ -56,6 +61,7 @@ def main(args):
     maskgen = importlib.util.module_from_spec(maskgen_spec)
     maskgen_spec.loader.exec_module(maskgen)
     mask_generator = maskgen.FCN()
+    mask_generator.load(args.path)
     mask_generator.cuda()
 
     # construct the mask
@@ -128,15 +134,24 @@ def main(args):
 
                 image = T.ToPILImage()(video_slices[-1][0, :, :, :])
 
+                mask_slice = mask_slice.detach().cpu()
+
                 writer.add_image("raw_frame", video_slices[-1][0, :, :, :], fid)
 
                 visualize_heat_by_summarywriter(
-                    image,
-                    mask_slice.cpu().detach().float(),
-                    "inferred_saliency",
-                    writer,
-                    fid,
-                    args,
+                    image, mask_slice, "inferred_saliency", writer, fid, args,
+                )
+
+                visualize_dist_by_summarywriter(
+                    mask_slice, "saliency_dist", writer, fid,
+                )
+
+                mask_slice = sum(
+                    [(mask_slice > thresh).float() for thresh in thresh_list]
+                )
+
+                visualize_heat_by_summarywriter(
+                    image, mask_slice, "binarized_saliency", writer, fid, args,
                 )
 
         logger.info("In video %s", args.output)
@@ -148,17 +163,39 @@ def main(args):
 
     for mask_slice in mask.split(args.smooth_frames):
 
-        # mask_slice[:, :, :, :] = (
-        #     mask_slice[0:1, :, :, :] + mask_slice[-1:, :, :, :]
-        # ) / 2
-        mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
+        mask_slice[:, :, :, :] = (
+            mask_slice[0:1, :, :, :] + mask_slice[-1:, :, :, :]
+        ) / 2
+    # mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
 
+    # if args.bound is not None:
+    #     mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
+    # else:
+    #     assert args.perc is not None
+    #     mask = (mask > percentile(mask, args.perc)).float()
+    #     mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
     if args.bound is not None:
-        mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
+        mask = (mask > args.bound).float()
     else:
-        assert args.perc is not None
         mask = (mask > percentile(mask, args.perc)).float()
-        mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
+
+    for fid, (video_slices, mask_slice) in enumerate(
+        zip(zip(*videos), mask.split(1))
+    ):
+
+        if fid % args.visualize_step_size == 0:
+
+            image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+            visualize_heat_by_summarywriter(
+                image,
+                mask_slice.cpu().detach().float(),
+                "raw_quality_assignment",
+                writer,
+                fid,
+                args,
+            )
+
+    mask = postprocess_mask(mask)
 
     for fid, (video_slices, mask_slice) in enumerate(
         zip(zip(*videos), mask.split(1))
