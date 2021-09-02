@@ -4,9 +4,11 @@ from pdb import set_trace
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
-from utils.bbox_utils import *
+from utilities.bbox_utils import *
 from detr.models.matcher import HungarianMatcher
 from detr.models.detr import SetCriterion
+from detectron2.structures.instances import Instances
+from detectron2.structures.boxes import Boxes
 
 from .dnn import DNN
 
@@ -171,70 +173,114 @@ class Detr_ResNet101(DNN):
                 for key in result:
                     result[key] = result[key].cpu().detach()
 
-        return results
+        video_scores, labels = torch.max(torch.nn.functional.softmax(results[0]['pred_logits'], dim=2)[0], dim=1)
+        boxes = results[0]["pred_boxes"].squeeze(0)
+        _,h,w = video[0].shape
+        boxes = boxes*torch.tensor([w,h,w,h])
+        boxes = [[box[0] - 0.5*box[2], box[1] - 0.5*box[3], box[0] + 0.5*box[2], box[1] + 0.5*box[3]] for box in boxes]
+        #for box in boxes:
+        #    b = [box[0] - 0.5*box[2], box[1] - 0.5*box[3], box[0] + 0.5*box[2], box[1] + 0.5*box[3]]
+        #    bx.append(b)
 
-    def filter_results(
-        self, video_results, confidence_threshold, cuda=False, train=False
-    ):
 
-        if not isinstance(video_results, dict):
-            video_results=video_results[0]
-        video_scores, labels = torch.max(torch.nn.functional.softmax(video_results['pred_logits']), dim=2)
-        video_scores = video_scores[0]
-        labels = labels[0]
-        boxes = video_results["pred_boxes"].squeeze(0)
 
-        video_ind = video_scores > confidence_threshold
-        if not train:
-            video_ind = torch.logical_and(
-                video_ind, self.get_relevant_ind(labels)
-            )
-            video_ind = torch.logical_and(
-                video_ind, self.filter_large_bbox(boxes)
-            )
-        video_scores = video_scores[video_ind]
-        video_bboxes = boxes[video_ind, :]
-        video_labels = labels[video_ind]
-        video_ind = video_ind[video_ind]
-        if cuda:
-            return (
-                video_ind.cuda(),
-                video_scores.cuda(),
-                video_bboxes.cuda(),
-                video_labels.cuda(),
-            )
+        ret = Instances(
+            image_size=(h, w),
+            pred_boxes=Boxes(boxes),
+            #pred_boxes=Boxes(bx),
+            scores=video_scores,
+            pred_classes=labels
+        )
+
+        if detach:
+            ret = ret.to("cpu")
+
+        return {"instances": ret}
+
+        #return results
+
+    def filter_result(self, result, args, gt=False):
+    
+        scores = result["instances"].scores
+        class_ids = result["instances"].pred_classes
+
+        inds = scores < 0
+        for i in self.class_ids:
+            inds = inds | (class_ids == i)
+        if gt:
+            inds = inds & (scores > args.gt_confidence_threshold)
         else:
-            return (
-                video_ind.cpu(),
-                video_scores.cpu(),
-                video_bboxes.cpu(),
-                video_labels.cpu(),
-            )
+            inds = inds & (scores > args.confidence_threshold)
 
-    def calc_accuracy(self, video, gt, args):
-        """
-            Calculate the accuracy between video and gt using thresholds from args based on inference results
-        """
+        result["instances"] = result["instances"][inds]
 
-        assert video.keys() == gt.keys()
+        return result
+
+    #def filter_result(
+    #    self, video_results, confidence_threshold, cuda=False, train=False
+    #):
+
+    #    if not isinstance(video_results, dict):
+    #        video_results=video_results[0]
+    #    video_scores, labels = torch.max(torch.nn.functional.softmax(video_results['pred_logits']), dim=2)
+    #    video_scores = video_scores[0]
+    #    labels = labels[0]
+    #    boxes = video_results["pred_boxes"].squeeze(0)
+
+    #    video_ind = video_scores > confidence_threshold
+    #    if not train:
+    #        video_ind = torch.logical_and(
+    #            video_ind, self.get_relevant_ind(labels)
+    #        )
+    #        video_ind = torch.logical_and(
+    #            video_ind, self.filter_large_bbox(boxes)
+    #        )
+    #    video_scores = video_scores[video_ind]
+    #    video_bboxes = boxes[video_ind, :]
+    #    video_labels = labels[video_ind]
+    #    video_ind = video_ind[video_ind]
+    #    if cuda:
+    #        return (
+    #            video_ind.cuda(),
+    #            video_scores.cuda(),
+    #            video_bboxes.cuda(),
+    #            video_labels.cuda(),
+    #        )
+    #    else:
+    #        return (
+    #            video_ind.cpu(),
+    #            video_scores.cpu(),
+    #            video_bboxes.cpu(),
+    #            video_labels.cpu(),
+    #        )
+
+    def calc_accuracy(self, result_dict, gt_dict, args):
+    
+        from detectron2.structures.boxes import pairwise_iou
+
+        assert (
+            result_dict.keys() == gt_dict.keys()
+        ), "Result and ground truth must contain the same number of frames."
 
         f1s = []
         prs = []
         res = []
-        tps = [torch.tensor(0)]
-        fps = [torch.tensor(0)]
-        fns = [torch.tensor(0)]
+        tps = []
+        fps = []
+        fns = []
 
-        for fid in video.keys():
+        for fid in result_dict.keys():
+            result = result_dict[fid]
+            gt = gt_dict[fid]
 
-            video_ind, video_scores, video_bboxes, video_labels = self.filter_results(
-                video[fid], args.confidence_threshold
-            )
-            gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
-                gt[fid], args.gt_confidence_threshold
-            )
-            if len(video_labels) == 0 or len(gt_labels) == 0:
-                if len(video_labels) == 0 and len(gt_labels) == 0:
+            result = self.filter_result(result, args, False)
+            gt = self.filter_result(gt, args, True)
+
+            result = result["instances"]
+            gt = gt["instances"]
+
+            if len(result) == 0 or len(gt) == 0:
+                if len(result) == 0 and len(gt) == 0:
                     f1s.append(1.0)
                     prs.append(1.0)
                     res.append(1.0)
@@ -242,40 +288,36 @@ class Detr_ResNet101(DNN):
                     f1s.append(0.0)
                     prs.append(0.0)
                     res.append(0.0)
-                continue
 
-            IoU = jaccard(video_bboxes, gt_bboxes)
+            IoU = pairwise_iou(result.pred_boxes, gt.pred_boxes)
 
-            # let IoU = 0 if the label is wrong
-            fat_video_labels = video_labels[:, None].repeat(1, len(gt_labels))
-            fat_gt_labels = gt_labels[None, :].repeat(len(video_labels), 1)
-            IoU[fat_video_labels != fat_gt_labels] = 0
+            for i in range(len(result)):
+                for j in range(len(gt)):
+                    if result.pred_classes[i] != gt.pred_classes[j]:
+                        IoU[i, j] = 0
 
-            # calculate f1
             tp = 0
 
-            for i in range(len(gt_labels)):
-                tp = (
-                    tp
-                    + torch.min(
-                        self.step2(IoU[:, i] - args.iou_threshold),
-                        self.step2(video_scores - args.confidence_threshold),
-                    ).max()
-                )
-            tp = min(
-                [
-                    tp,
-                    len(gt_labels),
-                    len(video_labels[video_scores > args.confidence_threshold]),
-                ]
-            )
-            fn = len(gt_labels) - tp
-            fp = len(video_labels[video_scores > args.confidence_threshold]) - tp
+            for i in range(len(gt)):
+                if sum(IoU[:, i] > args.iou_threshold):
+                    tp += 1
+            fn = len(gt) - tp
+            fp = len(result) - tp
+            fp = max(fp, 0)
 
-            f1 = 2 * tp / (2 * tp + fp + fn)
-            pr = tp / (tp + fp)
-            re = tp / (tp + fn)
-            # import pdb; pdb.set_trace()
+            if (2 * tp + fp + fn) == 0:
+                f1 = 1.0
+            else:
+                f1 = 2 * tp / (2 * tp + fp + fn)
+
+            if tp + fp == 0:
+                pr = 1.0
+            else:
+                pr = tp / (tp + fp)
+            if tp + fn == 0:
+                re = 1.0
+            else:
+                re = tp / (tp + fn)
 
             f1s.append(f1)
             prs.append(pr)
@@ -284,20 +326,108 @@ class Detr_ResNet101(DNN):
             fps.append(fp)
             fns.append(fn)
 
-            # if fid % 10 == 9:
-            #     #pass
-            #     print('f1:', torch.tensor(f1s[-9:]).mean().item())
-            #     print('pr:', torch.tensor(prs[-9:]).mean().item())
-            #     print('re:', torch.tensor(res[-9:]).mean().item())
-
         return {
             "f1": torch.tensor(f1s).mean().item(),
             "pr": torch.tensor(prs).mean().item(),
             "re": torch.tensor(res).mean().item(),
-            "tp": sum(tps).item(),
-            "fp": sum(fps).item(),
-            "fn": sum(fns).item(),
+            "tp": torch.tensor(tps).sum().item(),
+            "fp": torch.tensor(fps).sum().item(),
+            "fn": torch.tensor(fns).sum().item(),
+            #"sum_f1": (2 * sum_tp / (2 * sum_tp + sum_fp + sum_fn))
+            #"f1s": f1s,
+            #"prs": prs,
+            #"res": res,
+            #"tps": tps,
+            #"fns": fns,
+            #"fps": fps,
         }
+    #def calc_accuracy(self, video, gt, args):
+    #    """
+    #        Calculate the accuracy between video and gt using thresholds from args based on inference results
+    #    """
+
+    #    assert video.keys() == gt.keys()
+
+    #    f1s = []
+    #    prs = []
+    #    res = []
+    #    tps = [torch.tensor(0)]
+    #    fps = [torch.tensor(0)]
+    #    fns = [torch.tensor(0)]
+
+    #    for fid in video.keys():
+
+    #        video_ind, video_scores, video_bboxes, video_labels = self.filter_result(
+    #            video[fid], args.confidence_threshold
+    #        )
+    #        gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_result(
+    #            gt[fid], args.gt_confidence_threshold
+    #        )
+    #        if len(video_labels) == 0 or len(gt_labels) == 0:
+    #            if len(video_labels) == 0 and len(gt_labels) == 0:
+    #                f1s.append(1.0)
+    #                prs.append(1.0)
+    #                res.append(1.0)
+    #            else:
+    #                f1s.append(0.0)
+    #                prs.append(0.0)
+    #                res.append(0.0)
+    #            continue
+
+    #        IoU = jaccard(video_bboxes, gt_bboxes)
+
+    #        # let IoU = 0 if the label is wrong
+    #        fat_video_labels = video_labels[:, None].repeat(1, len(gt_labels))
+    #        fat_gt_labels = gt_labels[None, :].repeat(len(video_labels), 1)
+    #        IoU[fat_video_labels != fat_gt_labels] = 0
+
+    #        # calculate f1
+    #        tp = 0
+
+    #        for i in range(len(gt_labels)):
+    #            tp = (
+    #                tp
+    #                + torch.min(
+    #                    self.step2(IoU[:, i] - args.iou_threshold),
+    #                    self.step2(video_scores - args.confidence_threshold),
+    #                ).max()
+    #            )
+    #        tp = min(
+    #            [
+    #                tp,
+    #                len(gt_labels),
+    #                len(video_labels[video_scores > args.confidence_threshold]),
+    #            ]
+    #        )
+    #        fn = len(gt_labels) - tp
+    #        fp = len(video_labels[video_scores > args.confidence_threshold]) - tp
+
+    #        f1 = 2 * tp / (2 * tp + fp + fn)
+    #        pr = tp / (tp + fp)
+    #        re = tp / (tp + fn)
+    #        # import pdb; pdb.set_trace()
+
+    #        f1s.append(f1)
+    #        prs.append(pr)
+    #        res.append(re)
+    #        tps.append(tp)
+    #        fps.append(fp)
+    #        fns.append(fn)
+
+    #        # if fid % 10 == 9:
+    #        #     #pass
+    #        #     print('f1:', torch.tensor(f1s[-9:]).mean().item())
+    #        #     print('pr:', torch.tensor(prs[-9:]).mean().item())
+    #        #     print('re:', torch.tensor(res[-9:]).mean().item())
+
+    #    return {
+    #        "f1": torch.tensor(f1s).mean().item(),
+    #        "pr": torch.tensor(prs).mean().item(),
+    #        "re": torch.tensor(res).mean().item(),
+    #        "tp": sum(tps).item(),
+    #        "fp": sum(fps).item(),
+    #        "fn": sum(fns).item(),
+    #    }
 
     def get_relevant_ind(self, labels):
 
@@ -327,7 +457,7 @@ class Detr_ResNet101(DNN):
 
         def transform_result(gt_result):
             # calculate the ground truth
-            gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_results(
+            gt_ind, gt_scores, gt_bboxes, gt_labels = self.filter_result(
                 gt_result, args.confidence_threshold, cuda=True, train=train
             )
             # construct targets

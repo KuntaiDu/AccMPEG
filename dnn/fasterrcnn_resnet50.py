@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
-from utils.bbox_utils import *
+from utilities.bbox_utils import *
 
 from .dnn import DNN
 

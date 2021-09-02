@@ -13,9 +13,9 @@ from torchvision import io
 
 from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 from dnn.dnn_factory import DNN_Factory
-from utils.bbox_utils import jaccard
-from utils.results_utils import read_results, write_results
-from utils.video_utils import read_bandwidth
+from utilities.bbox_utils import jaccard
+from utilities.results_utils import read_results, write_results
+from utilities.video_utils import read_bandwidth
 
 
 def main(args):

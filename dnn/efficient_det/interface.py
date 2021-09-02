@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
-from utils.bbox_utils import *
+from utilities.bbox_utils import *
 
 from torch.backends import cudnn
 from dnn.efficient_det.backbone import EfficientDetBackbone
@@ -186,7 +186,10 @@ class EfficientDet(DNN):
             fp = len(result) - tp
             fp = max(fp, 0)
 
-            f1 = 2 * tp / (2 * tp + fp + fn)
+            if (2 * tp + fp + fn) == 0:
+                f1 = 1.0
+            else:
+                f1 = 2 * tp / (2 * tp + fp + fn)
             if tp + fp == 0:
                 pr = 1.0
             else:
@@ -210,12 +213,12 @@ class EfficientDet(DNN):
             "tp": torch.tensor(tps).sum().item(),
             "fp": torch.tensor(fps).sum().item(),
             "fn": torch.tensor(fns).sum().item(),
-            "f1s": f1s,
-            "prs": prs,
-            "res": res,
-            "tps": tps,
-            "fns": fns,
-            "fps": fps,
+            #"f1s": f1s,
+            #"prs": prs,
+            #"res": res,
+            #"tps": tps,
+            #"fns": fns,
+            #"fps": fps,
         }
 
 

@@ -13,7 +13,7 @@ from torchvision.models.segmentation import (
     fcn_resnet50,
     fcn_resnet101,
 )
-from utils.bbox_utils import *
+from utilities.bbox_utils import *
 
 from .dnn import DNN
 
