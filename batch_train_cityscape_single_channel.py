@@ -10,19 +10,17 @@ from itertools import product
 app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
 # model_name = f"COCO_full_normalizedsaliency_R_101_FPN_crossthresh_5xdownsample"
 architecture = "SSD"
-model_name = f"cityscape_detection_FPN_{architecture}_withconfidence_allclasses_new_unfreezebackbone"
+model_name = f"COCO_detection_FPN_{architecture}_single"
 # model_name = "visdrone_R_101_FPN_crossthresh"
-filename = "SSD/accmpegmodel"
+filename = "mobilenet_v2_single_channel"
 
-gt = "pickles/cityscape_saliency_FPN_withtestset.pickle"
+gt = "pickles/COCO_saliency_FPN.pickle"
 
 
 subprocess.run(
     [
         "python",
-        "train_cityscape.py",
-        "--training_set",
-        "CityScape",
+        "train_cityscape_single_channel.py",
         "-g",
         # f"visdrone_normalizedsaliency_R_101_FPN.pickle",
         f"{gt}",
@@ -35,18 +33,16 @@ subprocess.run(
         "--batch_size",
         "4",
         "--log",
-        f"train_{model_name}.log",
+        f"train_{model_name}_small.log",
         "--maskgen_file",
         f"/tank/kuntai/code/video-compression/maskgen/{filename}.py",
         "--visualize",
         "True",
-        "--visualize_step_size",
-        "200",
         "--app",
         # f"Segmentation/fcn_resnet50",
         f"{app}",
         "--local_rank",
-        "-1",
+        "1",
         "--num_workers",
         "10",
         "--learning_rate",
@@ -55,9 +51,5 @@ subprocess.run(
         architecture,
         "--test_set",
         "object_detection_test_set",
-        "--confidence_threshold",
-        "0.6",
-        "--gt_confidence_threshold",
-        "0.6",
     ]
 )

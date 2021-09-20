@@ -49,6 +49,18 @@ def visualize_dist(heat, path, overwrite=True):
     plt.close(fig)
 
 
+def visualize_scores2grads(scores2grads, path, overwrite=True):
+    if Path(path).exists() and not overwrite:
+        return
+
+    fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
+    ax.scatter([i[0] for i in scores2grads], [i[1] for i in scores2grads])
+    # ax.tick_params(left=False, bottom=False)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, bbox_inches="tight")
+    plt.close(fig)
+
+
 def visualize_dist_by_summarywriter(heat, tag, writer, fid):
 
     heat[heat != heat] = 0

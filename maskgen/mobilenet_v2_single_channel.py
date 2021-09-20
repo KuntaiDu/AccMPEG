@@ -215,7 +215,11 @@ class FCN(nn.Module):
             N = 320
 
         self.postprocess = nn.Sequential(
-            nn.Conv2d(N, 320, 3, padding=1), nn.Conv2d(320, 2, 3, padding=1),
+            nn.Conv2d(N, 320, 3, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(320),
+            nn.Conv2d(320, 1, 3, padding=1),
+            nn.ReLU(),
         )
 
         self._initialize_weights()

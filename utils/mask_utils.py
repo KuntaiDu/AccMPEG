@@ -385,6 +385,8 @@ def write_black_bkgd_video_smoothed_continuous(
     # mask = F.conv2d(mask, torch.ones([1, 1, 3, 3]), stride=1, padding=1)
     # mask = torch.where(mask > 0, torch.ones_like(mask), torch.zeros_like(mask))
 
+    logger.info("Copying source images...")
+
     os.system(f"rm -r {args.output}.source.pngs")
     os.system(f"cp -r {args.source} {args.output}.source.pngs")
 
@@ -510,6 +512,8 @@ def write_black_bkgd_video_smoothed_continuous(
                 args.output,
             ]
         )
+
+    os.system(f"rm -r {args.output}.source.pngs")
 
 
 def write_black_bkgd_video_smoothed_continuous_crf(
@@ -815,21 +819,15 @@ def percentile(t: torch.tensor, q: float) -> float:
     return result
 
 
-def merge_black_bkgd_images(images):
+def merge_black_bkgd_images(images, mask, args):
 
     images = [F.interpolate(image, size=(720, 1280)) for image in images]
+    mask = tile_mask(mask, args.tile_size)
 
-    mean = torch.tensor([0.485, 0.456, 0.406])[None, :, None, None]
-    ret = torch.zeros_like(images[0])
-    ret[:, :, :, :] = mean
-
-    for image in images:
-        ret = torch.where(image == mean, ret, image)
-
-    return ret
+    return torch.where(mask == 1, images[1], images[0])
 
 
-def postprocess_mask(mask, kernel_size=5):
+def postprocess_mask(mask, kernel_size=3):
 
     assert ((mask == 0) | (mask == 1)).all()
     eps = 1e-5

@@ -35,7 +35,7 @@ from dnn.dnn_factory import DNN_Factory
 from utils.bbox_utils import center_size
 from utils.dataset import *
 from utils.loss_utils import get_mean_std
-from utils.loss_utils import shifted_mse as get_loss
+from utils.loss_utils import weighted_MSE as get_loss
 from utils.mask_utils import *
 from utils.results_utils import read_results
 from utils.video_utils import get_qp_from_name, read_videos, write_video
@@ -44,10 +44,9 @@ from utils.visualize_utils import *
 sns.set()
 
 weight = [1, 1]
-# thresh_list = torch.tensor([5, 7.5, 10])
 
 
-def get_groundtruths(args, train_val_set, path, visualize_step_size, tag):
+def get_groundtruths(args, train_val_set):
 
     app = DNN_Factory().get_model(args.app)
     loader = torch.utils.data.DataLoader(
@@ -77,67 +76,48 @@ def get_groundtruths(args, train_val_set, path, visualize_step_size, tag):
         if args.local_rank >= 0 and fid % 2 != args.local_rank:
             continue
         # hq_image = data["hq"]
-        vname = data["video_name"][0]
+        vname = data["video_name"]
 
-        # lq_image = data["lq"].cuda(non_blocking=True)
+        lq_image = data["lq"].cuda(non_blocking=True)
         hq_image = data["hq"].cuda(non_blocking=True)
-        hq_image.requires_grad = True
-        # lq_image.requires_grad = True
+        lq_image.requires_grad = True
+
+        with torch.no_grad():
+            hq_result = app.inference(hq_image, detach=True)
+            hq_result = app.filter_result(hq_result, args)
+        # if len(hq_result["instances"]) == 0:
+        #     continue
 
         with torch.enable_grad():
-            hq_result = app.inference(hq_image, detach=False, grad=True)
-            hq_result = app.filter_result(hq_result, args)
+            lq_result = app.inference(lq_image, detach=False, grad=True)
+            lq_result = app.filter_result(
+                lq_result, args, gt=False, confidence_check=False
+            )
+            loss = app.calc_dist(lq_result, hq_result, args)
 
-            if len(hq_result["instances"]) == 0:
-                (hq_image * 0.0).sum().backward()
-            else:
-                sum(hq_result["instances"].scores).backward()
-
-        # with torch.enable_grad():
-        #     lq_result = app.inference(lq_image, detach=False, grad=True)
-        #     lq_result = app.filter_result(
-        #         lq_result,
-        #         args,
-        #         gt=False,
-        #         confidence_check=False,
-        #         require_deepcopy=False,
-        #     )
-        #     if len(lq_result["instances"]) == 0:
-        #         continue
-        #     loss = app.calc_dist(lq_result, hq_result, args)
-
-        # lq_result["instances"] = lq_result["instances"].to("cpu")
-        # for key in lq_result["instances"].get_fields():
-        #     if key == "pred_boxes":
-        #         lq_result["instances"].get_fields()[key].tensor = (
-        #             lq_result["instances"].get_fields()[key].tensor.detach()
-        #         )
-        #     else:
-        #         lq_result["instances"].get_fields()[key] = (
-        #             lq_result["instances"].get_fields()[key].detach()
-        #         )
-        hq_result["instances"] = hq_result["instances"].to("cpu")
-        for key in hq_result["instances"].get_fields():
+        lq_result["instances"] = lq_result["instances"].to("cpu")
+        for key in lq_result["instances"].get_fields():
             if key == "pred_boxes":
-                hq_result["instances"].get_fields()[key].tensor = (
-                    hq_result["instances"].get_fields()[key].tensor.detach()
+                lq_result["instances"].get_fields()[key].tensor = (
+                    lq_result["instances"].get_fields()[key].tensor.detach()
                 )
             else:
-                hq_result["instances"].get_fields()[key] = (
-                    hq_result["instances"].get_fields()[key].detach()
+                lq_result["instances"].get_fields()[key] = (
+                    lq_result["instances"].get_fields()[key].detach()
                 )
+        hq_result["instances"] = hq_result["instances"].to("cpu")
 
-        # if loss == 0.0:
-        #     continue
-        # # lq_image.requires_grad = True
-        # # # print(lq_image.requires_grad)
-        # # with torch.enable_grad():
-        # #     lq_result = application.model(lq_image)["out"]
-        # #     loss = F.cross_entropy(lq_result, hq_result)
-        # #     # print(lq_image.requires_grad)
-        # loss.backward()
+        if loss == 0.0:
+            continue
+        # lq_image.requires_grad = True
+        # # print(lq_image.requires_grad)
+        # with torch.enable_grad():
+        #     lq_result = application.model(lq_image)["out"]
+        #     loss = F.cross_entropy(lq_result, hq_result)
+        #     # print(lq_image.requires_grad)
+        loss.backward()
 
-        mask_grad = hq_image.grad.norm(dim=1, p=1, keepdim=True)
+        mask_grad = lq_image.grad.norm(dim=1, p=1, keepdim=True)
         mask_grad = F.conv2d(
             mask_grad,
             torch.ones([1, 1, args.tile_size, args.tile_size]).cuda(),
@@ -150,39 +130,20 @@ def get_groundtruths(args, train_val_set, path, visualize_step_size, tag):
         # mask_grad = mask_grad / mask_grad.max()
         # mask_grad = mask_grad.detach().cpu()
 
-        # calculate per-bounding-box scores
-        scores2grads = []
-        regions = center_size(hq_result["instances"].pred_boxes.tensor)
-
-        for i in range(regions.shape[0]):
-
-            region = regions[i : i + 1, :]
-
-            region_mask = generate_mask_from_regions(
-                mask_grad.clone(), region, 0, args.tile_size, cuda=False
-            )
-            heat = mask_grad[region_mask > 0.5].mean()
-            scores2grads.append(
-                (hq_result["instances"].scores[i].item(), heat.item())
-            )
-
-        # mean, std = get_mean_std(mask_grad)
-
-        # if mean is None and std is None:
-        #     continue
+        mean, std = get_mean_std(mask_grad)
 
         # # save it
         # saliency[fid] = mask_grad.detach().cpu()
-        saliency[(vname, fid)] = {
+        saliency[fid] = {
             "saliency": mask_grad,
             "hq_result": hq_result,
-            # "mean": mean,
-            # "std": std,
-            "scores2grads": scores2grads,
+            "lq_result": lq_result,
+            "mean": mean,
+            "std": std,
         }
 
         # visualize the saliency
-        if fid % visualize_step_size == 0:
+        if fid % 500 == 0:
 
             # visualize
             if args.visualize:
@@ -191,50 +152,48 @@ def get_groundtruths(args, train_val_set, path, visualize_step_size, tag):
                 # application.plot_results_on(
                 #     hq_result[0].cpu(), image, "Azure", args, train=True
                 # )
-                image_hqresult = app.visualize(
-                    image, app.filter_result(hq_result, args)
-                )
+                image_hqresult = app.visualize(image, hq_result, args)
+                image_lqresult = app.visualize(image, lq_result, args)
 
                 # plot the ground truth
                 visualize_heat(
                     image_hqresult,
                     mask_grad,
-                    f"{path}/{fid}_saliency.jpg",
+                    f"train/{args.path}/gt/{fid}_saliency_hq.jpg",
                     args,
                 )
 
-                # visualize_heat(
-                #     image_hqresult,
-                #     mask_grad > torch.tensor((mean + std)).exp(),
-                #     f"{path}/{fid}_saliency_1sigma.jpg",
-                #     args,
-                # )
-
-                # visualize_heat(
-                #     image_hqresult,
-                #     mask_grad > torch.tensor((mean)).exp(),
-                #     f"{path}/{fid}_saliency_0sigma.jpg",
-                #     args,
-                # )
+                visualize_heat(
+                    image_hqresult,
+                    mask_grad > torch.tensor((mean + std)).exp(),
+                    f"train/{args.path}/gt/{fid}_saliency_1sigma.jpg",
+                    args,
+                )
 
                 visualize_heat(
                     image_hqresult,
+                    mask_grad > torch.tensor((mean)).exp(),
+                    f"train/{args.path}/gt/{fid}_saliency_0sigma.jpg",
+                    args,
+                )
+
+                visualize_heat(
+                    image_lqresult,
                     mask_grad.log(),
-                    f"{path}/{fid}_log_saliency.jpg",
+                    f"train/{args.path}/gt/{fid}_saliency_lq.jpg",
                     args,
                 )
 
                 visualize_dist(
-                    mask_grad, f"{path}/{fid}_dist.jpg",
-                )
-
-                visualize_scores2grads(
-                    scores2grads, f"{path}/{fid}_scores2grads.jpg",
+                    mask_grad, f"train/{args.path}/gt/{fid}_dist.jpg",
                 )
 
                 visualize_log_dist(
-                    mask_grad, f"{path}/{fid}_logdist.jpg",
+                    mask_grad, f"train/{args.path}/gt/{fid}_logdist.jpg",
                 )
+
+                with open(f"train/{args.path}/gt/{fid}_mean_std.txt", "w") as f:
+                    f.write(f"{mean} {std}\n")
 
                 # # visualize distribution
                 # fig, ax = plt.subplots(1, 1, figsize=(11, 5), dpi=200)
@@ -253,7 +212,7 @@ def get_groundtruths(args, train_val_set, path, visualize_step_size, tag):
                 #     f.write(f"{mean} {std}")
 
     # write saliency to disk
-    with open(args.ground_truth + f".{tag}{args.local_rank}", "wb") as f:
+    with open(args.ground_truth + ".%d" % args.local_rank, "wb") as f:
         pickle.dump(saliency, f)
 
 
@@ -264,26 +223,24 @@ def unzip_data(data, saliency):
 
     fids = [fid.item() for fid in data["fid"]]
     names = [name for name in data["video_name"]]
-
-    # if any((vname, fid) not in saliency for vname, fid in zip(names, fids)):
-    #     raise ValueError
+    if any(fid not in saliency for vname, fid in zip(names, fids)):
+        raise ValueError
 
     target = torch.cat(
-        [saliency[(vname, fid)]["saliency"] for vname, fid in zip(names, fids)]
+        [saliency[fid]["saliency"] for vname, fid in zip(names, fids)]
     )
 
-    # thresh_list = torch.cat(
-    #     [
-    #         torch.tensor(
-    #             [
-    #                 saliency[fid]["mean"] + saliency[fid]["std"],
-    #                 saliency[fid]["mean"] + 1.5 * saliency[fid]["std"],
-    #             ]
-    #         ).unsqueeze(0)
-    #         for fid in fids
-    #     ]
-    # )
-    thresh_list = []
+    thresh_list = torch.cat(
+        [
+            torch.tensor(
+                [
+                    saliency[fid]["mean"] + saliency[fid]["std"],
+                    saliency[fid]["mean"] + 1.5 * saliency[fid]["std"],
+                ]
+            ).unsqueeze(0)
+            for fid in fids
+        ]
+    )
 
     hq_image = data["hq"]
 
@@ -294,12 +251,11 @@ def visualize_test(fid, hq_image, mask_slice):
     maxid = 0
     image = T.ToPILImage()(hq_image[maxid])
     mask_slice = mask_slice[maxid : maxid + 1, :, :, :]
-    mask_slice = mask_slice.softmax(dim=1)[:, 1:2, :, :]
 
     visualize_heat(
         image,
         mask_slice.cpu().detach(),
-        f"train/{args.path}/test/{fid}_test.jpg",
+        f"train/{args.path}/test/{fid}_train.png",
         args,
     )
 
@@ -308,31 +264,27 @@ def visualize(maxid, fids, hq_image, mask_slice, target, saliency, tag):
     fid = fids[maxid]
     image = T.ToPILImage()(hq_image[maxid])
     mask_slice = mask_slice[maxid : maxid + 1, :, :, :]
-    mask_slice = mask_slice.softmax(dim=1)[:, 1:2, :, :]
     target = target[maxid : maxid + 1, :, :, :]
-    # thresh_list = torch.tensor(
-    #     [
-    #         saliency[fid]["mean"] + saliency[fid]["std"],
-    #         saliency[fid]["mean"] + 1.5 * saliency[fid]["std"],
-    #     ]
-    # ).exp()
-    # target = sum((target > (thresh)).float() for thresh in thresh_list)
-    # target[target < 5] = 5
-    # target[target > 10] = 10
-    # target = (target - 5) / 5
-    target = (target > 3).float()
+
+    # about e^-5
+    thresh = 0.007
+    target[target != target] = 0
+    target[target < thresh] = thresh
+    target = target.log()
+    # make sure target is positive
+    target = target + 5
 
     visualize_heat(
         image,
         mask_slice.cpu().detach(),
-        f"train/{args.path}/{tag}/{fid}_train.jpg",
+        f"train/{args.path}/{tag}/{fid}_train.png",
         args,
     )
 
     visualize_heat(
         image,
         target.cpu().detach(),
-        f"train/{args.path}/{tag}/{fid}_saliency.jpg",
+        f"train/{args.path}/{tag}/{fid}_saliency.png",
         args,
     )
 
@@ -347,42 +299,36 @@ def main(args):
     torch.set_default_tensor_type(torch.FloatTensor)
     train_writer = SummaryWriter("runs/train")
     cross_writer = SummaryWriter("runs/cross")
-    test_writer = SummaryWriter("runs/test")
 
-    if args.training_set == "COCO":
-
-        train_val_set = COCO_Dataset()
-        # downsample original dataset
-        train_val_set, _ = torch.utils.data.random_split(
-            train_val_set,
-            [
-                math.ceil(0.2 * len(train_val_set)),
-                math.floor(0.8 * len(train_val_set)),
-            ],
-            generator=torch.Generator().manual_seed(100),
-        )
-
-        training_set, cross_validation_set = torch.utils.data.random_split(
-            train_val_set,
-            [
-                math.ceil(0.7 * len(train_val_set)),
-                math.floor(0.3 * len(train_val_set)),
-            ],
-            generator=torch.Generator().manual_seed(100),
-        )
-
-    elif args.training_set == "CityScape":
-
-        training_set = CityScape(train=True)
-        cross_validation_set = CityScape(train=False)
-        train_val_set = ConcatDataset([training_set, cross_validation_set])
-    else:
-        raise NotImplementedError(f"{args.training_set} not implemented")
-
+    train_val_set = COCO_Dataset()
     test_set = get_testset(args.test_set)
+
+    # training_set = CityScape(train=True)
+    # cross_validation_set = CityScape(train=False)
+    # train_val_set = ConcatDataset([training_set, cross_validation_set])
+
+    # downsample original dataset
+    train_val_set, _ = torch.utils.data.random_split(
+        train_val_set,
+        [
+            math.ceil(0.2 * len(train_val_set)),
+            math.floor(0.8 * len(train_val_set)),
+        ],
+        generator=torch.Generator().manual_seed(100),
+    )
+
     test_set, _ = torch.utils.data.random_split(
         test_set,
-        [math.ceil(0.01 * len(test_set)), math.floor(0.99 * len(test_set)),],
+        [math.ceil(0.1 * len(test_set)), math.floor(0.9 * len(test_set)),],
+        generator=torch.Generator().manual_seed(100),
+    )
+
+    training_set, cross_validation_set = torch.utils.data.random_split(
+        train_val_set,
+        [
+            math.ceil(0.7 * len(train_val_set)),
+            math.floor(0.3 * len(train_val_set)),
+        ],
         generator=torch.Generator().manual_seed(100),
     )
 
@@ -440,21 +386,11 @@ def main(args):
     else:
         # get the application
         # generate saliency
-        if args.local_rank <= 0:
-            # only the master thread needs to calculate the groundtruth for test set.
-            get_groundtruths(
-                args, test_set, f"train/{args.path}/test/", 50, "testvideo"
-            )
-        get_groundtruths(
-            args, train_val_set, f"train/{args.path}/COCO/", 10000, "COCO"
-        )
-        # return
-
-    # set_trace()
+        get_groundtruths(args, train_val_set)
 
     # training
     mask_generator.cuda()
-    mean_cross_validation_loss_before = 100
+    mean_cross_validation_loss_before = 10000
 
     overfitting_counter = 0
 
@@ -470,22 +406,21 @@ def main(args):
         )
         training_losses = []
 
-        mask_generator.train()
-
         for idx, data in enumerate(training_loader):
             # break
 
             progress_bar.update(args.batch_size)
 
             try:
-                fids, names, hq_image, target, _ = unzip_data(data, saliency)
+                fids, names, hq_image, target, thresh_list = unzip_data(
+                    data, saliency
+                )
             except ValueError:
                 continue
 
             mask_slice = mask_generator(hq_image.cuda())
 
             # calculate loss
-            # loss = get_loss(mask_slice, target.cuda(), thresh_list.cuda())
             loss = get_loss(mask_slice, target.cuda())
             loss.backward()
 
@@ -499,21 +434,19 @@ def main(args):
                     * (len(training_set) + len(cross_validation_set)),
                 )
 
-            if idx % args.visualize_step_size == 0:
+            if idx % 500 == 0:
                 mask_generator.save(args.path)
 
             training_losses.append(loss.item())
             optimizer.step()
             optimizer.zero_grad()
 
-            if any(fid % args.visualize_step_size == 0 for fid in fids):
+            if any(fid % 500 == 0 for fid in fids):
                 # save the model
                 mask_generator.save(args.path)
                 # visualize
                 if args.visualize:
-                    maxid = np.argmax(
-                        [fid % args.visualize_step_size == 0 for fid in fids]
-                    ).item()
+                    maxid = np.argmax([fid % 500 == 0 for fid in fids]).item()
                     visualize(
                         maxid,
                         fids,
@@ -530,8 +463,6 @@ def main(args):
         """
             Cross validation
         """
-
-        mask_generator.eval()
 
         progress_bar = tqdm(
             total=len(cross_validation_set),
@@ -554,7 +485,9 @@ def main(args):
             # hq_image = data[0].cuda()
 
             try:
-                fids, names, hq_image, target, _ = unzip_data(data, saliency)
+                fids, names, hq_image, target, thresh_list = unzip_data(
+                    data, saliency
+                )
             except ValueError:
                 continue
 
@@ -563,7 +496,6 @@ def main(args):
 
                 # set_trace()
                 mask_slice = mask_generator(hq_image.cuda())
-                # loss = get_loss(mask_slice, target.cuda(), thresh_list.cuda())
                 loss = get_loss(mask_slice, target.cuda())
 
             if idx % 1 == 0:
@@ -576,11 +508,9 @@ def main(args):
                     + len(training_set),
                 )
 
-            if any(fid % args.visualize_step_size == 0 for fid in fids):
+            if any(fid % 500 == 0 for fid in fids):
                 if args.visualize:
-                    maxid = np.argmax(
-                        [fid % args.visualize_step_size == 0 for fid in fids]
-                    ).item()
+                    maxid = np.argmax([fid % 500 == 0 for fid in fids]).item()
                     visualize(
                         maxid,
                         fids,
@@ -616,7 +546,7 @@ def main(args):
             mean_cross_validation_loss_before, mean_cross_validation_loss
         )
 
-        # mask_generator.save(args.path + ".iter%d" % iteration)
+        mask_generator.save(args.path + ".iter%d" % iteration)
 
         # check if we need to reduce learning rate.
         scheduler.step(mean_cross_validation_loss)
@@ -626,90 +556,25 @@ def main(args):
         """
         if overfitting_counter == 0:
 
-            # for idx, data in enumerate(
-            #     tqdm(
-            #         test_loader,
-            #         desc=f"Iteration {iteration} on cross validation set",
-            #         total=len(test_set),
-            #     )
-            # ):
+            for idx, data in enumerate(
+                tqdm(
+                    test_loader,
+                    desc=f"Iteration {iteration} on cross validation set",
+                    total=len(test_set),
+                )
+            ):
 
-            #     progress_bar.update(1)
+                progress_bar.update(1)
 
-            #     hq_image = data[0]
-
-            #     # inference
-            #     with torch.no_grad():
-
-            #         # set_trace()
-            #         mask_slice = mask_generator(hq_image.cuda())
-
-            #     visualize_test(idx, hq_image, mask_slice)
-
-            progress_bar = tqdm(
-                total=len(test_set),
-                desc=f"Iteration {iteration} on cross validation set",
-            )
-
-            test_losses = []
-
-            for idx, data in enumerate(test_loader):
-
-                progress_bar.update(args.batch_size)
-
-                # # extract data from dataloader
-                # if not any("bbox" in _ for _ in data[1]):
-                #     continue
-                # fids = [data[1][0]["image_id"].item()]
-
-                # if fids[0] not in saliency[thresholds[0]]:
-                #     continue
-                # hq_image = data[0].cuda()
-
-                try:
-                    fids, names, hq_image, target, _ = unzip_data(
-                        data, saliency
-                    )
-                except ValueError:
-                    continue
+                hq_image = data[0]
 
                 # inference
                 with torch.no_grad():
 
                     # set_trace()
                     mask_slice = mask_generator(hq_image.cuda())
-                    # loss = get_loss(mask_slice, target.cuda(), thresh_list.cuda())
-                    loss = get_loss(mask_slice, target.cuda())
 
-                # if idx % 1 == 0:
-                #     test_writer.add_scalar(
-                #         Path(args.path).stem,
-                #         loss.item(),
-                #         idx
-                #         + iteration
-                #         * (len(training_set) + len(cross_validation_set))
-                #         + len(training_set),
-                #     )
-
-                if any(fid % 1 == 0 for fid in fids):
-                    if args.visualize:
-                        maxid = np.argmax([fid % 1 == 0 for fid in fids]).item()
-                        visualize(
-                            maxid,
-                            fids,
-                            hq_image,
-                            mask_slice,
-                            target,
-                            saliency,
-                            "test",
-                        )
-
-                test_losses.append(loss.item())
-
-            mean_test_loss = torch.tensor(test_losses).mean().item()
-            logger.info(
-                "Average test loss: %.3f", mean_test_loss,
-            )
+                visualize_test(idx, hq_image, mask_slice)
 
 
 if __name__ == "__main__":
@@ -824,12 +689,6 @@ if __name__ == "__main__":
         help="The GPU id for distributed training",
     )
     parser.add_argument(
-        "--visualize_step_size",
-        default=-1,
-        type=int,
-        help="The step size for training visualization",
-    )
-    parser.add_argument(
         "--architecture",
         default="vgg11",
         type=str,
@@ -845,9 +704,6 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--test_set", required=True, type=str, help="Test set",
-    )
-    parser.add_argument(
-        "--training_set", required=True, type=str, help="Training set",
     )
 
     args = parser.parse_args()

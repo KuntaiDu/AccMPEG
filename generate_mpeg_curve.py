@@ -169,7 +169,7 @@ def main(args):
                         "--app",
                         args.app,
                         "--visualize_step_size",
-                        "100"
+                        "1000"
                         # "--confidence_threshold",
                         # "0.95",
                     ]
@@ -251,18 +251,24 @@ if __name__ == "__main__":
     # args.inputs = ["dashcam/dashcam_%d" % i for i in range(1, 8)]
     # args.inputs = ["dashcam/dashcam_%d" % i for i in [2, 5, 6, 8]]
     # args.inputs = ["visdrone/videos/vis_171"]
+    # args.gt_qp = 20
+    # args.qp_list = [20, 21, 22, 24, 26, 30, 34, 40]
     args.gt_qp = 30
     args.qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
-    args.inputs = ["visdrone/videos/vis_%d" % i for i in range(169, 174)] + [
-        "dashcam/dashcam_%d" % i for i in range(1, 11)
-    ]
+    # args.qp_list = [20, 27, 28, 30, 32, 34, 35, 36, 38, 40, 46]
+    # args.inputs = [
+    #     "visdrone/videos/vis_%d" % i for i in [169, 170, 171, 172, 173]
+    # ]
+    args.inputs = ["dashcam/dashcamcropped_%d" % i for i in range(1, 11)]
+    # args.inputs = ["dashcam/dashcam_8"]
+    # args.inputs = ["videos/trafficcam/trafficcam_1"]
     args.force = False
     args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
     # args.app = "EfficientDet"
     # assert attr == "webm"
-    args.stats = f"stats_FPN"
-    args.confidence_threshold = 0.7
-    args.gt_confidence_threshold = 0.65
+    args.stats = f"stats_FPN_QP30_thresh75_dashcamcropped"
+    args.confidence_threshold = 0.8
+    args.gt_confidence_threshold = 0.75
 
     # args = parser.parse_args()
     main(args)

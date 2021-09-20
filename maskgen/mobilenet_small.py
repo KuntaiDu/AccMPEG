@@ -251,7 +251,7 @@ class FCN(nn.Module):
             ret = self.features(x)
 
         ret = self.postprocess(ret)
-        return ret
+        return x
 
     def _initialize_weights(self):
         for m in self.modules():

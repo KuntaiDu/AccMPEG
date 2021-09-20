@@ -89,7 +89,9 @@ class COCO_Model(DNN):
         # filter out those regions that has confidence score < 0.5
         self.cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.3
         self.cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(name)
-        self.predictor = DefaultPredictor(self.cfg)
+
+        # reduce the examine script runtime
+        self.predictor = None
 
         self.logger = logging.getLogger(self.name)
         handler = logging.NullHandler()
@@ -136,6 +138,9 @@ class COCO_Model(DNN):
 
     def inference(self, image, detach=False, grad=False):
 
+        if self.predictor is None:
+            self.predictor = DefaultPredictor(self.cfg)
+
         self.predictor.model.eval()
 
         image, h, w, _ = self.preprocess_image(image)
@@ -152,6 +157,9 @@ class COCO_Model(DNN):
         return ret
 
     def region_proposal(self, image, detach=False, grad=False):
+
+        if self.predictor is None:
+            self.predictor = DefaultPredictor(self.cfg)
 
         self.predictor.model.eval()
 
@@ -170,7 +178,17 @@ class COCO_Model(DNN):
             ret = ret.to("cpu")
         return ret
 
-    def filter_result(self, result, args, gt=False, confidence_check=True):
+    def filter_result(
+        self,
+        result,
+        args,
+        gt=False,
+        confidence_check=True,
+        require_deepcopy=False,
+    ):
+
+        if require_deepcopy:
+            result = deepcopy(result)
 
         scores = result["instances"].scores
         class_ids = result["instances"].pred_classes
@@ -185,13 +203,13 @@ class COCO_Model(DNN):
             else:
                 inds = inds & (scores > args.confidence_threshold)
 
-        result["instances"] = result["instances"][inds]
+        # result["instances"] = result["instances"][inds]
 
-        return result
+        return {"instances": result["instances"][inds]}
 
-    def visualize(self, image, result, args):
+    def visualize(self, image, result):
         # set_trace()
-        result = self.filter_result(result, args)
+        # result = self.filter_result(result, args, gt=gt)
         v = Visualizer(
             image, MetadataCatalog.get(self.cfg.DATASETS.TRAIN[0]), scale=1
         )
@@ -199,6 +217,9 @@ class COCO_Model(DNN):
         return Image.fromarray(out.get_image(), "RGB")
 
     def calc_loss(self, image, result, args):
+
+        if self.predictor is None:
+            self.predictor = DefaultPredictor(self.cfg)
 
         self.predictor.model.train()
 
@@ -245,10 +266,12 @@ class COCO_Model(DNN):
 
         # get object of interest only
         x = self.filter_result(x, args, gt=False, confidence_check=False)
-        gt = self.filter_result(x, args, gt=True, confidence_check=True)
+        gt = self.filter_result(gt, args, gt=True, confidence_check=True)
 
         x = x["instances"]
         gt = gt["instances"]
+
+        assert len(x) > 0 and len(gt) > 0
 
         IoU = pairwise_iou(x.pred_boxes, gt.pred_boxes)
 
@@ -261,8 +284,10 @@ class COCO_Model(DNN):
             p = x[i].scores
 
             if val < args.iou_threshold:
-                loss_reg = loss_reg - p.log()
+                # false positive encountered. Ignore.
+                continue
             else:
+                # true positive or false negative encountered. cover.
                 loss_reg = loss_reg - (1 - p).log()
 
         return loss_reg
@@ -503,8 +528,8 @@ class COCO_Model(DNN):
         gt = deepcopy(gt)
         result = deepcopy(result)
 
-        gt = self.filter_result(gt, args, True)
-        result = self.filter_result(result, args, False)
+        gt = self.filter_result(gt, args, gt=True)
+        result = self.filter_result(result, args, gt=False)
 
         result = result["instances"]
         gt = gt["instances"]

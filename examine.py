@@ -38,6 +38,8 @@ def main(args):
             "video_name": video_name,
             "bw": bw,
             "ground_truth_name": args.ground_truth,
+            "gt_conf": float(args.gt_confidence_threshold),
+            "conf": float(args.confidence_threshold),
         }
         res.update(metrics)
         with open(args.stats, "a") as f:

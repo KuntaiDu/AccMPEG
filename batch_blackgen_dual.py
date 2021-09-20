@@ -18,22 +18,24 @@ import yaml
 # v_list = ["dashcam/dashcam_%d" % i for i in [7]]
 
 v_list = [
-    "visdrone/videos/vis_%d" % i
-    for i in [171, 169, 170, 172, 173]
-    # "large_object/large_%d" % i
-    # for i in range(3, 5)
-    # "visdrone/videos/vis_172",
-    # "visdrone/videos/vis_171",
-    # "visdrone/videos/vis_170",
-    # "visdrone/videos/vis_173",
+    # "visdrone/videos/vis_%d" % i
+    # for i in [171, 169, 170, 172, 173]
+    # # "large_object/large_%d" % i
+    # # for i in range(3, 5)
+    # # "visdrone/videos/vis_172",
+    # # "visdrone/videos/vis_171",
+    # # "visdrone/videos/vis_170",
+    # # "visdrone/videos/vis_173",
     # "visdrone/videos/vis_169",
+    "dashcam/dashcam_2_short"
     # "visdrone/videos/vis_172",
     # "visdrone/videos/vis_209",
     # "visdrone/videos/vis_217",
-] + ["dashcam/dashcam_%d" % i for i in range(1, 11)]
+]
+# ] + ["dashcam/dashcam_%d" % i for i in range(1, 11)]
 # v_list = [v_list[2]]
 # v_list = ["visdrone/videos/vis_171"]
-base = 50
+base = 40
 high = 30
 tile = 16
 # model_name = f"COCO_full_normalizedsaliency_R_101_FPN_crossthresh"
@@ -49,8 +51,8 @@ model_name = f"COCO_detection_FPN_retrain_SSD"
     ["visdrone/videos/vis_%d" % i for i in range(169, 174)]
     for video id
 """
-conv_list = [1]
-bound_list = [0.05]
+conv_list = [5]
+bound_list = [0.2]
 stats = "stats_FPN"
 
 
@@ -82,11 +84,11 @@ for v, conv, bound in product(v_list, conv_list, bound_list):
     os.system(f"cp {v}_qp_{base}.mp4 {examine_output}.base.mp4")
 
     os.system(
-        f"python inference.py -i {examine_output} --app {app_name} --confidence_threshold 0.7 --gt_confidence_threshold 0.65 -g {v}_qp_{high}.mp4"
+        f"python inference.py -i {examine_output} --app {app_name} --confidence_threshold 0.7 --gt_confidence_threshold 0.6 -g {v}_qp_{high}.mp4 --tile_size {tile}"
     )
 
     os.system(
-        f"python examine.py -i {examine_output} -g {v}_qp_{high}.mp4 --confidence_threshold 0.7 --gt_confidence_threshold 0.65 --app {app_name} --stats {stats}"
+        f"python examine.py -i {examine_output} -g {v}_qp_{high}.mp4 --confidence_threshold 0.7 --gt_confidence_threshold 0.6 --app {app_name} --stats {stats}"
     )
 
     # if not os.path.exists(f"diff/{output}.gtdiff.mp4"):

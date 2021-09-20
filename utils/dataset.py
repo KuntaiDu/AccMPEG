@@ -105,13 +105,45 @@ class CityScape(Dataset):
         return {
             "hq": transform_hq(image),
             "lq": transform_lq(image),
-            "fid": idx + 50000 * float(self.train),
+            "fid": idx + 50000 * int(self.train),
             "video_name": "CityScape",
+        }
+
+
+class Test(Dataset):
+    def __init__(self, root):
+
+        self.root = root
+        self.pngs = glob.glob(root + "/*/*.png")
+
+    def __len__(self):
+        return len(self.pngs)
+
+    def __getitem__(self, idx):
+        image = Image.open(self.pngs[idx]).convert("RGB")
+
+        w, h = image.size
+        if h > w:
+            return None
+        transform_hq = T.Compose([T.Resize((720, 1280)), T.ToTensor(),])
+        transform_lq = T.Compose(
+            [
+                # resize to 240p
+                T.Resize((360, 480)),
+                # and then to 720p
+                T.Resize((720, 1280)),
+                T.ToTensor(),
+            ]
+        )
+
+        return {
+            "hq": transform_hq(image),
+            "lq": transform_lq(image),
+            "fid": idx,
+            "video_name": "Test",
         }
 
 
 def get_testset(root):
 
-    transform = T.Compose([T.Resize((720, 1280)), T.ToTensor(),])
-
-    return ImageFolder(root, transform)
+    return Test(root)

@@ -19,6 +19,7 @@ import torchvision.transforms as T
 from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
+from tqdm import tqdm
 
 from dnn.dnn_factory import DNN_Factory
 from utils.bbox_utils import center_size
@@ -32,7 +33,7 @@ from utils.visualize_utils import (
     visualize_heat_by_summarywriter,
 )
 
-thresh_list = [0.05, 0.1, 0.2, 0.4, 0.8]
+thresh_list = [0.01, 0.02, 0.05, 0.1, 0.2, 0.4, 0.8]
 
 sns.set()
 
@@ -62,6 +63,7 @@ def main(args):
     maskgen_spec.loader.exec_module(maskgen)
     mask_generator = maskgen.FCN()
     mask_generator.load(args.path)
+    # mask_generator.eval()
     mask_generator.cuda()
 
     # construct the mask
@@ -161,12 +163,12 @@ def main(args):
 
     mask.requires_grad = False
 
-    for mask_slice in mask.split(args.smooth_frames):
+    for mask_slice in tqdm(mask.split(args.smooth_frames)):
 
-        mask_slice[:, :, :, :] = (
-            mask_slice[0:1, :, :, :] + mask_slice[-1:, :, :, :]
-        ) / 2
-    # mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
+        # mask_slice[:, :, :, :] = (
+        #     mask_slice[0:1, :, :, :] + mask_slice[-1:, :, :, :]
+        # ) / 2
+        mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
 
     # if args.bound is not None:
     #     mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
@@ -178,6 +180,8 @@ def main(args):
         mask = (mask > args.bound).float()
     else:
         mask = (mask > percentile(mask, args.perc)).float()
+
+    logger.info("logging raw quality assignment...")
 
     for fid, (video_slices, mask_slice) in enumerate(
         zip(zip(*videos), mask.split(1))
@@ -195,23 +199,27 @@ def main(args):
                 args,
             )
 
+    mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
+
     mask = postprocess_mask(mask)
 
-    for fid, (video_slices, mask_slice) in enumerate(
-        zip(zip(*videos), mask.split(1))
-    ):
+    # logger.info("logging actual quality assignment...")
 
-        if fid % args.visualize_step_size == 0:
+    # for fid, (video_slices, mask_slice) in enumerate(
+    #     tqdm(zip(zip(*videos), mask.split(1)))
+    # ):
 
-            image = T.ToPILImage()(video_slices[-1][0, :, :, :])
-            visualize_heat_by_summarywriter(
-                image,
-                mask_slice.cpu().detach().float(),
-                "quality_assignment",
-                writer,
-                fid,
-                args,
-            )
+    #     if fid % args.visualize_step_size == 0:
+
+    #         image = T.ToPILImage()(video_slices[-1][0, :, :, :])
+    #         visualize_heat_by_summarywriter(
+    #             image,
+    #             mask_slice.cpu().detach().float(),
+    #             "quality_assignment",
+    #             writer,
+    #             fid,
+    #             args,
+    #         )
 
     # for i in range(len(mask)):
 
@@ -227,15 +235,44 @@ def main(args):
     #         ).sum()
     #         logger.info("Dist: %d, IoU: %.3f", j, iou.item())
 
-    if args.bound is not None:
+    # if args.bound is not None:
+    #     write_black_bkgd_video_smoothed_continuous(
+    #         mask, args, args.qp, logger, writer=writer, tag="hq"
+    #     )
+    # else:
+    #     perc_to_crf = {99: 0.5, 97: 1, 95: 1.5, 90: 2}
+    #     write_black_bkgd_video_smoothed_continuous_crf(
+    #         mask, args, perc_to_crf[args.perc], logger, writer=writer, tag="hq"
+    #     )
+
+    assert args.hq != -1
+
+    if args.lq != -1:
+
+        assert args.hq < args.lq
+        assert "dual" in args.output
+
+        orig_output = str(args.output)
+        args.output = args.output + f".qp{args.hq}.mp4"
         write_black_bkgd_video_smoothed_continuous(
-            mask, args, args.qp, logger, writer=writer, tag="hq"
+            mask, args, args.hq, logger, writer=writer, tag="hq"
         )
+
+        mask = 1 - mask
+        mask = dilate_binarize(mask, 0.5, 3, cuda=False)
+
+        args.output = orig_output + f".base.mp4"
+        write_black_bkgd_video_smoothed_continuous(
+            mask, args, args.lq, logger, writer=writer, tag="lq"
+        )
+
     else:
-        perc_to_crf = {99: 0.5, 97: 1, 95: 1.5, 90: 2}
-        write_black_bkgd_video_smoothed_continuous_crf(
-            mask, args, perc_to_crf[args.perc], logger, writer=writer, tag="hq"
+
+        assert "dual" not in args.output
+        write_black_bkgd_video_smoothed_continuous(
+            mask, args, args.hq, logger, writer=writer, tag="hq"
         )
+
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 
@@ -334,7 +371,8 @@ if __name__ == "__main__":
         default=100,
     )
     parser.add_argument("--conv_size", type=int, default=1)
-    parser.add_argument("--qp", type=int, required=True)
+    parser.add_argument("--hq", type=int, default=-1)
+    parser.add_argument("--lq", type=int, default=-1)
 
     # parser.add_argument('--mask', type=str,
     #                     help='The path of the ground truth video, for loss calculation purpose.', required=True)

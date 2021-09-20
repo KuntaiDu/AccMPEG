@@ -43,14 +43,17 @@ def main(args):
         # set_trace()
         ext = args.input.split(".")[-1]
         # set_trace()
-        assert len(glob.glob(args.input + f"*.{ext}")) == 2
+        video_names = sorted(glob.glob(args.input + f"*.{ext}"))
+        assert len(video_names) == 2
+        assert "base.mp4" in video_names[0]
+        # assert "mp4" in video_names[1]
 
         videos, _, _ = read_videos(
-            sorted(glob.glob(args.input + f"*.{ext}")),
-            logger,
-            normalize=False,
-            from_source=args.from_source,
+            video_names, logger, normalize=False, from_source=args.from_source,
         )
+
+        with open(video_names[1] + ".mask", "rb") as f:
+            mask = pickle.load(f)
 
     # Construct image writer for visualization purpose
     writer = SummaryWriter(f"runs/{args.app}/{args.input}")
@@ -65,6 +68,14 @@ def main(args):
     else:
         ground_truth_dict = read_results(args.ground_truth, app.name, logger)
 
+    if args.lq_result == "":
+        lq_result = None
+    else:
+        try:
+            lq_result = read_results(args.lq_result, app.name, logger)
+        except FileNotFoundError:
+            lq_result = None
+
     logger.info(f"Run %s on %s", app.name, args.input)
     progress_bar = enlighten.get_manager().counter(
         total=len(videos[0]), desc=f"{app.name}: {args.input}", unit="frames",
@@ -75,7 +86,9 @@ def main(args):
 
         if "dual" in args.input:
             hq_video_slice = video_slice[1]
-            video_slice = merge_black_bkgd_images(video_slice)
+            video_slice = merge_black_bkgd_images(
+                video_slice, mask[fid : fid + 1, :, :, :], args
+            )
         else:
             video_slice = video_slice[0]
             hq_video_slice = video_slice
@@ -99,6 +112,10 @@ def main(args):
                 F.interpolate(video_slice, (720, 1280))[0].cpu()
             )
 
+            hq_image = T.ToPILImage()(
+                F.interpolate(hq_video_slice, (720, 1280))[0].cpu()
+            )
+
             # image2 = Image.open(
             #     "DAVIS/videos/DAVIS_1_qp_30.mp4.pngs/%010d.png" % fid
             # )
@@ -106,13 +123,20 @@ def main(args):
             # writer.add_image(
             #     "diff", (T.ToTensor()(image) - T.ToTensor()(image2)) + 0.3, fid
             # )
-            image = app.visualize(image, inference_results[fid], args)
-            writer.add_image("inference_result", T.ToTensor()(image), fid)
+
+            writer.add_image(
+                "inference_result",
+                T.ToTensor()(app.visualize(image, inference_results[fid])),
+                fid,
+            )
 
             if ground_truth_dict is not None:
-                hq_image = T.ToPILImage()(
-                    F.interpolate(hq_video_slice, (720, 1280))[0].cpu()
+                writer.add_image(
+                    "ground_truth",
+                    T.ToTensor()(app.visualize(image, ground_truth_dict[fid])),
+                    fid,
                 )
+
                 (
                     gt_index,
                     result_index,
@@ -126,9 +150,7 @@ def main(args):
                 writer.add_image(
                     "FN",
                     T.ToTensor()(
-                        app.visualize(
-                            hq_image, {"instances": gt[gt_index]}, args
-                        )
+                        app.visualize(hq_image, {"instances": gt[gt_index]})
                     ),
                     fid,
                 )
@@ -137,8 +159,22 @@ def main(args):
                     "FP",
                     T.ToTensor()(
                         app.visualize(
-                            hq_image, {"instances": result[result_index]}, args
+                            hq_image, {"instances": result[result_index]}
                         )
+                    ),
+                    fid,
+                )
+
+            if lq_result is not None:
+
+                (gt_index, _, gt, _,) = app.get_undetected_ground_truth_index(
+                    lq_result[fid], ground_truth_dict[fid], args
+                )
+
+                writer.add_image(
+                    "FN_lq",
+                    T.ToTensor()(
+                        app.visualize(hq_image, {"instances": gt[gt_index]})
                     ),
                     fid,
                 )
@@ -205,6 +241,15 @@ if __name__ == "__main__":
         type=str,
         help="The ground truth (for visualization purpose)",
         default="",
+    )
+    parser.add_argument(
+        "--lq_result",
+        type=str,
+        help="The low quality result (for visualization purpose)",
+        default="",
+    )
+    parser.add_argument(
+        "--tile_size", type=int, help="The tile size.", default=16,
     )
 
     args = parser.parse_args()
