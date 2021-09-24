@@ -1,3 +1,4 @@
+import copy
 import logging
 from copy import deepcopy
 from pdb import set_trace
@@ -185,6 +186,7 @@ class COCO_Model(DNN):
         gt=False,
         confidence_check=True,
         require_deepcopy=False,
+        class_check=True,
     ):
 
         if require_deepcopy:
@@ -194,8 +196,11 @@ class COCO_Model(DNN):
         class_ids = result["instances"].pred_classes
 
         inds = scores < 0
-        for i in self.class_ids:
-            inds = inds | (class_ids == i)
+        if class_check:
+            for i in self.class_ids:
+                inds = inds | (class_ids == i)
+        else:
+            inds = scores > -1
 
         if confidence_check:
             if gt:
@@ -323,7 +328,7 @@ class COCO_Model(DNN):
 
         for fid in result_dict.keys():
             result = result_dict[fid]
-            gt = gt_dict[fid]
+            gt = gt_dict[max(fid - 1, 0)]
 
             result = self.filter_result(result, args, False)
             gt = self.filter_result(gt, args, True)
@@ -546,4 +551,46 @@ class COCO_Model(DNN):
             gt,
             result,
         )
+
+    def aggregate_inference_results(self, results, args):
+
+        if "Detection" in self.name:
+            return self.aggregate_inference_results_detection(results, args)
+        else:
+            raise NotImplementedError
+
+    def aggregate_inference_results_detection(self, results, args):
+
+        base = results[0]["instances"]
+
+        scores = [base.scores]
+
+        for result in results[1:]:
+
+            result = copy.deepcopy(result["instances"])
+
+            if len(base) == 0 or len(result) == 0:
+                continue
+
+            IoU = pairwise_iou(result.pred_boxes, base.pred_boxes)
+
+            for i in range(len(result)):
+                for j in range(len(base)):
+                    if result.pred_classes[i] != base.pred_classes[j]:
+                        IoU[i, j] = 0
+
+            val, idx = IoU.max(dim=0)
+
+            # clear those scores where IoU is way too small
+            result[idx].scores[val < args.iou_threshold] = 0.0
+            scores.append(result[idx].scores)
+
+        scores = torch.cat([i.unsqueeze(0) for i in scores], dim=0)
+
+        base.pred_scores = torch.tensor(scores).mean(dim=0)
+        base.pred_std = torch.tensor(scores).std(dim=0)
+
+        print(base.pred_std)
+
+        return {"instances": base}
 

@@ -1,4 +1,5 @@
 import argparse
+import collections
 import glob
 import logging
 import pickle
@@ -81,6 +82,7 @@ def main(args):
         total=len(videos[0]), desc=f"{app.name}: {args.input}", unit="frames",
     )
     inference_results = {}
+    jitter = T.ColorJitter(0.1, 0.1, 0.1)
 
     for fid, video_slice in enumerate(zip(*videos)):
 
@@ -105,7 +107,18 @@ def main(args):
         # video_slice = transforms(video_slice[0])[None, :, :, :]
         # video_slice = video_slice + torch.randn_like(video_slice) * 0.05
         # with Timer("inference", logger):
-        inference_results[fid] = app.inference(video_slice, detach=True)
+        jittered_inference_results = []
+        jittered_inference_results.append(
+            app.inference(video_slice, detach=True)
+        )
+        for _ in range(9):
+            jittered_inference_results.append(
+                app.inference(jitter(video_slice), detach=True)
+            )
+
+        inference_results[fid] = app.aggregate_inference_results(
+            jittered_inference_results, args
+        )
 
         if fid % args.visualize_step_size in [0, 1, 2]:
             image = T.ToPILImage()(
