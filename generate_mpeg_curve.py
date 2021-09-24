@@ -6,7 +6,7 @@ from pathlib import Path
 
 from munch import Munch
 
-from utils.results_utils import read_results
+from utilities.results_utils import read_results
 
 # qp_list = [32]
 
@@ -26,6 +26,8 @@ from utils.results_utils import read_results
 #     "veryslow",
 # ]
 
+gt_qp = 30
+qp_list = [30, 50]
 attr = "mp4"
 
 
@@ -36,6 +38,8 @@ def main(args):
     logger = logging.getLogger("mpeg_curve")
 
     for video_name in args.inputs:
+        import pdb
+        pdb.set_trace()
         assert Path(video_name).is_dir()
         video_name = Path(video_name)
 
@@ -81,7 +85,8 @@ def main(args):
             print(f"Generate video for {output_name}")
             # encode_with_qp(input_name, output_name, qp, args)
 
-            if args.force or not os.path.exists(output_name):
+            #if args.force or not os.path.exists(output_name):
+            if True:
 
                 if attr == "hevc":
 
@@ -160,6 +165,8 @@ def main(args):
                 #     # set_trace()
                 #     result = read_results(output_name, args.app, logger)
                 # except FileNotFoundError:
+                import pdb
+                pdb.set_trace()
                 subprocess.run(
                     [
                         "python",
@@ -175,6 +182,8 @@ def main(args):
                     ]
                 )
 
+            import pdb
+            pdb.set_trace()
             subprocess.run(
                 [
                     "python",
@@ -194,38 +203,10 @@ def main(args):
                 ]
             )
 
-        # for qp in qp_list:
-        #     output_name = f"{video_name}_qp_{qp}.mp4"
-        #     subprocess.run(
-        #         [
-        #             "python",
-        #             "examine.py",
-        #             "-i",
-        #             output_name,
-        #             "-g",
-        #             f"{video_name}_qp_30_ground_truth.mp4",
-        #         ]
-        #     )
 
 
 if __name__ == "__main__":
 
-    # parser = argparse.ArgumentParser()
-
-    # parser.add_argument(
-    #     "-i",
-    #     "--inputs",
-    #     nargs="+",
-    #     help="The video file names. The largest video file will be the ground truth.",
-    #     required=True,
-    # )
-    # parser.add_argument(
-    #     "-f",
-    #     "--force",
-    #     type=bool,
-    #     help="Force the program to regenerate all the outputs or not.",
-    #     default=False,
-    # )
 
     args = Munch()
     # args.inputs = [
@@ -254,19 +235,33 @@ if __name__ == "__main__":
     # args.gt_qp = 20
     # args.qp_list = [20, 21, 22, 24, 26, 30, 34, 40]
     args.gt_qp = 30
+<<<<<<< HEAD
     args.qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
     args.qp_list = args.qp_list + [33, 35, 37, 38, 39]
+=======
+    args.qp_list = [30, 40, 50]
+>>>>>>> 627d5338c25caaba55a527e3eb1a613ec86cc007
     # args.qp_list = [20, 27, 28, 30, 32, 34, 35, 36, 38, 40, 46]
     # args.inputs = [
     #     "visdrone/videos/vis_%d" % i for i in [169, 170, 171, 172, 173]
     # ]
+<<<<<<< HEAD
     # args.inputs = ["yoda/yoda_%d" % i for i in range(7, 8)]
     args.inputs = ["dashcam/dashcamcropped_%d" % i for i in range(1, 11)]
+=======
+    args.inputs = ["croppedsurf"]#["dashcam/dashcamcropped_%d" % i for i in range(1, 11)]
+    # args.inputs = ["dashcam/dashcam_8"]
+    # args.inputs = ["videos/trafficcam/trafficcam_1"]
+>>>>>>> 627d5338c25caaba55a527e3eb1a613ec86cc007
     args.force = False
-    args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+    args.app = "EfficientDet"
     # args.app = "EfficientDet"
     # assert attr == "webm"
+<<<<<<< HEAD
     args.stats = f"stats_FPN_QP30_thresh8_prevframe_dashcamcropped"
+=======
+    args.stats = f"stats_test_merge"#f"stats_FPN_QP30_thresh75_dashcamcropped"
+>>>>>>> 627d5338c25caaba55a527e3eb1a613ec86cc007
     args.confidence_threshold = 0.8
     args.gt_confidence_threshold = 0.8
 

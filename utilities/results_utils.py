@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 
-from utils.bbox_utils import jaccard
+from utilities.bbox_utils import jaccard
 
 
 def write_results(video_name, app_name, results, logger):

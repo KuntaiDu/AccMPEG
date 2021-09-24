@@ -12,6 +12,7 @@ from torchvision import io
 
 from . import mask_utils as mu
 
+import av
 
 class Video(Dataset):
     def __init__(self, video, postprocess, logger, return_fid=False):
@@ -106,6 +107,7 @@ def read_video(video_name, logger, dataloader, from_source):
                     "Cannot reason the high-quality video name from the args."
                 )
         postprocess = lambda x, fid: postprocess_black_bkgd(fid, x, mask, args)
+    # import pdb; pdb.set_trace()
     if dataloader:
         return DataLoader(
             Video(video_name, postprocess, logger), shuffle=False, num_workers=2
@@ -113,6 +115,61 @@ def read_video(video_name, logger, dataloader, from_source):
     else:
         # need to return fid
         return Video(video_name, postprocess, logger, return_fid=True)
+
+
+def read_videos_pyav(
+    video_list, logger, sort=False, normalize=True, dataloader=True, from_source=False
+):
+    """
+        Read a list of video and return two lists. 
+        One is the video tensors, the other is the bandwidths.
+    """
+    video_list = [
+        {
+            "video": read_video_pyav(video_name, logger, dataloader, from_source),
+            "bandwidth": read_bandwidth(video_name),
+            "name": video_name,
+        }
+        for video_name in video_list
+    ]
+    if sort:
+        video_list = sorted(video_list, key=lambda x: x["bandwidth"])
+
+    # bandwidth normalization
+    gt_bandwidth = max(video["bandwidth"] for video in video_list)
+    if normalize:
+        for i in video_list:
+            i["bandwidth"] /= gt_bandwidth
+
+    return (
+        [i["video"] for i in video_list],
+        [i["bandwidth"] for i in video_list],
+        [i["name"] for i in video_list],
+    )
+
+
+def read_video_pyav(video_name, logger, dataloader=None, from_source=None):
+    logger.info(f"Reading {video_name} (with PyAv)")
+    postprocess = lambda x, fid: x
+    if "black" in video_name and "base" not in video_name:
+        import pickle
+
+        with open(f"{video_name}.mask", "rb") as f:
+            mask = pickle.load(f)
+        with open(f"{video_name}.args", "rb") as f:
+            args = pickle.load(f)
+        if from_source:
+            # directly copy-paste the high quality video for high quality regions.
+            if hasattr(args, "input"):
+                video_name = args.input[0]
+            elif hasattr(args, "inputs"):
+                video_name = args.inputs[-1]
+            else:
+                raise RuntimeError(
+                    "Cannot reason the high-quality video name from the args."
+                )
+        postprocess = lambda x, fid: postprocess_black_bkgd(fid, x, mask, args)
+    return av.open(video_name)
 
 
 def postprocess_black_bkgd(fid, image, mask, args):
