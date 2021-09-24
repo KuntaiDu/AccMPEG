@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
-from utils.bbox_utils import *
+from utilities.bbox_utils import *
 
 from torch.backends import cudnn
 from dnn.efficient_det.backbone import EfficientDetBackbone
@@ -30,7 +30,6 @@ from typing import Union
 from pathlib import Path
 import wget
 from PIL import Image
-
 
 
 obj_list = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light',
@@ -69,6 +68,19 @@ class EfficientDet(DNN):
 
         # class ids: all vehicles and persons except for train.
         self.class_ids = [0, 1, 2, 3, 4, 6]
+        # code refactor version
+        #self.model = EfficientDetBackbone(compound_coef=compound_coef, num_classes=len(obj_list))
+        #self.model.load_state_dict(torch.load(f'dnn/efficient_det/weights/efficientdet-d{compound_coef}.pth'))
+        #self.model.requires_grad_(False)   
+        #self.model.eval()
+        #self.model.cuda()
+        #self.name = "EfficientDet"
+
+        #self.logger = logging.getLogger(self.name)
+        #handler = logging.NullHandler()
+        #self.logger.addHandler(handler)
+
+        #self.class_ids = [0, 1, 2, 3, 4, 6, 7]
 
         self.coco_normalize = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
@@ -155,6 +167,7 @@ class EfficientDet(DNN):
         return result
 
     def calc_accuracy(self, result_dict, gt_dict, args):
+        #from detectron2.structures.boxes import pairwise_iou
 
         assert (
             result_dict.keys() == gt_dict.keys()

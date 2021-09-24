@@ -17,13 +17,14 @@ from torchvision import io
 
 from dnn.CARN.interface import CARN
 from dnn.dnn_factory import DNN_Factory
-from utils.mask_utils import merge_black_bkgd_images
-from utils.results_utils import read_results, write_results
-from utils.timer import Timer
-from utils.video_utils import read_videos
+from utilities.mask_utils import merge_black_bkgd_images
+from utilities.results_utils import write_results
+from utilities.timer import Timer
+from utilities.video_utils import read_videos
 
 # from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 
+# from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 
 # a video is by default a 4-D Tensor [Time, Height, Width, Channel]
 
@@ -105,6 +106,7 @@ def main(args):
         # video_slice = transforms(video_slice[0])[None, :, :, :]
         # video_slice = video_slice + torch.randn_like(video_slice) * 0.05
         # with Timer("inference", logger):
+        video_slice=video_slice.cuda()
         inference_results[fid] = app.inference(video_slice, detach=True)
 
         if fid % args.visualize_step_size == 0:
@@ -126,14 +128,14 @@ def main(args):
 
             writer.add_image(
                 "inference_result",
-                T.ToTensor()(app.visualize(image, inference_results[fid])),
+                T.ToTensor()(app.visualize(image, inference_results[fid], args)),
                 fid,
             )
 
             if ground_truth_dict is not None:
                 writer.add_image(
                     "ground_truth",
-                    T.ToTensor()(app.visualize(image, ground_truth_dict[fid])),
+                    T.ToTensor()(app.visualize(image, ground_truth_dict[fid], args)),
                     fid,
                 )
 
@@ -150,7 +152,7 @@ def main(args):
                 writer.add_image(
                     "FN",
                     T.ToTensor()(
-                        app.visualize(hq_image, {"instances": gt[gt_index]})
+                        app.visualize(hq_image, {"instances": gt[gt_index]}, args)
                     ),
                     fid,
                 )
@@ -159,7 +161,7 @@ def main(args):
                     "FP",
                     T.ToTensor()(
                         app.visualize(
-                            hq_image, {"instances": result[result_index]}
+                            hq_image, {"instances": result[result_index]}, args
                         )
                     ),
                     fid,
@@ -174,7 +176,7 @@ def main(args):
                 writer.add_image(
                     "FN_lq",
                     T.ToTensor()(
-                        app.visualize(hq_image, {"instances": gt[gt_index]})
+                        app.visualize(hq_image, {"instances": gt[gt_index]}, args)
                     ),
                     fid,
                 )
@@ -255,3 +257,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
+

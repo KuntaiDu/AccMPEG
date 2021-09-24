@@ -197,6 +197,12 @@ class COCO_Model(DNN):
         for i in self.class_ids:
             inds = inds | (class_ids == i)
 
+        #if confidence_check:
+        #    if gt:
+        #        inds = inds & (scores > args.gt_confidence_threshold)
+        #    else:
+        #        inds = inds & (scores > args.confidence_threshold)
+
         if confidence_check:
             if gt:
                 inds = inds & (scores > args.gt_confidence_threshold)
@@ -478,7 +484,7 @@ class COCO_Model(DNN):
         }
 
     def calc_accuracy_loss_detection(self, result, gt, args):
-
+        #from detectron2.structures.boxes import pairwise_iou
         gt = self.filter_result(gt, args, True)
         result = self.filter_result(result, args, False, confidence_check=False)
 
@@ -546,4 +552,3 @@ class COCO_Model(DNN):
             gt,
             result,
         )
-
