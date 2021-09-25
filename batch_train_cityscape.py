@@ -10,11 +10,11 @@ from itertools import product
 app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
 # model_name = f"COCO_full_normalizedsaliency_R_101_FPN_crossthresh_5xdownsample"
 architecture = "SSD"
-model_name = f"cityscape_detection_FPN_{architecture}_withconfidence_allclasses_new_unfreezebackbone"
+model_name = f"COCO_detection_FPN_{architecture}_withconfidence_allclasses_new_unfreezebackbone_withoutclasscheck"
 # model_name = "visdrone_R_101_FPN_crossthresh"
 filename = "SSD/accmpegmodel"
 
-gt = "pickles/cityscape_saliency_FPN_withtestset.pickle"
+gt = "pickles/COCO_saliency_FPN_withtestset_withoutclasscheck.pickle"
 
 
 subprocess.run(
@@ -22,7 +22,8 @@ subprocess.run(
         "python",
         "train_cityscape.py",
         "--training_set",
-        "CityScape",
+        "COCO",
+        "--no_class_check",
         "-g",
         # f"visdrone_normalizedsaliency_R_101_FPN.pickle",
         f"{gt}",

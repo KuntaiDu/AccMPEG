@@ -30,6 +30,8 @@ v_list = [
     # "videos/trafficcam/trafficcam_1"
     "dashcam/dashcamcropped_%d" % i
     for i in range(1, 11)
+    # "yoda/yoda_%d" % i
+    # for i in range(1, 9)
     # "dashcam/dashcamcropped_%d" % i
     # for i in [1, 2, 3, 4, 6, 7]
     # "dashcam/dashcam_2"
@@ -73,15 +75,19 @@ tile = 16
 # conv_list = [1, 5, 9]
 # bound_list = [0.15, 0.2, 0.25]
 # base_list = [40, 36]
-conv_list = [1, 5]
-bound_list = [0.1, 0.15, 0.05]
-base_list = [-1]
-model_name = f"cityscape_detection_FPN_SSD_withconfidence_allclasses_new_unfreezebackbone"
+conv_list = [1]
+bound_list = [0.2]
+base_list = [40]
 
-stats = "stats_FPN_QP30_thresh75_dashcamcropped"
-conf_thresh = 0.8
-gt_conf_thresh = 0.75
-visualize_step_size = 200
+# conv_list = [1, 5]
+# bound_list = [0.1, 0.15, 0.05]
+# base_list = [-1]
+# model_name = f"cityscape_detection_FPN_SSD_withconfidence_allclasses_new_unfreezebackbone"
+model_name = "COCO_detection_FPN_SSD_withconfidence_allclasses_new_unfreezebackbone_withoutclasscheck"
+stats = "stats_FPN_QP30_thresh7_prevframe_dashcamcropped"
+conf_thresh = 0.7
+gt_conf_thresh = 0.7
+visualize_step_size = 400
 
 # accs = [filter([fmt % i, "newSSDwconf", "bound_0.2", "lq_40", "conv_1"]) for i in ids]
 
@@ -100,7 +106,7 @@ for conv, bound, base, v in product(conv_list, bound_list, base_list, v_list):
     # visdrone/videos/vis_169_blackgen_bound_0.2_qp_30_conv_5_app_FPN.mp4
     # output = f"{v}_blackgen_bound_{bound}_qp_30_conv_{conv}_app_FPN.mp4"
 
-    output = f"{v}_blackgen_weight2_thresh75_newSSDwconf_bound_{bound}_conv_{conv}_hq_{high}_lq_{base}_protect_app_FPN.mp4"
+    output = f"{v}_blackgen_dual_weight2_thresh7_newSSDallclasss_smooth2_bound_{bound}_conv_{conv}_hq_{high}_lq_{base}_protect_app_FPN.mp4"
 
     # examine_output = (
     #     f"{v}_blackgen_dual_SSD_bound_{bound}_conv_{conv}_app_FPN.mp4"
@@ -121,7 +127,7 @@ for conv, bound, base, v in product(conv_list, bound_list, base_list, v_list):
         )
 
         os.system(
-            f"python inference.py -i {output} --app {app_name} --confidence_threshold {conf_thresh} --gt_confidence_threshold {gt_conf_thresh} -g {v}_qp_{high}.mp4 --visualize_step_size {visualize_step_size}"
+            f"python inference.py -i {output} --app {app_name} --confidence_threshold {conf_thresh} --gt_confidence_threshold {gt_conf_thresh} -g {v}_qp_{high}.mp4 --visualize_step_size {visualize_step_size} --lq_result {v}_qp_{base}.mp4"
         )
 
     os.system(

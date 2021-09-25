@@ -86,7 +86,9 @@ def get_groundtruths(args, train_val_set, path, visualize_step_size, tag):
 
         with torch.enable_grad():
             hq_result = app.inference(hq_image, detach=False, grad=True)
-            hq_result = app.filter_result(hq_result, args)
+            hq_result = app.filter_result(
+                hq_result, args, class_check=args.class_check
+            )
 
             if len(hq_result["instances"]) == 0:
                 (hq_image * 0.0).sum().backward()
@@ -192,7 +194,10 @@ def get_groundtruths(args, train_val_set, path, visualize_step_size, tag):
                 #     hq_result[0].cpu(), image, "Azure", args, train=True
                 # )
                 image_hqresult = app.visualize(
-                    image, app.filter_result(hq_result, args)
+                    image,
+                    app.filter_result(
+                        hq_result, args, class_check=args.class_check
+                    ),
                 )
 
                 # plot the ground truth
@@ -609,7 +614,7 @@ def main(args):
         else:
             overfitting_counter += 1
 
-        if overfitting_counter > 10:
+        if overfitting_counter > 5:
             return
 
         mean_cross_validation_loss_before = min(
@@ -849,6 +854,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--training_set", required=True, type=str, help="Training set",
     )
+    parser.add_argument(
+        "--no_class_check", dest="class_check", action="store_false"
+    )
+    parser.set_defaults(class_check=True)
 
     args = parser.parse_args()
 
