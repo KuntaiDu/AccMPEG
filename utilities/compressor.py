@@ -12,6 +12,7 @@ import torch
 import torchvision.transforms as T
 from PIL import Image
 from tqdm import tqdm
+from config import settings
 
 # from utils.compressor import *
 from utilities.mask_utils import tile_mask
@@ -303,10 +304,12 @@ def h264_roi_compressor(mask, args, logger):
 
 def h264_roi_compressor_segment(mask_full, args, logger):
 
+    x264_dir = settings.x264_dir
+
     mask_full = mask_full.squeeze(1)
     num_pngs = mask_full.shape[0]
     ffmpeg_env = os.environ.copy()
-    ffmpeg_env["LD_LIBRARY_PATH"] = "/tank/kuntai/lib/"
+    ffmpeg_env["LD_LIBRARY_PATH"] = f"{x264_dir}/lib"
 
     filenames = ""
 
@@ -327,7 +330,7 @@ def h264_roi_compressor_segment(mask_full, args, logger):
         mask = mask_full[st : ed + 1, :, :]
         logger.info("Encoding segment %d...", idx)
 
-        with open("/tank/kuntai/code/qp_matrix_file", "w") as qp_file:
+        with open(f"{x264_dir}/qp_matrix_file", "w") as qp_file:
 
             for i in range(mask.shape[0]):
                 for j in range(mask.shape[1]):
