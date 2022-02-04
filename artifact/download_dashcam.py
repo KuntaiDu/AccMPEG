@@ -8,9 +8,9 @@ urls = [
     "https://www.youtube.com/watch?v=kR9hnh4Y5rQ",
     "https://www.youtube.com/watch?v=KwYlOVeUiXI",
     "https://www.youtube.com/watch?v=q0dVSXeq3S0",
-    "https://www.youtube.com/watch?v=N5sJZ-KMd3I",
-    "https://www.youtube.com/watch?v=chrc7oSgayo",
-    "https://www.youtube.com/watch?v=gHWG7dWQ7kQ",
+    # "https://www.youtube.com/watch?v=N5sJZ-KMd3I",
+    # "https://www.youtube.com/watch?v=chrc7oSgayo",
+    # "https://www.youtube.com/watch?v=gHWG7dWQ7kQ",
 ]
 
 fmt = "ffmpeg -y -i $(youtube-dl -f 22 --get-url %s) -ss 00:20:00 -t 00:01:00  -c:v copy %s.mp4"
@@ -21,8 +21,8 @@ for idx, url in enumerate(urls):
 
     # if idx != 7:
     #     continue
-    if idx != 4:
-        continue
+    # if idx != 4:
+    #     continue
 
     # ffmpeg -i $(youtube-dl -f 22 --get-url https://www.youtube.com/watch?v=ZbZSe6N_BXs) \
     # -ss 00:00:10 -t 00:00:30 -c:v copy -c:a copy \
@@ -43,7 +43,7 @@ for idx, url in enumerate(urls):
     #     ]
     # )
 
-    # subprocess.run(fmt % (url, f"dashcam_{idx+1}"), shell=True)
+    subprocess.run(fmt % (url, f"dashcam_{idx+1}"), shell=True)
 
     subprocess.run(
         crop_fmt % (f"dashcam_{idx+1}", f"dashcamcropped_{idx+1}"), shell=True
