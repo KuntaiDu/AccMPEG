@@ -4,9 +4,9 @@ from pdb import set_trace
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
-from utilities.bbox_utils import *
-from detectron2.structures.instances import Instances
 from detectron2.structures.boxes import Boxes
+from detectron2.structures.instances import Instances
+from utilities.bbox_utils import *
 
 from .dnn import DNN
 
@@ -14,9 +14,10 @@ from .dnn import DNN
 class Yolo5s(DNN):
     def __init__(self):
 
-        self.model = torch.hub.load('ultralytics/yolov5', 'yolov5l', pretrained=True)
+        self.model = torch.hub.load(
+            "ultralytics/yolov5", "yolov5l", pretrained=True
+        )
         self.model.eval()
-
 
         self.name = "Yolo5s"
         self.logger = logging.getLogger(self.name)
@@ -26,7 +27,9 @@ class Yolo5s(DNN):
 
         self.is_cuda = False
 
-        self.transform = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        self.transform = T.Normalize(
+            [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+        )
 
         self.model.cuda()
 
@@ -55,40 +58,44 @@ class Yolo5s(DNN):
         self.model.eval()
 
         video = [v for v in video]
-        video = [F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in video]
+        video = [
+            F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in video
+        ]
 
         # perform COCO normalization
-        #video = [self.transform(v) for v in video]
-        #import pdb
-        #pdb.set_trace()
-        #import imageio
-        #imageio.imwrite("debug/img.png",video[0].permute(1,2,0).cpu().numpy())
+        # video = [self.transform(v) for v in video]
+        # import pdb
+        # pdb.set_trace()
+        # import imageio
+        # imageio.imwrite("debug/img.png",video[0].permute(1,2,0).cpu().numpy())
 
         if nograd:
             with torch.no_grad():
-                #results = self.model(video[0].permute().cpu().numpy())
-                results = self.model(video[0].permute(1,2,0).cpu().numpy()*255)
+                # results = self.model(video[0].permute().cpu().numpy())
+                results = self.model(
+                    video[0].permute(1, 2, 0).cpu().numpy() * 255
+                )
         else:
             with torch.enable_grad():
                 results = self.model(video)
 
-        #results = [results]
-        #if detach:
+        # results = [results]
+        # if detach:
         #    # detach and put everything to CPU.
         #    for result in results:
         #        for key in result:
         #            result[key] = result[key].cpu().detach()
 
         out = {}
-        out['video_scores'] = results.xyxy[0][:,4]
-        out['labels'] = results.xyxy[0][:,5]
-        out['boxes'] = results.xyxy[0][:,:4]
-        _,h,w = video[0].shape
+        out["video_scores"] = results.xyxy[0][:, 4]
+        out["labels"] = results.xyxy[0][:, 5]
+        out["boxes"] = results.xyxy[0][:, :4]
+        _, h, w = video[0].shape
         ret = Instances(
             image_size=(h, w),
-            pred_boxes=Boxes(out['boxes'].cpu().numpy()),
-            scores=out['video_scores'].cpu().numpy(),
-            pred_classes=out['labels'].cpu().numpy().astype(int)
+            pred_boxes=Boxes(out["boxes"].cpu().numpy()),
+            scores=out["video_scores"].cpu().numpy(),
+            pred_classes=out["labels"].cpu().numpy().astype(int),
         )
 
         if detach:
@@ -96,10 +103,65 @@ class Yolo5s(DNN):
 
         return {"instances": ret}
 
-        #return out
+        # return out
+
+    def region_proposal(self, video, detach=False, grad=False):
+        """
+            Generate inference results. Will put results on cpu if detach=True.
+        """
+
+        self.model.eval()
+
+        video = [v for v in video]
+        video = [
+            F.interpolate(v[None, :, :, :], size=(720, 1280))[0] for v in video
+        ]
+
+        # perform COCO normalization
+        # video = [self.transform(v) for v in video]
+        # import pdb
+        # pdb.set_trace()
+        # import imageio
+        # imageio.imwrite("debug/img.png",video[0].permute(1,2,0).cpu().numpy())
+
+        if not grad:
+            with torch.no_grad():
+                # results = self.model(video[0].permute().cpu().numpy())
+                results = self.model(
+                    video[0].permute(1, 2, 0).cpu().numpy() * 255
+                )
+        else:
+            with torch.enable_grad():
+                results = self.model(video)
+
+        # results = [results]
+        # if detach:
+        #    # detach and put everything to CPU.
+        #    for result in results:
+        #        for key in result:
+        #            result[key] = result[key].cpu().detach()
+
+        out = {}
+        out["video_scores"] = results.xyxy[0][:, 4]
+        out["labels"] = results.xyxy[0][:, 5]
+        out["boxes"] = results.xyxy[0][:, :4]
+        _, h, w = video[0].shape
+        ret = Instances(
+            image_size=(h, w),
+            proposal_boxes=Boxes(out["boxes"].cpu().numpy()),
+            objectness_logits=out["video_scores"].cpu().numpy(),
+            pred_classes=out["labels"].cpu().numpy().astype(int),
+        )
+
+        if detach:
+            ret = ret.to("cpu")
+
+        return ret
+
+        # return out
 
     def filter_result(self, result, args, gt=False):
-    
+
         scores = result["instances"].scores
         class_ids = result["instances"].pred_classes
 
@@ -115,9 +177,9 @@ class Yolo5s(DNN):
 
         return result
 
-    #def filter_result(
+    # def filter_result(
     #    self, video_results, confidence_threshold, cuda=False, train=False
-    #):
+    # ):
 
     #    video_scores = video_results["video_scores"]
     #    labels = video_results["labels"]
@@ -249,10 +311,12 @@ class Yolo5s(DNN):
     def filter_large_bbox(self, bboxes):
 
         size = (
-            (bboxes[:, 2] - bboxes[:, 0]) / 1280 * (bboxes[:, 3] - bboxes[:, 1]) / 720
+            (bboxes[:, 2] - bboxes[:, 0])
+            / 1280
+            * (bboxes[:, 3] - bboxes[:, 1])
+            / 720
         )
         return size < 0.08
-
 
     def plot_results_on(self, gt, image, c, args, boxes=None, train=False):
         if gt == None:
@@ -283,18 +347,22 @@ class Yolo5s(DNN):
                 if IoU[idx, :].sum() > args.iou_threshold:
                     draw.rectangle(box.cpu().tolist(), width=2, outline=c_dim)
                     draw.text(
-                        box.cpu().tolist()[:2], f"{gt_labels[idx].item()}", fill="red"
+                        box.cpu().tolist()[:2],
+                        f"{gt_labels[idx].item()}",
+                        fill="red",
                     )
                 else:
                     draw.rectangle(box.cpu().tolist(), width=8, outline=c)
                     draw.text(
-                        box.cpu().tolist()[:2], f"{gt_labels[idx].item()}", fill="red"
+                        box.cpu().tolist()[:2],
+                        f"{gt_labels[idx].item()}",
+                        fill="red",
                     )
 
         return image
 
     def calc_accuracy(self, result_dict, gt_dict, args):
-    
+
         from detectron2.structures.boxes import pairwise_iou
 
         assert (
@@ -372,10 +440,10 @@ class Yolo5s(DNN):
             "tp": torch.tensor(tps).sum().item(),
             "fp": torch.tensor(fps).sum().item(),
             "fn": torch.tensor(fns).sum().item(),
-            #"f1s": f1s,
-            #"prs": prs,
-            #"res": res,
-            #"tps": tps,
-            #"fns": fns,
-            #"fps": fps,
+            # "f1s": f1s,
+            # "prs": prs,
+            # "res": res,
+            # "tps": tps,
+            # "fns": fns,
+            # "fps": fps,
         }

@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 from pdb import set_trace
 
+import av
 import matplotlib.pyplot as plt
 import torch
 import torchvision.transforms as T
@@ -12,7 +13,6 @@ from torchvision import io
 
 from . import mask_utils as mu
 
-import av
 
 class Video(Dataset):
     def __init__(self, video, postprocess, logger, return_fid=False):
@@ -23,6 +23,10 @@ class Video(Dataset):
         subprocess.check_output(
             [
                 "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "warning",
+                "-stats",
                 "-y",
                 "-i",
                 f"{video}",
@@ -118,7 +122,12 @@ def read_video(video_name, logger, dataloader, from_source):
 
 
 def read_videos_pyav(
-    video_list, logger, sort=False, normalize=True, dataloader=True, from_source=False
+    video_list,
+    logger,
+    sort=False,
+    normalize=True,
+    dataloader=True,
+    from_source=False,
 ):
     """
         Read a list of video and return two lists. 
@@ -126,7 +135,9 @@ def read_videos_pyav(
     """
     video_list = [
         {
-            "video": read_video_pyav(video_name, logger, dataloader, from_source),
+            "video": read_video_pyav(
+                video_name, logger, dataloader, from_source
+            ),
             "bandwidth": read_bandwidth(video_name),
             "name": video_name,
         }

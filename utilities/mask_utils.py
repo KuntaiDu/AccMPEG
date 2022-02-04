@@ -7,11 +7,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from pdb import set_trace
 
-import tqdm
 import torch
 import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms as T
+from tqdm import tqdm
 
 from . import bbox_utils as bu
 from . import video_utils as vu
@@ -390,12 +390,6 @@ def write_black_bkgd_video_smoothed_continuous(
     os.system(f"rm -r {args.output}.source.pngs")
     os.system(f"cp -r {args.source} {args.output}.source.pngs")
 
-    progress_bar = enlighten.get_manager().counter(
-        total=mask.shape[0],
-        desc=f"Generate raw png of {args.output}",
-        unit="frames",
-    )
-
     # for mask_slice in mask.split(args.smooth_frames):
     #     mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
 
@@ -435,8 +429,7 @@ def write_black_bkgd_video_smoothed_continuous(
         mask = dilate_binarize(mask, 0.5, 3, False)
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-        for fid, mask_slice in enumerate(mask.split(1)):
-            progress_bar.update()
+        for fid, mask_slice in enumerate(tqdm(mask.split(1))):
             # read image
             filename = args.output + ".source.pngs/%010d.png" % fid
             # with Timer("open", logger):
@@ -471,7 +464,9 @@ def write_black_bkgd_video_smoothed_continuous(
                 args.output + ".source.pngs/%010d.png",
                 "-start_number",
                 "0",
-                "-qp",
+                "-qmin",
+                f"{qp}",
+                "-qmax",
                 f"{qp}",
                 args.output,
             ]
@@ -532,8 +527,6 @@ def write_black_bkgd_video_smoothed_continuous_crf(
     os.system(f"rm -r {args.output}.source.pngs")
     os.system(f"cp -r {args.source} {args.output}.source.pngs")
 
-
-
     # for mask_slice in mask.split(args.smooth_frames):
     #     mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
 
@@ -574,7 +567,6 @@ def write_black_bkgd_video_smoothed_continuous_crf(
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         for fid, mask_slice in enumerate(tqdm(mask.split(1))):
-            progress_bar.update()
             # read image
             filename = args.output + ".source.pngs/%010d.png" % fid
             # with Timer("open", logger):

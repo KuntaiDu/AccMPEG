@@ -48,8 +48,6 @@ visualize/*
 # ignore vscode
 .vscode/
 
-# ignore ipynb
-*.ipynb
 
 # video folders
 visdrone/*
