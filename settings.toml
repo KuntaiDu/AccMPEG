@@ -1,4 +1,1 @@
-
-[default]
-
-x264_dir = '/tank/kuntai/code'
+x264_dir = "/net/scratch/kuntai/code/myh264"

@@ -342,7 +342,7 @@ def h264_roi_compressor_segment(mask_full, args, logger):
 
         subprocess.run(
             [
-                "/tank/kuntai/myh264/ffmpeg-3.4.8/ffmpeg",
+                f"{x264_dir}/ffmpeg-3.4.8/ffmpeg",
                 "-hide_banner",
                 "-loglevel",
                 "warning",

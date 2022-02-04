@@ -10,6 +10,8 @@ from munch import Munch
 from utilities.compressor import h264_compressor_segment
 from utilities.results_utils import read_results
 
+attr = "mp4"
+
 # qp_list = [32]
 
 # gt_qp = 20
@@ -28,9 +30,9 @@ from utilities.results_utils import read_results
 #     "veryslow",
 # ]
 
-gt_qp = 30
-qp_list = [30, 50]
-attr = "mp4"
+# gt_qp = 30
+# qp_list = [30, 50]
+# attr = "mp4"
 
 
 def main(args):
@@ -217,25 +219,26 @@ if __name__ == "__main__":
     # ]
     # args.inputs = ["yoda/yoda_%d" % i for i in range(7, 8)]
     # args.inputs = ["dashcam/dashcamcropped_%d" % i for i in range(1, 11)]
-    args.inputs = ["videos/driving_%d" % i for i in range(5)] + [
-        "videos/dashcamcropped_%d" % i for i in range(1, 11)
-    ]
+    # args.inputs = ["videos/driving_%d" % i for i in range(5)] + [
+    #     "videos/dashcamcropped_%d" % i for i in range(1, 11)
+    # ]
+    args.inputs = ["videos/dashcamcropped_%d" % i for i in [1]]
 
     # args.inputs = ["videos/driving_%d" % i for i in range(5)]
 
     args.inputs = [args.inputs[i] for i in range(len(args.inputs))]
     args.force = False
     # args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
-    # args.app = "Yolo5s"
-    args.app = "EfficientDet"
+    args.app = "Yolo5s"
+    # args.app = "EfficientDet"
     # assert attr == "webm"
     # args.stats = f"frozen_stats_MLSys/stats_QP30_thresh7_segmented_FPN"
-    # args.stats = "frozen_stats_MLSys/stats_QP30_thresh3_segment_Yolo"
-    args.stats = "frozen_stats_MLSys/stats_QP30_thresh4_segment_EfficientDet"
+    args.stats = "artifact/stats_QP30_thresh3_segment_Yolo"
+    # args.stats = "frozen_stats_MLSys/stats_QP30_thresh4_segment_EfficientDet"
     # args.stats = "frozen_stats_MLSys/stats_QP30_thresh3_dashcamcropped_Yolo"
     # args.stats = "frozen_stats_MLSys/stats_QP30_thresh4_dashcamcropped_EfficientDet"
-    args.confidence_threshold = 0.4
-    args.gt_confidence_threshold = 0.4
+    args.confidence_threshold = 0.3
+    args.gt_confidence_threshold = 0.3
     args.smooth_frames = 10
 
     # args = parser.parse_args()
