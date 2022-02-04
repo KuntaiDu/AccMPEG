@@ -18,10 +18,10 @@ from torchvision import io
 
 from dnn.CARN.interface import CARN
 from dnn.dnn_factory import DNN_Factory
-from utils.mask_utils import merge_black_bkgd_images
-from utils.results_utils import read_results, write_results
-from utils.timer import Timer
-from utils.video_utils import read_videos
+from utilities.mask_utils import merge_black_bkgd_images
+from utilities.results_utils import read_results, write_results
+from utilities.timer import Timer
+from utilities.video_utils import read_videos
 
 # from dnn.fasterrcnn_resnet50 import FasterRCNN_ResNet50_FPN
 

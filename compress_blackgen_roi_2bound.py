@@ -23,7 +23,7 @@ from tqdm import tqdm
 
 from dnn.dnn_factory import DNN_Factory
 from utilities.bbox_utils import center_size
-from utilities.compressor import h264_roi_compressor_segment
+from utilities.compressor import h264_roi_compressor
 from utilities.loss_utils import focal_loss as get_loss
 from utilities.mask_utils import *
 from utilities.results_utils import read_ground_truth, read_results
@@ -171,16 +171,18 @@ def main(args):
 
         num = mask_slice.shape[0]
 
-        # mask_slice[:, :, :, :] = (
-        #     mask_slice[0:1, :, :, :]
-        #     + mask_slice[(num // 3) : (num // 3) + 1, :, :, :]
-        #     + mask_slice[((2 * num) // 3) : ((2 * num) // 3) + 1, :, :, :]
-        #     + mask_slice[num - 1 : num, :, :, :]
-        # ) / 4
         mask_slice[:, :, :, :] = (
-            mask_slice[0:1, :, :, :] + mask_slice[num - 1 : num, :, :, :]
-        ) / 2
+            mask_slice[0:1, :, :, :]
+            + mask_slice[(num // 3) : (num // 3) + 1, :, :, :]
+            + mask_slice[((2 * num) // 3) : ((2 * num) // 3) + 1, :, :, :]
+            + mask_slice[num - 1 : num, :, :, :]
+        ) / 4
         # mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
+
+    if args.upsample:
+        mask = F.conv2d(mask, torch.ones([1, 1, 5, 5]), stride=5)
+        mask = mask / 25
+        mask = F.interpolate(mask, scale_factor=5)
 
     # if args.bound is not None:
     #     mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
@@ -188,10 +190,13 @@ def main(args):
     #     assert args.perc is not None
     #     mask = (mask > percentile(mask, args.perc)).float()
     #     mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
-    if args.bound is not None:
-        mask = (mask > args.bound).float()
-    else:
-        mask = (mask > percentile(mask, args.perc)).float()
+    # if args.bound is not None:
+    #     mask = (mask > args.bound).float()
+    # else:
+    #     mask = (mask > percentile(mask, args.perc)).float()
+    
+    
+    mask = ((mask > args.lb) & (mask < args.ub)).float()
 
     # logger.info("logging raw quality assignment...")
 
@@ -213,7 +218,7 @@ def main(args):
 
     mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
 
-    mask = postprocess_mask(mask)
+    # mask = postprocess_mask(mask)
 
     logger.info("logging actual quality assignment...")
 
@@ -294,7 +299,7 @@ def main(args):
         args.lq * torch.ones_like(mask),
     )
 
-    h264_roi_compressor_segment(mask, args, logger)
+    h264_roi_compressor(mask, args, logger)
 
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
@@ -368,24 +373,27 @@ if __name__ == "__main__":
         help="The path of pth file that stores the generator parameters.",
         required=True,
     )
+    parser.add_argument("--upsample", default=False, action="store_true")
     # parser.add_argument(
     #     "--upper_bound", type=float, help="The upper bound for the mask", required=True,
     # )
     # parser.add_argument(
     #     "--lower_bound", type=float, help="The lower bound for the mask", required=True,
     # )
-    action = parser.add_mutually_exclusive_group(required=True)
-    action.add_argument(
-        "--bound", type=float, help="The lower bound for the mask",
-    )
-    action.add_argument(
-        "--perc", type=float, help="The percentage of modules to be encoded."
-    )
+    # action = parser.add_mutually_exclusive_group(required=True)
+    # action.add_argument(
+    #     "--bound", type=float, help="The lower bound for the mask",
+    # )
+    # action.add_argument(
+    #     "--perc", type=float, help="The percentage of modules to be encoded."
+    # )
+    parser.add_argument("--lb", type=float, required=True)
+    parser.add_argument("--ub", type=float, required=True)
     parser.add_argument(
         "--smooth_frames",
         type=int,
         help="Proposing one single mask for smooth_frames many frames",
-        default=10,
+        default=30,
     )
     parser.add_argument(
         "--visualize_step_size",

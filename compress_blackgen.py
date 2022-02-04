@@ -19,16 +19,15 @@ import torchvision.transforms as T
 from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
-from tqdm import tqdm
 
 from dnn.dnn_factory import DNN_Factory
-from utils.bbox_utils import center_size
-from utils.loss_utils import focal_loss as get_loss
-from utils.mask_utils import *
-from utils.results_utils import read_ground_truth, read_results
-from utils.timer import Timer
-from utils.video_utils import get_qp_from_name, read_videos, write_video
-from utils.visualize_utils import (
+from utilities.bbox_utils import center_size
+from utilities.loss_utils import focal_loss as get_loss
+from utilities.mask_utils import *
+from utilities.results_utils import read_ground_truth, read_results
+from utilities.timer import Timer
+from utilities.video_utils import get_qp_from_name, read_videos, write_video
+from utilities.visualize_utils import (
     visualize_dist_by_summarywriter,
     visualize_heat_by_summarywriter,
 )
@@ -132,7 +131,7 @@ def main(args):
                 # mask_slice[:, :, :, :] = torch.where(mask_gen > 0.5, torch.ones_like(mask_gen), torch.zeros_like(mask_gen))
 
             # visualization
-            if fid % args.visualize_step_size == 0:
+            if fid % args.visualize_step_size in [0, 1, 2]:
 
                 image = T.ToPILImage()(video_slices[-1][0, :, :, :])
 
@@ -163,6 +162,8 @@ def main(args):
 
     mask.requires_grad = False
 
+    from tqdm import tqdm
+
     for mask_slice in tqdm(mask.split(args.smooth_frames)):
 
         num = mask_slice.shape[0]
@@ -191,7 +192,7 @@ def main(args):
         zip(zip(*videos), mask.split(1))
     ):
 
-        if fid % args.visualize_step_size == 0:
+        if fid % args.visualize_step_size in [0, 1, 2]:
 
             image = T.ToPILImage()(video_slices[-1][0, :, :, :])
             visualize_heat_by_summarywriter(

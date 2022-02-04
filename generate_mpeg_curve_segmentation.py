@@ -7,7 +7,7 @@ from pathlib import Path
 import coloredlogs
 from munch import Munch
 
-from utilities.compressor import h264_compressor_cloudseg_segment
+from utilities.compressor import h264_compressor_segment
 from utilities.results_utils import read_results
 
 # qp_list = [32]
@@ -29,6 +29,7 @@ from utilities.results_utils import read_results
 # ]
 
 gt_qp = 30
+qp_list = [30, 50]
 attr = "mp4"
 
 
@@ -79,32 +80,74 @@ def main(args):
 
         # generate mpeg curve
         for qp in args.qp_list:
-
-            new_args = Munch()
-
-            new_args.source = str(video_name)
-            new_args.output = str(video_name) + f"_cloudseg_qp_{qp}.mp4"
-            new_args.qp = qp
-            new_args.smooth_frames = args.smooth_frames
-
-            logger.info("Encode %s from %s", new_args.output, new_args.source)
+            input_name = f"{video_name}/%010d.png"
+            output_name = f"{video_name}_qp_{qp}.{attr}"
+            print(f"Generate video for {output_name}")
             # encode_with_qp(input_name, output_name, qp, args)
 
-            if args.force or not os.path.exists(new_args.output):
+            if args.force or not os.path.exists(output_name):
                 # if True:
-                h264_compressor_cloudseg_segment(new_args, logger)
+
+                if attr == "hevc":
+
+                    subprocess.run(
+                        [
+                            "ffmpeg",
+                            "-y",
+                            "-i",
+                            input_name,
+                            "-start_number",
+                            "0",
+                            "-c:v",
+                            "libx265",
+                            "-x265-params",
+                            f"qp={qp}",
+                            output_name,
+                        ]
+                    )
+                elif attr == "mp4":
+
+                    new_args = Munch()
+                    new_args.source = str(video_name)
+                    new_args.qp = qp
+                    new_args.smooth_frames = args.smooth_frames
+
+                    h264_compressor_segment(new_args, logger)
+
+                elif attr == "webm":
+
+                    print("here")
+
+                    subprocess.run(
+                        [
+                            "ffmpeg",
+                            "-y",
+                            "-i",
+                            input_name,
+                            "-start_number",
+                            "0",
+                            "-c:v",
+                            "libvpx-vp9",
+                            "-crf",
+                            f"{qp}",
+                            "-b:v",
+                            "0",
+                            "-threads",
+                            "8",
+                            output_name,
+                        ]
+                    )
 
             subprocess.run(
                 [
                     "python",
                     "inference.py",
                     "-i",
-                    new_args.output,
+                    output_name,
                     "--app",
                     args.app,
                     "--visualize_step_size",
-                    "10000",
-                    "--enable_cloudseg"
+                    "1000"
                     # "--confidence_threshold",
                     # "0.95",
                 ]
@@ -115,7 +158,7 @@ def main(args):
                     "python",
                     "examine.py",
                     "-i",
-                    new_args.output,
+                    output_name,
                     "-g",
                     f"{video_name}_qp_{gt_qp}.{attr}",
                     "--app",
@@ -165,8 +208,9 @@ if __name__ == "__main__":
     # args.qp_list = [20, 21, 22, 24, 26, 30, 34, 40]
     args.gt_qp = 30
     # args.qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
+    # args.qp_list = [32, 34, 35, 36, 37]
+    args.qp_list = [38, 39, 40, 44, 50]
     # args.qp_list = args.qp_list + [33, 35, 37, 38, 39]
-    args.qp_list = [26]
     # args.qp_list = [30]
 
     # args.qp_list = [20, 27, 28, 30, 32, 34, 35, 36, 38, 40, 46]
@@ -175,9 +219,10 @@ if __name__ == "__main__":
     # ]
     # args.inputs = ["yoda/yoda_%d" % i for i in range(7, 8)]
     # args.inputs = ["dashcam/dashcamcropped_%d" % i for i in range(1, 11)]
-    args.inputs = ["videos/driving_%d" % i for i in range(5)] + [
-        "videos/dashcamcropped_%d" % i for i in range(1, 11)
-    ]
+    # args.inputs = ["videos/driving_%d" % i for i in range(5)] + [
+    #     "videos/dashcamcropped_%d" % i for i in range(1, 11)
+    # ]
+    args.inputs = ["videos/surf_%d_final" % i for i in [1, 2, 3, 4, 6, 7]]
 
     # args.inputs = ["videos/driving_%d" % i for i in range(5)]
 
@@ -185,16 +230,16 @@ if __name__ == "__main__":
     args.force = False
     # args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
     # args.app = "Yolo5s"
-    args.app = "EfficientDet"
+    args.app = "Segmentation/fcn_resnet50"
     # assert attr == "webm"
     # args.stats = f"frozen_stats_MLSys/stats_QP30_thresh7_segmented_FPN"
     # args.stats = "frozen_stats_MLSys/stats_QP30_thresh3_segment_Yolo"
-    args.stats = "frozen_stats_MLSys/stats_QP30_thresh4_segment_EfficientDet"
+    # args.stats = "frozen_stats_MLSys/stats_QP30_thresh4_segment_EfficientDet"
+    args.stats = "frozen_stats_MLSys/stats_QP30_segment_fcn"
     # args.stats = "frozen_stats_MLSys/stats_QP30_thresh3_dashcamcropped_Yolo"
     # args.stats = "frozen_stats_MLSys/stats_QP30_thresh4_dashcamcropped_EfficientDet"
     args.confidence_threshold = 0.4
     args.gt_confidence_threshold = 0.4
-
     args.smooth_frames = 10
 
     # args = parser.parse_args()

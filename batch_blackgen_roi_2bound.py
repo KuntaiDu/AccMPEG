@@ -18,30 +18,6 @@ import yaml
 # v_list = ["dashcam/dashcam_%d" % i for i in [7]]
 
 
-v_list = [
-    # "visdrone/videos/vis_%d" % i
-    # for i in range(169, 174)
-    # "dashcam/dashcam_2",
-    # "large_object/large_%d" % i
-    # for i in range(3, 5)
-    # "visdrone/videos/vis_172",
-    # "dashcam/dashcam_2_short",
-    # "dashcam/dashcam_8"
-    # "videos/trafficcam/trafficcam_1"
-    "dashcam/dashcamcropped_%d_downsampled" % i
-    for i in range(1, 11)
-    # "yoda/yoda_%d" % i
-    # for i in range(1, 9)
-    # "dashcam/dashcamcropped_%d" % i
-    # for i in [1, 2, 3, 4, 6, 7]
-    # "dashcam/dashcam_2"
-    # "visdrone/videos/vis_170",
-    # "visdrone/videos/vis_173",
-    # "visdrone/videos/vis_169",
-    # "visdrone/videos/vis_172",
-    # "visdrone/videos/vis_209",
-    # "visdrone/videos/vis_217",
-]  # + ["dashcam/dashcam_%d" % i for i in range(1, 11)]
 # v_list = v_list[::-1]
 # v_list = [v_list[1]]
 # v_list = ["dashcam/dashcam_2"]
@@ -75,38 +51,71 @@ tile = 16
 # conv_list = [1, 5, 9]
 # bound_list = [0.15, 0.2, 0.25]
 # base_list = [40, 36]
+
+# conv_list = [1, 5]
+# bound_list = [0.15, 0.1]
+# base_list = [36]
+
 conv_list = [1]
-bound_list = [0.2]
-base_list = [40]
+lb_list = [0.01, 0.007]
+ub_list = [0.1, 0.05]
+base_list = [36]
+
+# conv_list = [1]
+# bound_list = [0.2]
+# base_list = [40]
 
 # conv_list = [1, 5]
 # bound_list = [0.1, 0.15, 0.05]
 # base_list = [-1]
 # model_name = f"cityscape_detection_FPN_SSD_withconfidence_allclasses_new_unfreezebackbone"
-model_name = "COCO_detection_FPN_SSD_withconfidence_allclasses_new_unfreezebackbone_withoutclasscheck"
-stats = "stats_FPN_QP30_thresh7_prevframe_dashcamcropped_downsampled_dist"
-conf_thresh = 0.7
-gt_conf_thresh = 0.7
-visualize_step_size = 20
+
+v_list = [
+    # "visdrone/videos/vis_%d" % i
+    # for i in range(169, 174)
+    "visdrone_new/drone_%d" % i
+    for i in range(7)
+    # "dashcam/dashcamcropped_%d" % i
+    # for i in range(1, 11)
+]
+
+
+# FPN
+stats = "frozen_stats_MLSys/stats_QP30_thresh8_visdrone_FPN"
+conf_thresh = 0.8
+gt_conf_thresh = 0.8
+app_name = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+
+# # efficientdet
+# stats = "frozen_stats_MLSys/stats_QP30_thresh4_dashcamcropped_EfficientDet"
+# conf_thresh = 0.4
+# gt_conf_thresh = 0.4
+# app_name = "EfficientDet"
+
+
+model_app = "FPN"
+model_name = f"COCO_detection_{model_app}_SSD_withconfidence_allclasses_new_unfreezebackbone_withoutclasscheck"
+
+
+visualize_step_size = 300
 
 # accs = [filter([fmt % i, "newSSDwconf", "bound_0.2", "lq_40", "conv_1"]) for i in ids]
 
 import glob
 
 # app_name = "Segmentation/fcn_resnet50"
-app_name = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
 # app_name = "EfficientDet"
 filename = "SSD/accmpegmodel"
 
-for conv, bound, base, v in product(conv_list, bound_list, base_list, v_list):
-
-    print(v, conv, bound, base)
+for conv, lb, ub, base, v in product(
+    conv_list, lb_list, ub_list, base_list, v_list
+):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
     # visdrone/videos/vis_169_blackgen_bound_0.2_qp_30_conv_5_app_FPN.mp4
     # output = f"{v}_blackgen_bound_{bound}_qp_30_conv_{conv}_app_FPN.mp4"
 
-    output = f"{v}_blackgen_dual_thresh7_bound_{bound}_conv_{conv}_hq_{high}_lq_{base}_app_FPN.mp4"
+    output = f"{v}_roi_lb_{lb}_ub_{ub}_conv_{conv}_hq_{high}_lq_{base}_app_{model_app}.mp4"
 
     # examine_output = (
     #     f"{v}_blackgen_dual_SSD_bound_{bound}_conv_{conv}_app_FPN.mp4"
@@ -116,19 +125,21 @@ for conv, bound, base, v in product(conv_list, bound_list, base_list, v_list):
 
     if True:
 
-        # os.system(f"rm -r {output}*")
-
-        # os.system(
-        #     f"python compress_blackgen.py -i {v}_qp_{high}.mp4 "
-        #     f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
-        #     f" --conv_size {conv} "
-        #     f" -g {v}_qp_{high}.mp4 --bound {bound} --hq {high} --lq {base} --smooth_frames 1 --app {app_name} "
-        #     f"--maskgen_file /tank/kuntai/code/video-compression/maskgen/{filename}.py --visualize_step_size {visualize_step_size}"
-        # )
+        os.system(
+            f"python compress_blackgen_roi_2bound.py -i {v}_qp_{high}.mp4 "
+            f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
+            f" --conv_size {conv} "
+            f" -g {v}_qp_{high}.mp4 --lb {lb} --ub {ub} --hq {high} --lq {base} --smooth_frames 30 --app {app_name} "
+            f"--maskgen_file /tank/kuntai/code/video-compression/maskgen/{filename}.py --visualize_step_size {visualize_step_size} "
+            f"--upsample"
+        )
 
         os.system(
-            f"python inference_dist.py -i {output} --app {app_name} --confidence_threshold {conf_thresh} --gt_confidence_threshold {gt_conf_thresh} -g {v}_qp_{high}.mp4 --visualize_step_size {visualize_step_size} --lq_result {v}_qp_{base}.mp4"
+            f"python inference.py -i {output} --app {app_name} --confidence_threshold {conf_thresh} --gt_confidence_threshold {gt_conf_thresh} --visualize_step_size {visualize_step_size} "
+            f" --visualize --lq_result {v}_qp_{base}.mp4 --ground_truth {v}_qp_{high}.mp4"
         )
+
+        os.system(f"rm -r {output}.pngs")
 
     os.system(
         f"python examine.py -i {output} -g {v}_qp_{high}.mp4 --confidence_threshold {conf_thresh}  --gt_confidence_threshold {gt_conf_thresh} --app {app_name} --stats {stats}"

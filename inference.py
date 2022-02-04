@@ -18,7 +18,7 @@ from torchvision import io
 from dnn.CARN.interface import CARN
 from dnn.dnn_factory import DNN_Factory
 from utilities.mask_utils import merge_black_bkgd_images
-from utilities.results_utils import write_results
+from utilities.results_utils import read_results, write_results
 from utilities.timer import Timer
 from utilities.video_utils import read_videos
 
@@ -106,10 +106,10 @@ def main(args):
         # video_slice = transforms(video_slice[0])[None, :, :, :]
         # video_slice = video_slice + torch.randn_like(video_slice) * 0.05
         # with Timer("inference", logger):
-        video_slice=video_slice.cuda()
+        video_slice = video_slice.cuda()
         inference_results[fid] = app.inference(video_slice, detach=True)
 
-        if fid % args.visualize_step_size in [0, 1, 2]:
+        if args.visualize and fid % args.visualize_step_size in [0, 1, 2]:
             image = T.ToPILImage()(
                 F.interpolate(video_slice, (720, 1280))[0].cpu()
             )
@@ -128,14 +128,14 @@ def main(args):
 
             writer.add_image(
                 "inference_result",
-                T.ToTensor()(app.visualize(image, inference_results[fid], args)),
+                T.ToTensor()(app.visualize(image, inference_results[fid])),
                 fid,
             )
 
             if ground_truth_dict is not None:
                 writer.add_image(
                     "ground_truth",
-                    T.ToTensor()(app.visualize(image, ground_truth_dict[fid], args)),
+                    T.ToTensor()(app.visualize(image, ground_truth_dict[fid])),
                     fid,
                 )
 
@@ -152,7 +152,7 @@ def main(args):
                 writer.add_image(
                     "FN",
                     T.ToTensor()(
-                        app.visualize(hq_image, {"instances": gt[gt_index]}, args)
+                        app.visualize(hq_image, {"instances": gt[gt_index]})
                     ),
                     fid,
                 )
@@ -161,7 +161,7 @@ def main(args):
                     "FP",
                     T.ToTensor()(
                         app.visualize(
-                            hq_image, {"instances": result[result_index]}, args
+                            hq_image, {"instances": result[result_index]}
                         )
                     ),
                     fid,
@@ -176,7 +176,7 @@ def main(args):
                 writer.add_image(
                     "FN_lq",
                     T.ToTensor()(
-                        app.visualize(hq_image, {"instances": gt[gt_index]}, args)
+                        app.visualize(hq_image, {"instances": gt[gt_index]})
                     ),
                     fid,
                 )
@@ -229,13 +229,16 @@ if __name__ == "__main__":
         default=0.5,
     )
     parser.add_argument(
-        "--enable_cloudseg",
-        type=bool,
-        help="Super-resolute the image before inference.",
-        default=False,
+        "--enable_cloudseg", default=False, action="store_true",
     )
     parser.add_argument(
         "--from_source", type=bool, help="No reencoding?", default=False,
+    )
+    parser.add_argument(
+        "--visualize",
+        help="Enable visualization?",
+        default=False,
+        action="store_true",
     )
     parser.add_argument(
         "--ground_truth",

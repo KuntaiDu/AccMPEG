@@ -1,7 +1,7 @@
 import shutil
 from pathlib import Path
 
-video_list = ["dashcam/dashcamcropped_%d" % i for i in range(1, 10)]
+video_list = ["dashcam/dashcamcropped_%d" % i for i in range(10, 11)]
 
 # 30x downsample
 for src in video_list:

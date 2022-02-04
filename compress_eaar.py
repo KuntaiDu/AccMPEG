@@ -20,13 +20,14 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision import io
 
 from dnn.dnn_factory import DNN_Factory
-from utils.bbox_utils import center_size
-from utils.loss_utils import focal_loss as get_loss
-from utils.mask_utils import *
-from utils.results_utils import read_ground_truth, read_results
-from utils.timer import Timer
-from utils.video_utils import get_qp_from_name, read_videos, write_video
-from utils.visualize_utils import visualize_heat_by_summarywriter
+from utilities.bbox_utils import center_size
+from utilities.loss_utils import focal_loss as get_loss
+from utilities.mask_utils import *
+from utilities.results_utils import read_ground_truth, read_results
+from utilities.timer import Timer
+from utilities.video_utils import get_qp_from_name, read_videos, write_video
+from utilities.visualize_utils import visualize_heat_by_summarywriter
+from utilities.compressor import h264_roi_compressor_segment
 
 sns.set()
 
@@ -128,9 +129,15 @@ def main(args):
         # )
 
     mask.requires_grad = False
-    write_black_bkgd_video_smoothed_continuous(
-        mask, args, args.qp, logger, writer=writer, tag="hq"
+
+    mask = (mask > 0.5).int()
+    mask = torch.where(
+        mask == 1,
+        args.hq * torch.ones_like(mask),
+        args.lq * torch.ones_like(mask),
     )
+
+    h264_roi_compressor_segment(mask, args, logger)
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)
 
@@ -145,14 +152,29 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--visualize_step_size", type=int, help="Visualization", default=100,
+        "--visualize_step_size",
+        type=int,
+        help="Visualization",
+        default=100,
     )
     parser.add_argument(
-        "--app", type=str, help="The name of the model.", required=True,
+        "--smooth_frames",
+        type=int,
+        help="Proposing one single mask for smooth_frames many frames",
+        default=10,
+    )
+    parser.add_argument(
+        "--app",
+        type=str,
+        help="The name of the model.",
+        required=True,
     )
 
     parser.add_argument(
-        "--conf", type=float, help="The original video source.", default=0.8,
+        "--conf",
+        type=float,
+        help="The original video source.",
+        default=0.8,
     )
     parser.add_argument(
         "-i",
@@ -194,7 +216,8 @@ if __name__ == "__main__":
         help="The IoU threshold for calculating accuracy in object detection.",
         default=0.5,
     )
-    parser.add_argument("--qp", type=int, required=True)
+    parser.add_argument("--hq", type=int, required=True)
+    parser.add_argument("--lq", type=int, required=True)
 
     # parser.add_argument('--mask', type=str,
     #                     help='The path of the ground truth video, for loss calculation purpose.', required=True)

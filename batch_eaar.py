@@ -24,7 +24,13 @@ import yaml
 #     # "visdrone/videos/vis_209",
 #     # "visdrone/videos/vis_217",
 # ]
-v_list = [f"visdrone/videos/vis_{i}" for i in [173]]
+# v_list = (
+#     # ["videos/drone_0"]
+#     ["videos/dashcamcropped_%d" % i for i in range(1, 8)]
+#     + ["videos/driving_%d" % i for i in range(5)]
+# )
+
+v_list = ["videos/dashcamcropped_%d" % i for i in [3, 5]]
 # + [
 #     "dashcam/dashcam_%d" % i for i in range(1, 11)
 # ]
@@ -35,24 +41,30 @@ attr_list = ["FPN"]
 # base = 50
 # high_list = [30, 34, 38]
 tile = 16
-conf_list = [0.7]
+
 # high_low_list = [(30, 42), (34, 46), (38, 50)]
-high_low_list = [(38, 50)]
+high_low_list = [(30, 36)]
 gt = 30
 # lower_bound_list = [0.3]
 
-for v, attr, conf, (high, base) in product(
-    v_list, attr_list, conf_list, high_low_list
-):
+
+stats = "frozen_stats_MLSys/stats_QP30_thresh7_segmented_FPN"
+conf_thresh = 0.7
+gt_conf_thresh = 0.7
+eaar_conf = 0.7
+app_name = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+
+
+visualize_step_size = 300
+
+
+for v, attr, (high, base) in product(v_list, attr_list, high_low_list):
 
     # output = f'{v}_compressed_ground_truth_2%_tile_16.mp4'
-    output = f"{v}_blackgen_dual_eaar3_qp_{base}_{high}_conf_{conf}.mp4"
-    app = f"COCO-Detection/faster_rcnn_R_101_{attr}_3x.yaml"
+    output = f"{v}_eaar_qp_{base}_{high}_conf_{eaar_conf}_FPN.mp4"
 
-    if True:
+    if not os.path.exists(output):
         # if True:
-
-        subprocess.run(["rm", "-r", output + "*"])
 
         subprocess.run(
             [
@@ -64,50 +76,30 @@ for v, attr, conf, (high, base) in product(
                 "-s",
                 f"{v}",
                 "-o",
-                f"{output}.qp{high}.mp4",
+                f"{output}",
                 "--tile_size",
                 f"{tile}",
                 # "-g",
                 # f"{v}_qp_{high}_ground_truth.mp4",
-                "--qp",
+                "--hq",
                 f"{high}",
+                "--lq",
+                f"{base}",
                 "--app",
-                app,
+                app_name,
                 "--conf",
-                f"{conf}",
+                f"{eaar_conf}",
             ]
         )
 
-        os.system(f"cp {v}_qp_{base}.mp4 {output}.base.mp4")
-
-        # subprocess.run(
-        #     [
-        #         "ffmpeg",
-        #         "-y",
-        #         "-i",
-        #         f"{v}/%010d.png",
-        #         "-start_number",
-        #         "0",
-        #         "-qp",
-        #         f"30",
-        #         "-vf",
-        #         "scale=480:272",
-        #         f"{output}.base.mp4",
-        #     ]
-        # )
-
-        os.system(f"python inference.py -i {output} --app {app}")
-
         os.system(
-            f"python examine.py -i {output} -g {v}_qp_{gt}.mp4 --gt_confidence_threshold 0.7 --confidence_threshold 0.7 --app {app} --stats stats_FPN_measurement"
+            f"python inference.py -i {output} --app {app_name} --confidence_threshold {conf_thresh} --gt_confidence_threshold {gt_conf_thresh} --visualize_step_size {visualize_step_size} "
+            # f" --visualize --lq_result {v}_qp_{base}.mp4 --ground_truth {v}_qp_{high}.mp4"
         )
 
-        seg_app = "Segmentation/fcn_resnet50"
-
-        os.system(f"python inference.py -i {output} --app {seg_app}")
-        os.system(
-            f"python examine.py -i {output} -g {v}_qp_{gt}.mp4  --stats stats_fcn50_measurement --app {seg_app}"
-        )
+    os.system(
+        f"python examine.py -i {output} -g {v}_qp_{high}.mp4 --confidence_threshold {conf_thresh}  --gt_confidence_threshold {gt_conf_thresh} --app {app_name} --stats {stats}"
+    )
 
     # if not os.path.exists(f"diff/{output}.gtdiff.mp4"):
     #     gt_output = f"{v}_compressed_blackgen_gt_bbox_conv_{conv}.mp4"
@@ -122,4 +114,3 @@ for v, attr, conf, (high, base) in product(
     #             f"diff/{output}.gtdiff.mp4",
     #         ]
     #     )
-

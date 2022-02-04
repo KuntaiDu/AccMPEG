@@ -167,20 +167,20 @@ def main(args):
 
     mask.requires_grad = False
 
-    for mask_slice in tqdm(mask.split(args.smooth_frames)):
+    # for mask_slice in tqdm(mask.split(args.smooth_frames)):
 
-        num = mask_slice.shape[0]
+    #     num = mask_slice.shape[0]
 
-        # mask_slice[:, :, :, :] = (
-        #     mask_slice[0:1, :, :, :]
-        #     + mask_slice[(num // 3) : (num // 3) + 1, :, :, :]
-        #     + mask_slice[((2 * num) // 3) : ((2 * num) // 3) + 1, :, :, :]
-        #     + mask_slice[num - 1 : num, :, :, :]
-        # ) / 4
-        mask_slice[:, :, :, :] = (
-            mask_slice[0:1, :, :, :] + mask_slice[num - 1 : num, :, :, :]
-        ) / 2
-        # mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
+    #     # mask_slice[:, :, :, :] = (
+    #     #     mask_slice[0:1, :, :, :]
+    #     #     + mask_slice[(num // 3) : (num // 3) + 1, :, :, :]
+    #     #     + mask_slice[((2 * num) // 3) : ((2 * num) // 3) + 1, :, :, :]
+    #     #     + mask_slice[num - 1 : num, :, :, :]
+    #     # ) / 4
+    #     mask_slice[:, :, :, :] = (
+    #         mask_slice[0:1, :, :, :] + mask_slice[num - 1 : num, :, :, :]
+    #     ) / 2
+    # mask_slice[:, :, :, :] = mask_slice.mean(dim=0, keepdim=True)
 
     # if args.bound is not None:
     #     mask = dilate_binarize(mask, args.bound, args.conv_size, cuda=False)
@@ -213,25 +213,39 @@ def main(args):
 
     mask = dilate_binarize(mask, 0.5, args.conv_size, cuda=False)
 
-    mask = postprocess_mask(mask)
+    # mask = postprocess_mask(mask)
+
+    mask = mask > 0.5
 
     logger.info("logging actual quality assignment...")
 
-    for fid, mask_slice in enumerate(tqdm(mask.split(1))):
+    with open("frozen_stats_MLSys/dashcam_iou.txt", "a") as f:
 
-        if fid % args.visualize_step_size == 0:
+        for fid in range(mask.shape[0]):
+            for future_fid in range(fid + 1, min(fid + 20, mask.shape[0])):
+                mask_slice = mask[fid, :, :, :]
+                prev_mask_slice = mask[future_fid, :, :, :]
+                iou = (mask_slice == prev_mask_slice).sum() / (
+                    mask_slice
+                ).numel()
 
-            image = cached_images[0]
+                f.write(f"{future_fid-fid} {iou}\n")
 
-            cached_images = cached_images[1:]
-            visualize_heat_by_summarywriter(
-                image,
-                mask_slice.cpu().detach().float(),
-                "quality_assignment",
-                writer,
-                fid,
-                args,
-            )
+    # for fid, mask_slice in enumerate(tqdm(mask.split(1))):
+
+    #     if fid % args.visualize_step_size == 0:
+
+    #         image = cached_images[0]
+
+    #         cached_images = cached_images[1:]
+    #         visualize_heat_by_summarywriter(
+    #             image,
+    #             mask_slice.cpu().detach().float(),
+    #             "quality_assignment",
+    #             writer,
+    #             fid,
+    #             args,
+    #         )
 
     # for i in range(len(mask)):
 
@@ -284,17 +298,17 @@ def main(args):
     #     write_black_bkgd_video_smoothed_continuous(
     #         mask, args, args.hq, logger, writer=writer, tag="hq"
     #     )
-    assert args.hq != -1 and args.lq != -1
-    assert "blackgen" not in args.output and "dual" not in args.output
+    # assert args.hq != -1 and args.lq != -1
+    # assert "blackgen" not in args.output and "dual" not in args.output
 
-    mask = (mask > 0.5).int()
-    mask = torch.where(
-        mask == 1,
-        args.hq * torch.ones_like(mask),
-        args.lq * torch.ones_like(mask),
-    )
+    # mask = (mask > 0.5).int()
+    # mask = torch.where(
+    #     mask == 1,
+    #     args.hq * torch.ones_like(mask),
+    #     args.lq * torch.ones_like(mask),
+    # )
 
-    h264_roi_compressor_segment(mask, args, logger)
+    # h264_roi_compressor_segment(mask, args, logger)
 
     # masked_video = generate_masked_video(mask, videos, bws, args)
     # write_video(masked_video, args.output, logger)

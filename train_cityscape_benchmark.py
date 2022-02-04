@@ -36,12 +36,23 @@ from dnn.dnn_factory import DNN_Factory
 from utilities.bbox_utils import center_size
 from utilities.dataset import *
 from utilities.loss_utils import get_mean_std
-from utilities.loss_utils import shifted_mse as get_loss
 from utilities.mask_utils import *
 from utilities.results_utils import read_results
 from utilities.timer import Timer
 from utilities.video_utils import get_qp_from_name, read_videos, write_video
 from utilities.visualize_utils import *
+
+
+def shifted_mse(mask, target, weight):
+
+    # target[target < 5] = 5
+    # target[target > 10] = 10
+    # target = (target - 5) / 5
+    loss = torch.nn.CrossEntropyLoss(weight=torch.tensor([1.0, weight]).cuda())
+    return loss(mask, (target > 3).long()[:, 0, :, :],)
+
+
+get_loss = None
 
 sns.set()
 
@@ -362,8 +373,8 @@ def visualize(maxid, fids, hq_image, mask_slice, target, saliency, tag):
 def main(args):
 
     # initialize logger
-    # if Path(args.log).exists():
-    #     Path(args.log).unlink()
+    if Path(args.log).exists():
+        Path(args.log).unlink()
     logger.addHandler(logging.FileHandler(args.log))
     torch.set_default_tensor_type(torch.FloatTensor)
     train_writer = SummaryWriter("runs/train")
@@ -377,8 +388,8 @@ def main(args):
         train_val_set, _ = torch.utils.data.random_split(
             train_val_set,
             [
-                math.ceil(0.2 * len(train_val_set)),
-                math.floor(0.8 * len(train_val_set)),
+                math.ceil(0.1 * len(train_val_set)),
+                math.floor(0.9 * len(train_val_set)),
             ],
             generator=torch.Generator().manual_seed(100),
         )
@@ -438,7 +449,7 @@ def main(args):
     )
     maskgen = importlib.util.module_from_spec(maskgen_spec)
     maskgen_spec.loader.exec_module(maskgen)
-    mask_generator = maskgen.FCN(args.architecture)
+    mask_generator = maskgen.FCN(args.compute)
     if args.init != "" and os.path.exists(args.init):
         logger.info(f"Load the model from %s", args.init)
         mask_generator.load(args.init)
@@ -509,18 +520,15 @@ def main(args):
                 temp = hq_image.cuda()
                 if temp.shape[0] != 4:
                     continue
-                logger.info(f"{temp.shape}")
 
-                with Timer("train", logger):
+                # logger.info(temp.shape)
 
-                    # logger.info(temp.shape)
+                mask_slice = mask_generator(temp)
 
-                    mask_slice = mask_generator(temp)
-
-                    # calculate loss
-                    # loss = get_loss(mask_slice, target.cuda(), thresh_list.cuda())
-                    loss = get_loss(mask_slice, target.cuda())
-                    loss.backward()
+                # calculate loss
+                # loss = get_loss(mask_slice, target.cuda(), thresh_list.cuda())
+                loss = get_loss(mask_slice, target.cuda())
+                loss.backward()
 
             # optimization and logging
             if idx % 1 == 0:
@@ -679,70 +687,74 @@ def main(args):
 
             #     visualize_test(idx, hq_image, mask_slice)
 
-            progress_bar = tqdm(
-                total=len(test_set),
-                desc=f"Iteration {iteration} on cross validation set",
-            )
+            """
+                Ignore test set.
+            """
 
-            test_losses = []
+            # progress_bar = tqdm(
+            #     total=len(test_set),
+            #     desc=f"Iteration {iteration} on cross validation set",
+            # )
 
-            for idx, data in enumerate(test_loader):
+            # test_losses = []
 
-                progress_bar.update(args.batch_size)
+            # for idx, data in enumerate(test_loader):
 
-                # # extract data from dataloader
-                # if not any("bbox" in _ for _ in data[1]):
-                #     continue
-                # fids = [data[1][0]["image_id"].item()]
+            #     progress_bar.update(args.batch_size)
 
-                # if fids[0] not in saliency[thresholds[0]]:
-                #     continue
-                # hq_image = data[0].cuda()
+            #     # # extract data from dataloader
+            #     # if not any("bbox" in _ for _ in data[1]):
+            #     #     continue
+            #     # fids = [data[1][0]["image_id"].item()]
 
-                try:
-                    fids, names, hq_image, target, _ = unzip_data(
-                        data, saliency
-                    )
-                except ValueError:
-                    continue
+            #     # if fids[0] not in saliency[thresholds[0]]:
+            #     #     continue
+            #     # hq_image = data[0].cuda()
 
-                # inference
-                with torch.no_grad():
+            #     try:
+            #         fids, names, hq_image, target, _ = unzip_data(
+            #             data, saliency
+            #         )
+            #     except ValueError:
+            #         continue
 
-                    # set_trace()
-                    mask_slice = mask_generator(hq_image.cuda())
-                    # loss = get_loss(mask_slice, target.cuda(), thresh_list.cuda())
-                    loss = get_loss(mask_slice, target.cuda())
+            #     # inference
+            #     with torch.no_grad():
 
-                # if idx % 1 == 0:
-                #     test_writer.add_scalar(
-                #         Path(args.path).stem,
-                #         loss.item(),
-                #         idx
-                #         + iteration
-                #         * (len(training_set) + len(cross_validation_set))
-                #         + len(training_set),
-                #     )
+            #         # set_trace()
+            #         mask_slice = mask_generator(hq_image.cuda())
+            #         # loss = get_loss(mask_slice, target.cuda(), thresh_list.cuda())
+            #         loss = get_loss(mask_slice, target.cuda())
 
-                if any(fid % 1 == 0 for fid in fids):
-                    if args.visualize:
-                        maxid = np.argmax([fid % 1 == 0 for fid in fids]).item()
-                        visualize(
-                            maxid,
-                            fids,
-                            hq_image,
-                            mask_slice,
-                            target,
-                            saliency,
-                            "test",
-                        )
+            #     # if idx % 1 == 0:
+            #     #     test_writer.add_scalar(
+            #     #         Path(args.path).stem,
+            #     #         loss.item(),
+            #     #         idx
+            #     #         + iteration
+            #     #         * (len(training_set) + len(cross_validation_set))
+            #     #         + len(training_set),
+            #     #     )
 
-                test_losses.append(loss.item())
+            #     if any(fid % 1 == 0 for fid in fids):
+            #         if args.visualize:
+            #             maxid = np.argmax([fid % 1 == 0 for fid in fids]).item()
+            #             visualize(
+            #                 maxid,
+            #                 fids,
+            #                 hq_image,
+            #                 mask_slice,
+            #                 target,
+            #                 saliency,
+            #                 "test",
+            #             )
 
-            mean_test_loss = torch.tensor(test_losses).mean().item()
-            logger.info(
-                "Average test loss: %.3f", mean_test_loss,
-            )
+            #     test_losses.append(loss.item())
+
+            # mean_test_loss = torch.tensor(test_losses).mean().item()
+            # logger.info(
+            #     "Average test loss: %.3f", mean_test_loss,
+            # )
 
 
 if __name__ == "__main__":
@@ -863,9 +875,9 @@ if __name__ == "__main__":
         help="The step size for training visualization",
     )
     parser.add_argument(
-        "--architecture",
-        default="vgg11",
-        type=str,
+        "--compute",
+        required=True,
+        type=float,
         help="The backbone architecture",
     )
 
@@ -885,8 +897,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no_class_check", dest="class_check", action="store_false"
     )
+    parser.add_argument("--weight", type=int, required=True)
     parser.set_defaults(class_check=True)
 
     args = parser.parse_args()
+
+    get_loss = lambda x, y: shifted_mse(x, y, args.weight)
 
     main(args)
