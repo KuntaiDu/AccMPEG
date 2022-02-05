@@ -1,8 +1,11 @@
 import os
 import subprocess
 from itertools import product
+from config import settings
 
 import yaml
+
+x264_dir = settings.x264_dir
 
 # v_list = ['dashcam_%d_test' % (i+1) for i in range(4)] + ['trafficcam_%d_test' % (i+1) for i in range(4)]
 # v_list = [v_list[0]]
@@ -65,9 +68,9 @@ tile = 16
 # bound_list = [0.1, 0.2]
 # base_list = [40]
 
-conv_list = [5]
-bound_list = [0.3]
-base_list = [50]
+conv_list = [1]
+bound_list = [0.2]
+base_list = [40]
 
 # conv_list = [1]
 # bound_list = [0.2]
@@ -94,10 +97,10 @@ v_list = ["videos/dashcamcropped_%d" % i for i in range(1, 2)]
 
 
 # FPN
-# stats = "frozen_stats_MLSys/stats_QP30_thresh7_segmented_FPN"
-# conf_thresh = 0.7
-# gt_conf_thresh = 0.7
-# app_name = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+stats = "artifact/stats_QP30_thresh7_segmented_FPN"
+conf_thresh = 0.7
+gt_conf_thresh = 0.7
+app_name = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
 
 # efficientdet
 # stats = "frozen_stats_MLSys/stats_QP30_thresh4_segment_EfficientDet"
@@ -107,10 +110,10 @@ v_list = ["videos/dashcamcropped_%d" % i for i in range(1, 2)]
 
 # YoLo
 # stats = "frozen_stats_MLSys/stats_QP30_thresh3_segment_Yolo"
-stats = "artifact/stats_QP30_thresh3_segment_Yolo"
-conf_thresh = 0.3
-gt_conf_thresh = 0.3
-app_name = "Yolo5s"
+# stats = "artifact/stats_QP30_thresh3_segment_Yolo"
+# conf_thresh = 0.3
+# gt_conf_thresh = 0.3
+# app_name = "Yolo5s"
 
 # segmentation
 # stats = "frozen_stats_MLSys/stats_QP30_segment_fcn"
@@ -149,15 +152,15 @@ for conv, bound, base, v in product(conv_list, bound_list, base_list, v_list):
 
     # os.system(f"rm -r {examine_output}*")
 
-    # if not os.path.exists(output):
-    if True:
+    if not os.path.exists(output):
+    # if True:
 
         os.system(
             f"python compress_blackgen_roi.py -i {v}_qp_{high}.mp4 "
             f" {v}_qp_{high}.mp4 -s {v} -o {output} --tile_size {tile}  -p maskgen_pths/{model_name}.pth.best"
             f" --conv_size {conv} "
             f" -g {v}_qp_{high}.mp4 --bound {bound} --hq {high} --lq {base} --smooth_frames 10 --app {app_name} "
-            f"--maskgen_file /tank/kuntai/code/video-compression/maskgen/{filename}.py --visualize_step_size {visualize_step_size}"
+            f"--maskgen_file {x264_dir}/../video-compression/maskgen/{filename}.py --visualize_step_size {visualize_step_size}"
         )
 
     os.system(

@@ -209,7 +209,8 @@ if __name__ == "__main__":
     # args.gt_qp = 20
     # args.qp_list = [20, 21, 22, 24, 26, 30, 34, 40]
     args.gt_qp = 30
-    args.qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
+    # args.qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
+    args.qp_list = [50]
     args.qp_list = args.qp_list + [33, 35, 37, 38, 39]
     # args.qp_list = [30]
 
@@ -228,17 +229,17 @@ if __name__ == "__main__":
 
     args.inputs = [args.inputs[i] for i in range(len(args.inputs))]
     args.force = False
-    # args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
-    args.app = "Yolo5s"
+    args.app = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
+    # args.app = "Yolo5s"
     # args.app = "EfficientDet"
     # assert attr == "webm"
-    # args.stats = f"frozen_stats_MLSys/stats_QP30_thresh7_segmented_FPN"
-    args.stats = "artifact/stats_QP30_thresh3_segment_Yolo"
+    args.stats = f"artifact/stats_QP30_thresh7_segmented_FPN"
+    # args.stats = "artifact/stats_QP30_thresh3_segment_Yolo"
     # args.stats = "frozen_stats_MLSys/stats_QP30_thresh4_segment_EfficientDet"
     # args.stats = "frozen_stats_MLSys/stats_QP30_thresh3_dashcamcropped_Yolo"
     # args.stats = "frozen_stats_MLSys/stats_QP30_thresh4_dashcamcropped_EfficientDet"
-    args.confidence_threshold = 0.3
-    args.gt_confidence_threshold = 0.3
+    args.confidence_threshold = 0.7
+    args.gt_confidence_threshold = 0.7
     args.smooth_frames = 10
 
     # args = parser.parse_args()
