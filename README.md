@@ -42,30 +42,26 @@ Then, install the conda environment through the ```conda_env.yml```:
 ```
 conda env create -f conda_env.yml
 ```
-**WARNING:**_(If your CUDA version < 11.1, you may need to uninstall 2 packages (pytorch, torchvision), and re-install other versions that are compatible with your CUDA version. Any pytorch version > 1.7 should work. When you install these packages back, please use pip instead of conda, as conda  will install ancient version of torchvision and ffmpeg that triggers non-intuitive bugs.)_
 
 Then, activate the installed environment:
 ```
 conda activate accmpeg
 ```
-and install compatible version of detectron2. If your CUDA >= 11.1 and follows our instruction, you can simply run
-```
-python -m pip install detectron2 -f \
-  https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.8/index.html
-```
-if not, please check out the table in https://github.com/facebookresearch/detectron2/blob/main/INSTALL.md for installation command.
+and install pytorch (any version >=1.7 should work), torchvision (check https://pytorch.org/get-started/locally/) and detectron2 (check https://github.com/facebookresearch/detectron2/blob/main/INSTALL.md) **THROUGH PIP** rather than conda (since conda will install an ancient version of torchvision that triggers wierd bugs).
 
-After that, please install a version of ffmpeg that supports -qp parameter (in our server it is version 4.2.1) (we will only use the modified version of ffmpeg in AccMPEG, not in baselines.)
+The procedure above will automatically install a old version ```ffmpeg```. We need to renew it. Please download the static version of ffmpeg through https://johnvansickle.com/ffmpeg/ and use the ffmpeg binary inside to replace previous ffmpeg binary (you can check the location of it thorugh ```which ffmpeg```.)
 
 Then go back to our repo, ```cd artifact``` and run ```extract.py``` to extract the video ```dashcamcropped_1.mp4``` to pngs. 
 
 Then, ```cd ..``` and open ```settings.toml```:
 ```vim settings.toml```
-and assign $DIR/myh264/ to ```x264_dir```.
+and edit the value of ```x264_dir``` to $DIR/myh264/
 
 Then run
 ```python generate_mpeg_curve.py```
 That generates the accuracy-bandwidth trade-off for AWStream baseline _(we only pick AWStream baseline as it is the closest baseline. We use bandwidth since it is the dominant factor of the delay in AccMPEG and AWStream settings, so better accuracy-bandwidth trade-off ==> better accuracy-delay trade-off)_.
+
+(Note: this will take a while (<1hr), please wait.)
 
 Then run ```python batch_blackgen_roi.py``` to run AccMPEG. After finish running, take a look at the stats file
 ```vim artifact/stats_QP30_thresh7_segmented_FPN```
