@@ -44,13 +44,20 @@ conda env create -f conda_env.yml
 ```
 **WARNING:**_(If your CUDA version < 11.1, you may need to uninstall 2 packages (pytorch, torchvision), and re-install other versions that are compatible with your CUDA version. Any pytorch version > 1.7 should work. When you install these packages back, please use pip instead of conda, as conda  will install ancient version of torchvision and ffmpeg that triggers non-intuitive bugs.)_
 
+Then, activate the installed environment:
+```
+conda activate accmpeg
+```
+and install compatible version of detectron2. If your CUDA >= 11.1 and follows our instruction, you can simply run
+```
+python -m pip install detectron2 -f \
+  https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.8/index.html
+```
+if not, please check out the table in https://github.com/facebookresearch/detectron2/blob/main/INSTALL.md for installation command.
+
 After that, please install a version of ffmpeg that supports -qp parameter (in our server it is version 4.2.1) (we will only use the modified version of ffmpeg in AccMPEG, not in baselines.)
 
-Then go back to our repo, run
-```
-conda activate diff
-```
-to activate the conda environment, ```cd artifact``` and run ```extract.py``` to extract the video ```dashcamcropped_1.mp4``` to pngs. 
+Then go back to our repo, ```cd artifact``` and run ```extract.py``` to extract the video ```dashcamcropped_1.mp4``` to pngs. 
 
 Then, ```cd ..``` and open ```settings.toml```:
 ```vim settings.toml```
