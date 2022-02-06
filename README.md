@@ -33,13 +33,19 @@ change the two hard-coded paths (/tank/kuntai/code/...) to $DIR/myh264/... (the 
 
 ## Run AccMPEG on one video
 
-First, install the conda environment through the ```conda_env.yml```:
+First, git clone our repo under $DIR and cd into our repo.
+
+Then, install the conda environment through the ```conda_env.yml```:
 ```conda env create -f conda_env.yml```
 _(If your CUDA version < 11.1, you may need to uninstall 3 packages (pytorch, torchvision and detectron2), and re-install other versions that are compatible with your CUDA version. Any pytorch version > 1.7 should work. I recommand re-install these three packages completely from pip, as the conda install torchvision will install ancient version of torchvision and ffmpeg that triggers non-intuitive bugs.)_
 
 After that, please install a version of ffmpeg that supports -qp parameter (in our server it is version 4.2.1) (we will only use the modified version of ffmpeg in AccMPEG, not in baselines.)
 
-Go back to $DIR and git clone our repo. Then ```cd artifact``` and run ```extract.py``` to extract the video ```dashcamcropped_1.mp4``` to pngs. 
+Then go back to our repo, run
+```
+conda activate diff
+```
+to activate the conda environment, ```cd artifact``` and run ```extract.py``` to extract the video ```dashcamcropped_1.mp4``` to pngs. 
 
 Then, ```cd ..``` and open ```settings.toml```:
 ```vim settings.toml```
