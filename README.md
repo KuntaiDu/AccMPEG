@@ -109,7 +109,7 @@ And if you scroll up, you can see that the performance of AWStream (when choosin
   tp: 95
   video_name: artifact/dashcamcropped_1_qp_32.mp4
 ```
-Compared to this datapoint, we have almost 2x bandwidth comsumption (thus almost 2x delay) and still has higher accuracy (f1 score).
+Compared to this datapoint, we have almost 2x less bandwidth usage (thus almost 2x less delay) and still has higher accuracy (f1 score).
 
 
 ## Run AccMPEG on multiple videos.
