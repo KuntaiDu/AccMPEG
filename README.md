@@ -76,7 +76,7 @@ to run AccMPEG. After finish running, take a look at the stats file
 vim artifact/stats_QP30_thresh7_segmented_FPN
 ```
 
-at the end of this file, the stats should look like this:
+at the end of this file, you can check the performance of AccMPEG:
 ```yaml
 - application: COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml
   bw: 8283676
@@ -93,7 +93,7 @@ at the end of this file, the stats should look like this:
   video_name: artifact/dashcamcropped_1_roi_bound_0.2_conv_1_hq_30_lq_40_app_FPN.mp4
 ```
 (The exact accuracy number (f1 in the yaml stats) and bandwidth (bw in the yaml stats) may differ due to different environment setup.)
-And if you scroll up, you can see that the performance of AWStream is this:
+And if you scroll up, you can see that the performance of AWStream (when choosing QP=32 to encode the video) is:
 ```yaml
 - application: COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml
   bw: 15416126
@@ -109,6 +109,14 @@ And if you scroll up, you can see that the performance of AWStream is this:
   tp: 95
   video_name: artifact/dashcamcropped_1_qp_32.mp4
 ```
-which has almost 2x bandwidth comsumption (thus almost 2x delay) and still has lower accuracy (f1 score).
+Compared to this datapoint, we have almost 2x bandwidth comsumption (thus almost 2x delay) and still has higher accuracy (f1 score).
+
+
+## Run AccMPEG on multiple videos.
+
+We put all the videos we used for object detection into ```artifact``` folder. To run these videos:
+1. Extract all the videos to pngs through the ```extract.py``` inside the folder
+2. Edit ```args.inputs``` in ```generate_mpeg_curve.py``` and run this script to generate AWStream baseline on these videos.
+3. Edit ```v_list``` in ```batch_blackgen_roi.py``` and run the script to run AccMPEG.
 
 
