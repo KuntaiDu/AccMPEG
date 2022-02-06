@@ -1,6 +1,6 @@
 # video-compression
 
-To run our code, here are the steps. We assume you start from a directory called $DIR.
+Here are the steps to run our code. We assume you start from a directory called $DIR, and your working machine contains an NVIDIA GPU.
 
 ## Build ffmpeg from source
 
