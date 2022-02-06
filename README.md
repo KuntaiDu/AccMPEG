@@ -5,12 +5,12 @@ Here are the steps to run our code. We assume you start from a directory called 
 ## Build ffmpeg from source
 
 Alex digged into the source code of ffmpeg and H.264 codec to support RoI encoding with an encoding quality (QP parameter in the H.264 codec) matrix file as the input. To build ffmpeg from source, please 
-```
+```bash
 git clone https://github.com/Alex-q-z/myh264.git
 ```
 under $DIR
 and checkout to AccMPEG branch
-```
+```bash
 git checkout AccMPEG
 ```
 
@@ -34,37 +34,47 @@ change the two hard-coded paths (/tank/kuntai/code/...) to $DIR/myh264/... (the 
 ## Run AccMPEG on one video
 
 First, git clone our repo under $DIR and cd into our repo, then switch to MLSys branch:
-```
+```bash
 git checkout MLSys
 ```
 
 Then, install the conda environment through the ```conda_env.yml```:
-```
+```bash
 conda env create -f conda_env.yml
 ```
 
 Then, activate the installed environment:
-```
+```bash
 conda activate accmpeg
 ```
-and install pytorch (any version >=1.7 should work), torchvision (check https://pytorch.org/get-started/locally/) and detectron2 (check https://github.com/facebookresearch/detectron2/blob/main/INSTALL.md) **THROUGH PIP** rather than conda (since conda will install an ancient version of torchvision that triggers wierd bugs).
+and install pytorch ,torchvision (we use pytorch=1.8.2 when we replicate the results. Check https://pytorch.org/get-started/locally/ for the installation command) and detectron2 (check https://github.com/facebookresearch/detectron2/blob/main/INSTALL.md) **THROUGH PIP** rather than conda (since conda will install an ancient version of torchvision that triggers wierd bugs).
 
 The procedure above will automatically install a old version ```ffmpeg```. We need to renew it. Please download the static version of ffmpeg through https://johnvansickle.com/ffmpeg/ and use the ffmpeg binary inside to replace previous ffmpeg binary (you can check the location of it thorugh ```which ffmpeg```.)
 
 Then go back to our repo, ```cd artifact``` and run ```extract.py``` to extract the video ```dashcamcropped_1.mp4``` to pngs. 
 
 Then, ```cd ..``` and open ```settings.toml```:
-```vim settings.toml```
+```bash
+vim settings.toml
+```
 and edit the value of ```x264_dir``` to $DIR/myh264/
 
 Then run
-```python generate_mpeg_curve.py```
+```bash
+python generate_mpeg_curve.py
+```
 That generates the accuracy-bandwidth trade-off for AWStream baseline _(we only pick AWStream baseline as it is the closest baseline. We use bandwidth since it is the dominant factor of the delay in AccMPEG and AWStream settings, so better accuracy-bandwidth trade-off ==> better accuracy-delay trade-off)_.
 
 (Note: this will take a while (<1hr), please wait.)
 
-Then run ```python batch_blackgen_roi.py``` to run AccMPEG. After finish running, take a look at the stats file
-```vim artifact/stats_QP30_thresh7_segmented_FPN```
+Then run 
+```bash
+python batch_blackgen_roi.py
+``` 
+to run AccMPEG. After finish running, take a look at the stats file
+```bash
+vim artifact/stats_QP30_thresh7_segmented_FPN
+```
 
 at the end of this file, the stats should look like this:
 ```yaml
