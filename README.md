@@ -33,7 +33,10 @@ change the two hard-coded paths (/tank/kuntai/code/...) to $DIR/myh264/... (the 
 
 ## Run AccMPEG on one video
 
-First, git clone our repo under $DIR and cd into our repo.
+First, git clone our repo under $DIR and cd into our repo, then switch to MLSys branch:
+```
+git checkout MLSys
+```
 
 Then, install the conda environment through the ```conda_env.yml```:
 ```conda env create -f conda_env.yml```
