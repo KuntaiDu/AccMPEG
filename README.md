@@ -9,7 +9,10 @@ Alex digged into the source code of ffmpeg and H.264 codec to support RoI encodi
 git clone https://github.com/Alex-q-z/myh264.git
 ```
 under $DIR
-and checkout to AccMPEG branch.
+and checkout to AccMPEG branch
+```
+git checkout AccMPEG
+```
 
 _(Note: this branch does not support parallel encoding. Please use the master branch if you want to use RoI encoding for other purposes.)_
 
