@@ -11,7 +11,7 @@ git clone https://github.com/Alex-q-z/myh264.git
 under $DIR
 and checkout to AccMPEG branch.
 
-(Note: this branch does not support parallel encoding. Please use the master branch if you want to use RoI encoding for other purposes.)
+_(Note: this branch does not support parallel encoding. Please use the master branch if you want to use RoI encoding for other purposes.)_
 
 After that, ```cd``` into the repo and run ```build.sh```. It takes time to compile. If you compiled the code successfully, you should see something like
 ```
@@ -32,15 +32,19 @@ change the two hard-coded paths (/tank/kuntai/code/...) to $DIR/myh264/... (the 
 
 First, install the conda environment through the ```conda_env.yml```:
 ```conda env create -f conda_env.yml```
-(If your CUDA version < 11.1, you may need to uninstall 3 packages (pytorch, torchvision and detectron2), and re-install other versions that are compatible with your CUDA version. Any pytorch version > 1.7 should work. I recommand re-install these three packages completely from pip, as the conda install torchvision will install ancient version of torchvision and ffmpeg that triggers non-intuitive bugs.)
+_(If your CUDA version < 11.1, you may need to uninstall 3 packages (pytorch, torchvision and detectron2), and re-install other versions that are compatible with your CUDA version. Any pytorch version > 1.7 should work. I recommand re-install these three packages completely from pip, as the conda install torchvision will install ancient version of torchvision and ffmpeg that triggers non-intuitive bugs.)_
 
 After that, please install a version of ffmpeg that supports -qp parameter (in our server it is version 4.2.1) (we will only use the modified version of ffmpeg in AccMPEG, not in baselines.)
 
 Go back to $DIR and git clone our repo. Then ```cd artifact``` and run ```extract.py``` to extract the video ```dashcamcropped_1.mp4``` to pngs. 
 
-Then, ```cd ..``` and run
+Then, ```cd ..``` and open ```settings.toml```:
+```vim settings.toml```
+and assign $DIR/myh264/ to ```x264_dir```.
+
+Then run
 ```python generate_mpeg_curve.py```
-That generates the accuracy-bandwidth trade-off for AWStream baseline (we only pick AWStream baseline as it is the closest baseline, we use bandwidth since it is the dominant factor of the delay in AccMPEG and AWStream settings, so better accuracy-bandwidth trade-off ==> better accuracy-delay trade-off).
+That generates the accuracy-bandwidth trade-off for AWStream baseline _(we only pick AWStream baseline as it is the closest baseline. We use bandwidth since it is the dominant factor of the delay in AccMPEG and AWStream settings, so better accuracy-bandwidth trade-off ==> better accuracy-delay trade-off)_.
 
 Then run ```python batch_blackgen_roi.py``` to run AccMPEG. After finish running, take a look at the stats file
 ```vim artifact/stats_QP30_thresh7_segmented_FPN```
