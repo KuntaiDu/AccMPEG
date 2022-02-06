@@ -79,7 +79,7 @@ at the end of this file, the stats should look like this:
   tp: 78
   video_name: artifact/dashcamcropped_1_roi_bound_0.2_conv_1_hq_30_lq_40_app_FPN.mp4
 ```
-(The exact accuracy number and bandwidth may differ due to different environment setup.)
+(The exact accuracy number (f1 in the yaml stats) and bandwidth (bw in the yaml stats) may differ due to different environment setup.)
 And if you scroll up, you can see that the performance of AWStream is this:
 ```yaml
 - application: COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml
