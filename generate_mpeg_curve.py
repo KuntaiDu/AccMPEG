@@ -209,8 +209,8 @@ if __name__ == "__main__":
     # args.gt_qp = 20
     # args.qp_list = [20, 21, 22, 24, 26, 30, 34, 40]
     args.gt_qp = 30
-    # args.qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
-    args.qp_list = [50]
+    args.qp_list = [30, 31, 32, 34, 36, 40, 44, 50]
+    # args.qp_list = [50]
     args.qp_list = args.qp_list + [33, 35, 37, 38, 39]
     # args.qp_list = [30]
 
