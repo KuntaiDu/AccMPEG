@@ -223,7 +223,7 @@ if __name__ == "__main__":
     # args.inputs = ["videos/driving_%d" % i for i in range(5)] + [
     #     "videos/dashcamcropped_%d" % i for i in range(1, 11)
     # ]
-    args.inputs = ["videos/dashcamcropped_%d" % i for i in [1]]
+    args.inputs = ["artifact/dashcamcropped_%d" % i for i in [1]]
 
     # args.inputs = ["videos/driving_%d" % i for i in range(5)]
 

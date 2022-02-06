@@ -90,7 +90,7 @@ base_list = [40]
 # v_list = ["videos/dashcamcropped_%d" % i for i in range(1, 8)] + [
 #     "videos/driving_%d" % i for i in range(5)
 # ]
-v_list = ["videos/dashcamcropped_%d" % i for i in range(1, 2)]
+v_list = ["artifact/dashcamcropped_%d" % i for i in range(1, 2)]
 # v_list = ["videos/surf_%d_final" % i for i in [1, 2, 3, 4, 6, 7]]
 
 # v_list = ["videos/dashcamcropped_%d" % i for i in range(1, 2)]
