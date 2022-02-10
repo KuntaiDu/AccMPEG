@@ -31,7 +31,7 @@ Then, inside x264/encoder/encoder.c, search for ```/tank```, and you'll see
 ```
 change the two hard-coded paths (/tank/kuntai/code/...) to $DIR/myh264/... (the path must be absolute path), and rerun build.sh (the compilation will take much less time this time, don't worry.)
 
-## Run AccMPEG on one video
+## Set up conda environment
 
 First, git clone our repo under $DIR and cd into our repo, then switch to MLSys branch:
 ```bash
@@ -53,11 +53,15 @@ The procedure above will automatically install a old version ```ffmpeg```. We ne
 
 Then go back to our repo, ```cd artifact``` and run ```extract.py``` to extract the video ```dashcamcropped_1.mp4``` to pngs. 
 
+## Edit the config file
+
 Then, ```cd ..``` and open ```settings.toml```:
 ```bash
 vim settings.toml
 ```
 and edit the value of ```x264_dir``` to $DIR/myh264/
+
+## Evaluate AccMPEG
 
 Then run
 ```bash
@@ -73,7 +77,7 @@ python batch_blackgen_roi.py
 ``` 
 to run AccMPEG. 
 
-## Evaluate AccMPEG
+
 
 Run
 ```bash
