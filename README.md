@@ -2,6 +2,10 @@
 
 Here are the steps to run our code. We assume you start from a directory called $DIR, and your working machine contains an NVIDIA GPU.
 
+## Setup the environment
+
+Please refer to [INSTALL.md](INSTALL.md) on how to setup the environment.
+
 ## Build ffmpeg from source
 
 Alex digged into the source code of ffmpeg and H.264 codec to support RoI encoding with an encoding quality (QP parameter in the H.264 codec) matrix file as the input. To build ffmpeg from source, please 
