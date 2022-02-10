@@ -8,11 +8,14 @@ Please refer to [INSTALL.md](INSTALL.md) on how to setup the environment.
 
 ## Evaluate AccMPEG
 
-Then run
+```
+cd $DIR/AccMPEG
+``` 
+to enter the repo of AccMPEG, and run
 ```bash
 python generate_mpeg_curve.py
 ```
-That generates the data points for AWStream baseline.
+This script will generates the data points for AWStream baseline.
 
 (Note: this will take a while, please wait.)
 
@@ -21,6 +24,8 @@ Then run
 python batch_blackgen_roi.py
 ``` 
 to run AccMPEG. 
+
+## Result visualization
 
 
 
