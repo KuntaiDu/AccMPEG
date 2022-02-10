@@ -83,7 +83,7 @@ to enter into the artifact folder, and then run
 ```bash
 python plot.py
 ```
-to plot the delay-accuracy trade-off. The results are shown in delay-accuracy.jpg. Here is the results
+to plot the delay-accuracy trade-off. The results are shown in delay-accuracy.jpg. Here is the results (generated from the stats file we use for generating figures in our paper).
 
 ![Delay-accuracy trade-off](artifact/delay-accuracy-ours.jpg)
 
