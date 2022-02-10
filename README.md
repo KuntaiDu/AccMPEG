@@ -63,54 +63,29 @@ Then run
 ```bash
 python generate_mpeg_curve.py
 ```
-That generates the accuracy-bandwidth trade-off for AWStream baseline _(we only pick AWStream baseline as it is the closest baseline. We use bandwidth since it is the dominant factor of the delay in AccMPEG and AWStream settings, so better accuracy-bandwidth trade-off ==> better accuracy-delay trade-off)_.
+That generates the data points for AWStream baseline.
 
-(Note: this will take a while (<1hr), please wait.)
+(Note: this will take a while, please wait.)
 
 Then run 
 ```bash
 python batch_blackgen_roi.py
 ``` 
-to run AccMPEG. After finish running, take a look at the stats file
+to run AccMPEG. 
+
+## Evaluate AccMPEG
+
+Run
 ```bash
-vim artifact/stats_QP30_thresh7_segmented_FPN
+cd artifact/
 ```
+to enter into the artifact folder, and then run
+```bash
+python plot.py
+```
+to plot the delay-accuracy trade-off. The results are shown in delay-accuracy.jpg. Here is the results
 
-at the end of this file, you can check the performance of AccMPEG:
-```yaml
-- application: COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml
-  bw: 8283676
-  conf: 0.7
-  f1: 0.948907196521759
-  fn: 57
-  fp: 42
-  ground_truth_name: artifact/dashcamcropped_1_qp_30.mp4
-  gt_conf: 0.7
-  pr: 0.9632415771484375
-  re: 0.959693431854248
-  sum_f1: 0.611764705882353
-  tp: 78
-  video_name: artifact/dashcamcropped_1_roi_bound_0.2_conv_1_hq_30_lq_40_app_FPN.mp4
-```
-(The exact accuracy number (f1 in the yaml stats) and bandwidth (bw in the yaml stats) may differ due to different environment setup.)
-And if you scroll up, you can see that the performance of AWStream (when choosing QP=32 to encode the video) is:
-```yaml
-- application: COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml
-  bw: 15416126
-  conf: 0.7
-  f1: 0.9420496225357056
-  fn: 40
-  fp: 96
-  ground_truth_name: artifact/dashcamcropped_1_qp_30.mp4
-  gt_conf: 0.7
-  pr: 0.9506137371063232
-  re: 0.9616043567657471
-  sum_f1: 0.5828220858895705
-  tp: 95
-  video_name: artifact/dashcamcropped_1_qp_32.mp4
-```
-Compared to this datapoint, we have almost 2x less bandwidth usage (thus almost 2x less delay) and still has higher accuracy (f1 score).
-
+![Delay-accuracy trade-off](artifact/delay-accuracy-ours.jpg)
 
 ## Run AccMPEG on multiple videos.
 
