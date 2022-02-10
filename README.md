@@ -87,6 +87,10 @@ to plot the delay-accuracy trade-off. The results are shown in delay-accuracy.jp
 
 ![Delay-accuracy trade-off](artifact/delay-accuracy-ours.jpg)
 
+Note that the exact number may vary. Here is one figure reproduced by us under different server/ffmpeg version/CUDA version/torch version/torchvision version. 
+
+![Delay-accuracy trade-off](artifact/delay-accuracy-reproduce.jpg)
+
 ## Run AccMPEG on multiple videos.
 
 We put all the videos we used for object detection into ```artifact``` folder. To run these videos:
