@@ -1,6 +1,6 @@
 # video-compression
 
-Here are the steps to run our code. We assume you start from a directory called $DIR, and your working machine contains an NVIDIA GPU.
+Here are the steps to run our code. We assume you start from a directory called ```$DIR```, and your working machine contains an NVIDIA GPU.
 
 ## Setup the environment
 
