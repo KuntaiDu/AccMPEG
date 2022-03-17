@@ -41,6 +41,9 @@ to plot the delay-accuracy trade-off. The results are shown in delay-accuracy.jp
 
 ![Delay-accuracy trade-off](artifact/delay-accuracy-ours.jpg)
 
+This plot replicates the experiments in Figure 6 (better accuracy-delay trade-off than the baselines under a wide range of video contents and video analytic models) on one video and one baseline (AWStream).
+We pick AWStream as the representative baseline since it is the baseline that is both applicable under various settings (DDS baseline and EAAR baseline are not applicable when the video analytic model has no region proposal module) and competitive (the accuracy of Vigil baseline is significantly lower than other approaches, and the accuracy-delay trade-off of Vigil is worse than AWStream).
+
 Note that the exact number may vary. Here is one figure reproduced by us under different server/ffmpeg version/CUDA version/torch version/torchvision version. 
 
 ![Delay-accuracy trade-off](artifact/delay-accuracy-reproduce.jpg)
