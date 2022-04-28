@@ -1,4 +1,6 @@
-# video-compression
+# AccMPEG
+
+Our codebase is a bit messy. We'll clean up our codebase after NSDI fall deadline 😆
 
 Here are the steps to run our code. We assume you start from a directory called ```$DIR```, and your working machine contains an NVIDIA GPU.
 
