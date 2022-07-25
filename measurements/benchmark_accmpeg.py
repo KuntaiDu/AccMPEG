@@ -28,14 +28,14 @@ executable_network = ie_core_handler.load_network(
     network, device_name="CPU", num_requests=100
 )
 
-# define input data
+# define input data, resolution: 720p
 random_input_data = np.random.randn(1, 3, 720, 1280).astype(np.float32)
 tensor_description = TensorDesc(
     precision="FP32", dims=(1, 3, 720, 1280), layout="NCHW"
 )
 input_blob = Blob(tensor_description, random_input_data)
 
-
+# perform inference for 100 times
 for i in range(100):
     with Timer("AccMPEG", logger):  # measure the time
         inference_request = executable_network.requests[i]
