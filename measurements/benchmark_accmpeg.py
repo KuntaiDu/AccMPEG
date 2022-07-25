@@ -56,5 +56,5 @@ with open("AccMPEG.log", "r") as f:
     for val in re.findall(pattern, f.read()):
         times.append(float(val))
 
-print("AccMPEG runs for ", np.mean(times), " sec per video chunk.")
+print("AccMPEG runs for ", np.mean(times), " sec on a 720p frame in average.")
 
