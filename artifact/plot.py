@@ -5,7 +5,7 @@ import numpy as np
 import yaml
 from matplotlib.patches import Ellipse
 
-stats = yaml.load(open("stats_QP30_thresh7_segmented_FPN", "r").read())
+stats = yaml.safe_load(open("stats_QP30_thresh7_segmented_FPN", "r").read())
 
 # color palatte
 colors = [
