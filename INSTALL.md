@@ -46,7 +46,7 @@ Then, activate the installed environment:
 ```bash
 conda activate accmpeg
 ```
-To finish configuring the environment, you have to install pytorch, torchvision (Check https://pytorch.org/get-started/locally/ for the installation command; we used pytorch=1.8.2 with cuda 11.1 to replicate the results) and detectron2 (check https://github.com/facebookresearch/detectron2/blob/main/INSTALL.md). **PLease install them THROUGH PIP** rather than conda (since conda will install an ancient version of torchvision that triggers wierd bugs).
+To finish configuring the environment, you have to install `pytorch` and `torchvision` (Check https://pytorch.org/get-started/locally/ for the installation command; we used `pytorch=1.8.2` with `cuda 11.1` to replicate the results) and `detectron2` (check https://github.com/facebookresearch/detectron2/blob/main/INSTALL.md to find a version that matches pytorch and cuda). **PLease install them THROUGH `pip`** rather than `conda` (since `conda will` install an ancient version of torchvision that triggers wierd bugs).
 
 The procedure above will automatically install a old version ```ffmpeg```. We need to renew it. Please download the static version of ffmpeg through https://johnvansickle.com/ffmpeg/ and use the ffmpeg binary inside to replace previous ffmpeg binary (you can check the location of it thorugh ```which ffmpeg```.)
 
