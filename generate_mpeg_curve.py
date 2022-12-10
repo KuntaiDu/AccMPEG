@@ -42,7 +42,6 @@ def main(args):
     logger = logging.getLogger("mpeg_curve")
 
     for video_name in args.inputs:
-        assert Path(video_name).is_dir()
         video_name = Path(video_name)
 
         # # generate ground truth
